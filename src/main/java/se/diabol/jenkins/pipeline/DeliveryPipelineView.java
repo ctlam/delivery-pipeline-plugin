@@ -76,6 +76,11 @@ import javax.servlet.ServletException;
 
 public class DeliveryPipelineView extends View {
 
+    private static final class ViewMode {
+        static final String MINIMALIST = "Minimalist";
+        static final String DETAILED = "Detailed";
+    }
+
     private static final Logger LOG = Logger.getLogger(DeliveryPipelineView.class.getName());
 
     private static final int DEFAULT_INTERVAL = 2;
@@ -114,6 +119,10 @@ public class DeliveryPipelineView extends View {
     private int maxNumberOfVisiblePipelines = -1;
     private List<RegExpSpec> regexpFirstJobs;
     private boolean linkToConsoleLog = false;
+
+    private String viewMode = ViewMode.MINIMALIST;
+    private boolean useUTCTimeStrings = true;
+    private boolean showCL = true;
 
     private transient String error;
 
@@ -422,6 +431,32 @@ public class DeliveryPipelineView extends View {
         this.linkToConsoleLog = linkToConsoleLog;
     }
 
+    public String getViewMode() {
+        return viewMode;
+    }
+
+    public void setViewMode(String viewMode) {
+        this.viewMode = viewMode;
+    }
+
+    @Exported
+    public boolean isUseUTCTimeStrings() {
+        return useUTCTimeStrings;
+    }
+
+    public void setUseUTCTimeStrings(boolean useUTCTimeStrings) {
+        this.useUTCTimeStrings = useUTCTimeStrings;
+    }
+
+    @Exported
+    public boolean isShowCL() {
+        return showCL;
+    }
+
+    public void setShowCL(boolean showCL) {
+        this.showCL = showCL;
+    }
+
     @JavaScriptMethod
     public void triggerManual(String projectName, String upstreamName, String buildId)
             throws TriggerException, AuthenticationException {
@@ -645,6 +680,13 @@ public class DeliveryPipelineView extends View {
                 return FormValidation.error("Value must be greater that 0");
             }
             return FormValidation.ok();
+        }
+
+        public ListBoxModel doFillViewModeItems() {
+            ListBoxModel options = new ListBoxModel();
+            options.add(ViewMode.MINIMALIST);
+            options.add(ViewMode.DETAILED);
+            return options;
         }
 
         @Override

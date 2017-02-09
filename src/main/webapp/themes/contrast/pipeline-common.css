@@ -23,6 +23,13 @@ section.pipeline-component h2 {
     margin-top: 0;
 }
 
+section.pipeline-component h3 {
+    font-size: 14px;
+    font-weight: bold;
+    font-stretch: expanded;
+    margin: 0;
+}
+
 section.pipeline {
     display: table;
     border-collapse: separate;

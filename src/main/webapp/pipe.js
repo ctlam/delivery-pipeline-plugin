@@ -111,10 +111,18 @@ function pipelineUtils() {
                                                html.push(" triggered by " + triggered);
                                            }
 
-                                           html.push(' started <span id="' + pipeline.id + '\">' + formatDate(pipeline.timestamp, lastUpdate) + '</span></h2>');
+                                           html.push(' - Started <span id="' + pipeline.id + '\">' + formatDate(pipeline.timestamp, lastUpdate) + '</span></h2>');
+
+                                           if (data.useUTCTimeStrings) {
+                                               html.push('<h3>Started on: ' + formatUTCDate(pipeline.timestamp) + '</h3>');
+                                           }
 
                                            if (data.showTotalBuildTime) {
                                                html.push('<h3>Total build time: ' + formatDuration(pipeline.totalBuildTime) + '</h3>');
+                                           }
+
+                                           if (data.showCL) {
+                                               html.push('<h3>Changelist: ' + '<br><br></h3>');
                                            }
 
                                            if (showChanges && pipeline.changes && pipeline.changes.length > 0) {
@@ -163,8 +171,12 @@ function pipelineUtils() {
 
                                                id = getTaskId(task.id, i);
 
-                                               timestamp = formatDate(task.status.timestamp, lastUpdate);
-
+                                               if (data.useUTCTimeStrings) {
+                                                 timestamp = formatCardUTCDate(task.status.timestamp);
+                                               } else {
+                                                 timestamp = formatDate(task.status.timestamp, lastUpdate); 
+                                               }
+                                               
                                                tasks.push({id: id, taskId: task.id, buildId: task.buildId});
 
                                                progress = 100;
@@ -184,7 +196,7 @@ function pipelineUtils() {
 
                                                html.push("<div id=\"" + id + "\" class=\"status stage-task " + task.status.type +
                                                    "\"><div class=\"task-progress " + progressClass + "\" style=\"width: " + progress + "%;\"><div class=\"task-content\">" +
-                                                   "<div class=\"task-header\"><div class=\"taskname\"><a href=\"" + getLink(data, task.link) + consoleLogLink + "\">" + htmlEncode(task.name) + "</a></div>");
+                                                   "<div class=\"task-header\"><div class=\"taskname\"><a href=\"" + getLink(data, task.link) + consoleLogLink + "\">" + htmlEncode("#" + task.buildId + " " + task.name) + "</a></div>");
                                                if (data.allowManualTriggers && task.manual && task.manualStep.enabled && task.manualStep.permission) {
                                                    html.push('<div class="task-manual" id="manual-' + id + '" title="Trigger manual build" onclick="triggerManual(\'' + id + '\', \'' + task.id + '\', \'' + task.manualStep.upstreamProject + '\', \'' + task.manualStep.upstreamId + '\', \'' + view.viewUrl + '\');">');
                                                    html.push("</div>");
@@ -202,7 +214,7 @@ function pipelineUtils() {
                                                }
 
                                                if (task.status.duration >= 0) {
-                                                   html.push("<div class='duration'>" + formatDuration(task.status.duration) + "</div>");
+                                                   html.push("<div class='duration'>" + "%nbsp;" + formatDuration(task.status.duration) + "</div>");
                                                }
 
                                                html.push("</div></div></div></div>");
@@ -505,6 +517,20 @@ function formatDate(date, currentTime) {
     }
 }
 
+function formatUTCDate(date) {
+  if (date != null) {
+    return (new Date(date)).toUTCString();
+  }
+  return "";
+}
+
+function formatCardUTCDate(date) {
+  if (date != null) {
+    return (new Date(date)).toUTCString().split(' ').slice(1, 5).join(' ');
+  }
+  return "";
+}
+
 function formatDuration(millis) {
     if (millis > 0) {
         var seconds = Math.floor(millis / 1000),
@@ -652,4 +678,8 @@ function equalheight(container) {
             rowDivs[currentDiv].height(currentTallest);
         }
     });
+
+  function getChangelist() {
+
+  }
 }

@@ -23,6 +23,13 @@ section.pipeline-component h2 {
     margin-top: 0;
 }
 
+section.pipeline-component h3 {
+    font-size: 14px;
+    font-weight: bold;
+    font-stretch: expanded;
+    margin: 0;
+}
+
 section.pipeline {
     display: table;
     border-collapse: separate;
@@ -180,7 +187,7 @@ div.task-rebuild {
 
 .duration {
     display: table-cell;
-    padding-left: 20px;
+    white-space: pre-wrap;
 }
 
 div.task-progress-running {
