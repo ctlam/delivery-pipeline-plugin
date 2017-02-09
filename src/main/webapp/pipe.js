@@ -122,8 +122,14 @@ function pipelineUtils() {
                                            }
 
                                            if (data.showCL) {
-                                               html.push('<h3>Changelist: ' + '<br><br></h3>');
+                                               html.push('<h3>Changelist: ' + getBuildCL("test-freestyle", "13") + '</h3>');
                                            }
+
+                                           if (data.showArtifacts) {
+                                               html.push('<h3>Artifacts: ' + getBuildArtifacts() + '</h3>');
+                                           }
+
+                                           html.push('<h3><br></h3>');
 
                                            if (showChanges && pipeline.changes && pipeline.changes.length > 0) {
                                                html.push(generateChangeLog(pipeline.changes));
@@ -214,7 +220,7 @@ function pipelineUtils() {
                                                }
 
                                                if (task.status.duration >= 0) {
-                                                   html.push("<div class='duration'>" + "%nbsp;" + formatDuration(task.status.duration) + "</div>");
+                                                   html.push("<div class='duration'>" + formatDuration(task.status.duration) + "</div>");
                                                }
 
                                                html.push("</div></div></div></div>");
@@ -678,8 +684,51 @@ function equalheight(container) {
             rowDivs[currentDiv].height(currentTallest);
         }
     });
+}
 
-  function getChangelist() {
+/**
+ * Get the CL for a build.
+ * TODO: Make this asynchronous -- A(synchronous)JAX for a reason
+ */
+function getBuildCL(taskId, buildNum) {
+    var CL = "No CL found";
+    Q.ajax({
+        url: "http://localhost:8080/job/" + taskId + "/" + buildNum + "/artifact/CL.txt",
+        type: "GET",
+        dataType: 'json',
+        async: false,
+        cache: false,
+        timeout: 20000,
+        success: function (data) {
+            CL = data;
+        },
+        error: function (xhr, status, error) {
+        }
+    })
+    return CL;
+}
 
-  }
+/**
+ * Get all artifacts for a build.
+ * TODO: Make this asynchronous -- A(synchronous)JAX for a reason
+ */
+function getBuildArtifacts() {
+    var artifacts = "";
+    Q.ajax({
+        url: "http://localhost:8080/job/test-freestyle/13/api/json?tree=artifacts[*]",
+        type: "GET",
+        dataType: 'json',
+        async: false,
+        cache: false,
+        timeout: 20000,
+        success: function (json) {
+            var data = json.artifacts;
+            for (var i=0; i<data.length; i++) {
+                artifacts += data[i].fileName + ", ";
+            }
+        },
+        error: function (xhr, status, error) {
+        }
+    })
+    return artifacts.substring(0, artifacts.length - 2);
 }

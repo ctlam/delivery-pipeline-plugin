@@ -123,6 +123,7 @@ public class DeliveryPipelineView extends View {
     private String viewMode = ViewMode.MINIMALIST;
     private boolean useUTCTimeStrings = true;
     private boolean showCL = true;
+    private boolean showArtifacts = true;
 
     private transient String error;
 
@@ -455,6 +456,15 @@ public class DeliveryPipelineView extends View {
 
     public void setShowCL(boolean showCL) {
         this.showCL = showCL;
+    }
+
+    @Exported
+    public boolean isShowArtifacts() {
+        return showArtifacts;
+    }
+
+    public void setShowArtifacts(boolean showArtifacts) {
+        this.showArtifacts = showArtifacts;
     }
 
     @JavaScriptMethod
