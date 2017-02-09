@@ -122,11 +122,15 @@ function pipelineUtils() {
                                            }
 
                                            if (data.showCL) {
-                                               html.push('<h3>Changelist: ' + getBuildCL("test-freestyle", "13") + '</h3>');
+                                               var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                                               var buildNum = pipeline.version.substring(1, pipeline.version.length);
+                                               html.push('<h3>Changelist: ' + getBuildCL(jobName, buildNum) + '</h3>');
                                            }
 
                                            if (data.showArtifacts) {
-                                               html.push('<h3>Artifacts: ' + getBuildArtifacts() + '</h3>');
+                                               var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                                               var buildNum = pipeline.version.substring(1, pipeline.version.length);
+                                               html.push('<h3>Artifacts: ' + getBuildArtifactLinks(jobName, buildNum) + '</h3>');
                                            }
 
                                            html.push('<h3><br></h3>');
@@ -688,6 +692,7 @@ function equalheight(container) {
 
 /**
  * Get the CL for a build.
+ * Should be safe to cache the results as they are static
  * TODO: Make this asynchronous -- A(synchronous)JAX for a reason
  */
 function getBuildCL(taskId, buildNum) {
@@ -697,7 +702,7 @@ function getBuildCL(taskId, buildNum) {
         type: "GET",
         dataType: 'json',
         async: false,
-        cache: false,
+        cache: true,
         timeout: 20000,
         success: function (data) {
             CL = data;
@@ -710,25 +715,47 @@ function getBuildCL(taskId, buildNum) {
 
 /**
  * Get all artifacts for a build.
+ * Should be safe to cache the results as they are static
  * TODO: Make this asynchronous -- A(synchronous)JAX for a reason
  */
-function getBuildArtifacts() {
-    var artifacts = "";
+function getBuildArtifacts(taskId, buildNum) {
+    var artifacts = [];
     Q.ajax({
-        url: "http://localhost:8080/job/test-freestyle/13/api/json?tree=artifacts[*]",
+        url: "http://localhost:8080/job/" + taskId + "/" + buildNum + "/api/json?tree=artifacts[*]",
         type: "GET",
         dataType: 'json',
         async: false,
-        cache: false,
+        cache: true,
         timeout: 20000,
         success: function (json) {
             var data = json.artifacts;
-            for (var i=0; i<data.length; i++) {
-                artifacts += data[i].fileName + ", ";
+            if (data.length > 0) {
+                for (var i=0; i<data.length; i++) {
+                    artifacts.push(data[i].fileName);
+                }
             }
         },
         error: function (xhr, status, error) {
         }
     })
-    return artifacts.substring(0, artifacts.length - 2);
+    return artifacts;
+}
+
+function getBuildArtifactLinks(taskId, buildNum) {
+    var artifacts = getBuildArtifacts(taskId, buildNum);
+
+    if (artifacts.length == 0) {
+      return "No artifacts found";
+    }
+
+    var retVal = "";
+
+    if (artifacts.length > 0) {
+        for (var i=0; i<artifacts.length; i++) {
+            retVal += "<a href=\"http://localhost:8080/job/" + taskId + "/" + buildNum + "/artifact/" + artifacts[i] + "\">" + htmlEncode(artifacts[i]) + "</a>, "
+        }
+        retVal = retVal.substring(0, retVal.length - 2);
+    }
+
+    return retVal;
 }
