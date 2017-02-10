@@ -115,8 +115,8 @@
     </f:section>
 
     <f:section title="Additional Display Settings">
-         <f:entry title="Preferred Display Mode" field="viewMode">
-            <f:select />
+        <f:entry title="Preferred Display Mode" field="viewMode">
+            <f:select/>
         </f:entry>
 
         <f:entry title="Use UTC Time Strings" field="useUTCTimeStrings">
@@ -125,6 +125,10 @@
 
         <f:entry title="Display CL" field="showCL">
             <f:checkbox/>
+        </f:entry>
+
+        <f:entry title="CL Type" field="changelistType">
+            <f:select/>
         </f:entry>
 
         <f:entry title="Display Artifacts" field="showArtifacts">

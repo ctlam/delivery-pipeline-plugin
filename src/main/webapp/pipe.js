@@ -124,7 +124,13 @@ function pipelineUtils() {
                                            if (data.showCL) {
                                                var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
                                                var buildNum = pipeline.version.substring(1, pipeline.version.length);
-                                               html.push('<h3>Changelist: ' + getBuildCL(jobName, buildNum) + '</h3>');
+
+                                               if (data.changelistType == "Promotion") {
+                                                   html.push('<h3>Changelist: ' + getPromoCL(jobName, buildNum) + '</h3>'); 
+                                               }
+                                               else if (data.changelistType == "Codedeploy") {
+                                                   html.push('<h3>Changelist: ' + getCodeDeployCL(jobName, buildNum) + '</h3>');
+                                               }                                               
                                            }
 
                                            if (data.showArtifacts) {
@@ -691,11 +697,11 @@ function equalheight(container) {
 }
 
 /**
- * Get the CL for a build.
+ * Get the CL for a promotion job.
  * Should be safe to cache the results as they are static
  * TODO: Make this asynchronous -- A(synchronous)JAX for a reason
  */
-function getBuildCL(taskId, buildNum) {
+function getPromoCL(taskId, buildNum) {
     var CL = "No CL found";
     Q.ajax({
         url: "http://localhost:8080/job/" + taskId + "/" + buildNum + "/artifact/CL.txt",
@@ -711,6 +717,64 @@ function getBuildCL(taskId, buildNum) {
         }
     })
     return CL;
+}
+
+/**
+ * Get the CL for a production job.
+ * Should be safe to cache the results as they are static
+ * TODO: Make this asynchronous -- A(synchronous)JAX for a reason
+ */
+function getCodeDeployCL(taskId, buildNum) {
+    var CL = "No CL found";
+    Q.ajax({
+        url: "http://localhost:8080/job/" + taskId + "/" + buildNum + "/api/json?tree=actions[parameters[*]]",
+        type: "GET",
+        dataType: 'json',
+        async: false,
+        cache: true,
+        timeout: 20000,
+        success: function (json) {
+            CL = extractCLFromJson(json);
+        },
+        error: function (xhr, status, error) {
+        }
+    })
+    return CL;
+}
+
+/**
+ * Helper method to extract the CODEDEPLOY_CL from json
+ */
+function extractCLFromJson(json) {
+    var actions = json.actions;
+    var params = {};
+
+    if (actions.length > 0) {
+        for(var i=0; i<actions.length; i++) {
+            if ("parameters" in actions[i]) {
+                params = actions[i].parameters;
+
+                for(var j=0; j<params.length; j++) {
+                    param = params[j];
+                    if (param.name == "CODEDEPLOY_CL") {
+                        return param.value;
+                    }  
+                }
+            }
+        }
+    }
+    return "No CL found";
+}
+
+/**
+ * TESTING PURPOSES ONLY
+ */
+function testParse() {
+    var CL = "";
+    var json = {"actions":[{},{},{"parameters":[{"name":"TEST","value":false},{"name":"CODEDEPLOY_CL","value":"0123456789"}]},{}]};
+
+    CL = extractCLFromJson(json);
+    console.info(CL);
 }
 
 /**
