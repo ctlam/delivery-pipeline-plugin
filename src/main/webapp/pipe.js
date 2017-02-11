@@ -547,18 +547,22 @@ Date.prototype.dst = function() {
     return this.getTimezoneOffset() < this.stdTimezoneOffset();
 }
 
+/**
+ * For the 4 primary US timezones
+ */
 function getUSTimezone(timezone) {
     var timezones = '{}';
     var today = new Date();
 
     // Account for daylight savings time
     if (today.dst()) {
-        timezones = JSON.parse('{"GMT-0700": "PST", "GMT-0600": "MST", "GMT-0500": "CST","GMT-0400": "EST"}');
+        timezones = JSON.parse('{"GMT-0700": "PDT", "GMT-0600": "MDT", "GMT-0500": "CDT","GMT-0400": "EDT"}');
     }
     else {
         timezones = JSON.parse('{"GMT-0800": "PST", "GMT-0700": "MST", "GMT-0600": "CST","GMT-0500": "EST"}');
     }
 
+    // For other parts in the world
     if (timezones.hasOwnProperty(timezone) != true) {
         return timezone;
     }
