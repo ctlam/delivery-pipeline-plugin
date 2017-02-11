@@ -113,8 +113,8 @@ function pipelineUtils() {
 
                                            html.push(' - Started <span id="' + pipeline.id + '\">' + formatDate(pipeline.timestamp, lastUpdate) + '</span></h2>');
 
-                                           if (data.useUTCTimeStrings) {
-                                               html.push('<h3>Started on: ' + formatUTCDate(pipeline.timestamp) + '</h3>');
+                                           if (data.useFullLocaleTimeStrings) {
+                                               html.push('<h3>Started on: ' + formatLongDate(pipeline.timestamp) + '</h3>');
                                            }
 
                                            if (data.showTotalBuildTime) {
@@ -187,8 +187,8 @@ function pipelineUtils() {
 
                                                id = getTaskId(task.id, i);
 
-                                               if (data.useUTCTimeStrings) {
-                                                 timestamp = formatCardUTCDate(task.status.timestamp);
+                                               if (data.useFullLocaleTimeStrings) {
+                                                 timestamp = formatCardLongDate(task.status.timestamp);
                                                } else {
                                                  timestamp = formatDate(task.status.timestamp, lastUpdate); 
                                                }
@@ -533,16 +533,16 @@ function formatDate(date, currentTime) {
     }
 }
 
-function formatUTCDate(date) {
+function formatLongDate(date) {
   if (date != null) {
-    return (new Date(date)).toUTCString();
+    return moment(date, "YYYY-MM-DDTHH:mm:ss").toString();
   }
   return "";
 }
 
-function formatCardUTCDate(date) {
+function formatCardLongDate(date) {
   if (date != null) {
-    return (new Date(date)).toUTCString().split(' ').slice(1, 5).join(' ');
+    return moment(date, "YYYY-MM-DDTHH:mm:ss").toString().split(' ').slice(1, 5).join(' ');
   }
   return "";
 }
@@ -702,20 +702,29 @@ function equalheight(container) {
  * TODO: Make this asynchronous -- A(synchronous)JAX for a reason
  */
 function getPromoCL(taskId, buildNum) {
+
+    // Check that a CL exists first before attempting to find CL.txt so we aren't
+    // submitting GET requests only to receive a 404 error
+    var artifacts = getBuildArtifacts(taskId, buildNum);
     var CL = "No CL found";
-    Q.ajax({
-        url: "http://localhost:8080/job/" + taskId + "/" + buildNum + "/artifact/CL.txt",
-        type: "GET",
-        dataType: 'json',
-        async: false,
-        cache: true,
-        timeout: 20000,
-        success: function (data) {
-            CL = data;
-        },
-        error: function (xhr, status, error) {
+
+    for(var i=0; i<artifacts.length; i++) {
+        if (artifacts[i] == 'CL.txt') {
+            Q.ajax({
+                url: "http://localhost:8080/job/" + taskId + "/" + buildNum + "/artifact/CL.txt",
+                type: "GET",
+                dataType: 'json',
+                async: false,
+                cache: true,
+                timeout: 20000,
+                success: function (data) {
+                    CL = data;
+                },
+                error: function (xhr, status, error) {
+                }
+            })
         }
-    })
+    }
     return CL;
 }
 

@@ -119,7 +119,7 @@
             <f:select/>
         </f:entry>
 
-        <f:entry title="Use UTC Time Strings" field="useUTCTimeStrings">
+        <f:entry title="Use Full Locale Time Strings" field="useFullLocaleTimeStrings">
             <f:checkbox/>
         </f:entry>
 

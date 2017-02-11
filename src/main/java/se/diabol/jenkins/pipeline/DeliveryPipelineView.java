@@ -129,7 +129,7 @@ public class DeliveryPipelineView extends View {
     private boolean linkToConsoleLog = false;
 
     private String viewMode = ViewMode.MINIMALIST;
-    private boolean useUTCTimeStrings = true;
+    private boolean useFullLocaleTimeStrings = true;
     private boolean showCL = true;
     private String changelistType = ChangelistType.PROMOTION;
     private boolean showArtifacts = true;
@@ -451,12 +451,12 @@ public class DeliveryPipelineView extends View {
     }
 
     @Exported
-    public boolean isUseUTCTimeStrings() {
-        return useUTCTimeStrings;
+    public boolean isUseFullLocaleTimeStrings() {
+        return useFullLocaleTimeStrings;
     }
 
-    public void setUseUTCTimeStrings(boolean useUTCTimeStrings) {
-        this.useUTCTimeStrings = useUTCTimeStrings;
+    public void setUseFullLocaleTimeStrings(boolean useFullLocaleTimeStrings) {
+        this.useFullLocaleTimeStrings = useFullLocaleTimeStrings;
     }
 
     @Exported
