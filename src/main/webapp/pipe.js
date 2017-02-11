@@ -533,9 +533,46 @@ function formatDate(date, currentTime) {
     }
 }
 
+/**
+ * Full credit for the 2 Date methods below to the author of the following article:
+ * http://javascript.about.com/library/bldst.htm
+ */
+Date.prototype.stdTimezoneOffset = function() {
+    var jan = new Date(this.getFullYear(), 0, 1);
+    var jul = new Date(this.getFullYear(), 6, 1);
+    return Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
+}
+
+Date.prototype.dst = function() {
+    return this.getTimezoneOffset() < this.stdTimezoneOffset();
+}
+
+function getUSTimezone(timezone) {
+    var timezones = '{}';
+    var today = new Date();
+
+    // Account for daylight savings time
+    if (today.dst()) {
+        timezones = JSON.parse('{"GMT-0700": "PST", "GMT-0600": "MST", "GMT-0500": "CST","GMT-0400": "EST"}');
+    }
+    else {
+        timezones = JSON.parse('{"GMT-0800": "PST", "GMT-0700": "MST", "GMT-0600": "CST","GMT-0500": "EST"}');
+    }
+
+    if (timezones.hasOwnProperty(timezone) != true) {
+        return timezone;
+    }
+
+    return timezones[timezone];
+}
+
 function formatLongDate(date) {
   if (date != null) {
-    return moment(date, "YYYY-MM-DDTHH:mm:ss").toString();
+    // No moment method to get the timezone so we'll do it ourselves
+    var dateString = moment(date, "YYYY-MM-DDTHH:mm:ss").toString();
+    var timezoneString = getUSTimezone(dateString.split(' ')[5]);
+    dateString = moment(date, "YYYY-MM-DDTHH:mm:ss").toString().split(' ').slice(0, 5).join(' ') + " " + timezoneString;
+    return dateString;
   }
   return "";
 }
@@ -723,6 +760,8 @@ function getPromoCL(taskId, buildNum) {
                 error: function (xhr, status, error) {
                 }
             })
+            // Don't expect too many artifacts but save time where we can
+            break;
         }
     }
     return CL;
