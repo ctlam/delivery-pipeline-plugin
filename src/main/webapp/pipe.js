@@ -1,3 +1,5 @@
+var instance;
+
 function pipelineUtils() {
      var self = this;
      this.updatePipelines = function(divNames, errorDiv, view, fullscreen, page, component, showChanges, aggregatedChangesGroupingPattern, timeout, pipelineid, jsplumb) {
@@ -53,6 +55,8 @@ function pipelineUtils() {
                                }
 
                                jsplumb.reset();
+                               instance = jsplumb;
+
                                for (var c = 0; c < data.pipelines.length; c++) {
                                    html = [];
                                    component = data.pipelines[c];
@@ -76,8 +80,22 @@ function pipelineUtils() {
                                    if (component.pipelines.length === 0) {
                                        html.push("No builds done yet.");
                                    }
+
                                    for (var i = 0; i < component.pipelines.length; i++) {
                                        pipeline = component.pipelines[i];
+
+                                       try {
+                                          var displayBuildId = "displayBuild" + pipeline.version.substring(1);
+                                          var toggleBuildId = "toggleBuild" + pipeline.version.substring(1);
+                                          var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                                          var dataString = jobName + " " + pipeline.version;
+                                          var statusString = pipeline.stages[0].tasks[0].status.type;
+                                          html.push('<br><a id="' + displayBuildId + '" href="javascript:toggle(' + '\'' + displayBuildId + '\', \'' + toggleBuildId + '\'); redrawConnections();">Collapse</a> ' + dataString + " " + pipeline.stages[0].tasks[0].status.type);
+                                       }
+                                       catch(err) {
+                                          html.push('<br><a id="' + displayBuildId + '" href="javascript:toggle(' + '\'' + displayBuildId + '\', \'' + toggleBuildId + '\'); redrawConnections();">Collapse</a> ' + dataString);
+                                       }
+                                       html.push('<div id="' + toggleBuildId + '" style="display: block">');
 
                                        if (pipeline.triggeredBy && pipeline.triggeredBy.length > 0) {
                                            triggered = "";
@@ -123,7 +141,7 @@ function pipelineUtils() {
 
                                            if (data.showCL) {
                                                var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                                               var buildNum = pipeline.version.substring(1, pipeline.version.length);
+                                               var buildNum = pipeline.version.substring(1);
 
                                                if (data.changelistType == "Promotion") {
                                                    html.push('<h3>Changelist: ' + getPromoCL(jobName, buildNum) + '</h3>'); 
@@ -135,7 +153,7 @@ function pipelineUtils() {
 
                                            if (data.showArtifacts) {
                                                var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                                               var buildNum = pipeline.version.substring(1, pipeline.version.length);
+                                               var buildNum = pipeline.version.substring(1);
                                                html.push('<h3>Artifacts: ' + getBuildArtifactLinks(jobName, buildNum) + '</h3>');
                                            }
 
@@ -154,6 +172,7 @@ function pipelineUtils() {
 
                                        for (var j = 0; j < pipeline.stages.length; j++) {
                                            stage = pipeline.stages[j];
+
                                            if (stage.row > row) {
                                                html.push('</div><div class="pipeline-row">');
                                                column = 0;
@@ -253,6 +272,7 @@ function pipelineUtils() {
                                        html.push('</div>');
                                        html.push("</section>");
 
+                                       html.push('</div>');
                                    }
 
                                    html.push("</section>");
@@ -272,7 +292,6 @@ function pipelineUtils() {
                                                Q.each(stage.downstreamStageIds, function (l, value) {
                                                    source = getStageId(stage.id + "", index);
                                                    target = getStageId(value + "", index);
-
                                                    jsplumb.connect({
                                                        source: source,
                                                        target: target,
@@ -318,6 +337,10 @@ function pipelineUtils() {
                            }
                         jsplumb.repaintEverything();
                        }
+}
+
+function redrawConnections() {
+    instance.repaintEverything();
 }
 
 function getLink(data, link) {
@@ -874,4 +897,18 @@ function getBuildArtifactLinks(taskId, buildNum) {
     }
 
     return retVal;
+}
+
+function toggle(displayBuildId, toggleBuildId) {
+    var ele = document.getElementById(toggleBuildId);
+    var text = document.getElementById(displayBuildId);
+
+    if (ele.style.display == "block") {
+        ele.style.display = "none";
+        text.innerHTML = "Expand";
+    }
+    else {
+        ele.style.display = "block";
+        text.innerHTML = "Collapse";
+    }
 }
