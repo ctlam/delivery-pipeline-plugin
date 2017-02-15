@@ -2,6 +2,53 @@ div.hide {
     visibility: hidden;
 }
 
+.build_header {
+    background: white;
+    color: black;
+    display: block;
+    padding: 8px;
+    font-size: 16px;
+    border-style: solid;
+    border-width: 1px;
+    border-color: #EEEEEE;
+}
+
+.build_SUCCESS {
+    padding: 8px 8px 8px 40px;
+    vertical-align: top;
+    background: url("success.png") no-repeat;
+}
+
+.build_FAILED {
+    padding: 8px 8px 8px 40px;
+    vertical-align: top;
+    background: url("failed.png") no-repeat;
+}
+
+.small_SUCCESS {
+    padding: 0px 0px 0px 40px;
+    vertical-align: top;
+    background: url("successSmall.png") no-repeat;
+}
+
+.small_FAILED {
+    padding: 0px 0px 0px 40px;
+    vertical-align: top;
+    background: url("failedSmall.png") no-repeat;
+}
+
+.circle_SUCCESS {
+    padding: 8px 8px 8px 40px;
+    vertical-align: top;
+    background: url("successCircle.png") no-repeat;
+}
+
+.circle_FAILED {
+    padding: 8px 8px 8px 40px;
+    vertical-align: top;
+    background: url("failedCircle.png") no-repeat;
+}
+
 div.pipeline-loading-icon {
     content: url("white-load.gif");
     display: block;
@@ -25,7 +72,7 @@ section.pipeline-component h2 {
 
 section.pipeline-component h3 {
     font-size: 14px;
-    font-weight: bold;
+    font-weight: normal;
     font-stretch: expanded;
     margin: 0;
 }
@@ -116,6 +163,56 @@ div.stage-task {
     white-space: nowrap;
     margin: 2px 2px 2px 2px;
 }
+/* ------------------------------- */
+div.stage-minimalist {
+    margin-right: 60px;
+    min-width: 100px;
+    border: solid 1px #C8C8C8;
+    border-radius: 5px;
+}
+
+div.stage-minimalist a {
+    text-decoration: none;
+    color: inherit;
+}
+
+div.stage-minimalist a:visited {
+    color: inherit;
+}
+
+div.stage-minimalist-task {
+    white-space: nowrap;
+    margin: 2px 2px 2px 2px;
+    min-height: 20px;
+}
+
+div.taskname-minimalist {
+    display: table-cell;
+    font-size: 12px;
+    font-weight: normal;
+    text-align: center;
+}
+
+.stage-minimalist-name {
+    display: table-cell;
+    vertical-align: top;
+}
+
+div.minimalist-task-progress {
+    min-height: 20px;
+}
+
+div.stage-minimalist-header {
+    background: #EEEEEE;
+    font-size: 13px;
+    font-weight: bold;
+    display: table;
+    width: 100%;
+    white-space: nowrap;
+    height: 25px;
+}
+
+/* ------------------------------- */
 
 div.task-content {
     padding: 3px 3px 3px 3px;
@@ -187,7 +284,7 @@ div.task-rebuild {
 
 .duration {
     display: table-cell;
-    padding-left: 20px;
+    padding-left: 30px;
 }
 
 div.task-progress-running {

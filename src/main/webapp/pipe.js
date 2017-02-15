@@ -90,7 +90,7 @@ function pipelineUtils() {
                                           var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
                                           var dataString = jobName + " " + pipeline.version;
                                           var statusString = pipeline.stages[0].tasks[0].status.type;
-                                          html.push('<br><a id="' + displayBuildId + '" href="javascript:toggle(' + '\'' + displayBuildId + '\', \'' + toggleBuildId + '\'); redrawConnections();">Collapse</a> ' + dataString + " " + pipeline.stages[0].tasks[0].status.type);
+                                          html.push('<br><a id="' + displayBuildId + '" class="build_header build_' + statusString + '" href="javascript:toggle(' + '\'' + displayBuildId + '\', \'' + toggleBuildId + '\'); redrawConnections();">' + dataString + " " + pipeline.stages[0].tasks[0].status.type + '</a> ');
                                        }
                                        catch(err) {
                                           html.push('<br><a id="' + displayBuildId + '" href="javascript:toggle(' + '\'' + displayBuildId + '\', \'' + toggleBuildId + '\'); redrawConnections();">Collapse</a> ' + dataString);
@@ -121,18 +121,19 @@ function pipelineUtils() {
 
                                        if (pipeline.aggregated) {
                                            if (component.pipelines.length > 1) {
-                                               html.push('<h2>Aggregated view</h2>');
+                                               html.push('<h3>Aggregated view</h3>');
                                            }
                                        } else {
-                                           html.push('<h2>' + htmlEncode(pipeline.version));
-                                           if (triggered != "") {
-                                               html.push(" triggered by " + triggered);
-                                           }
-
-                                           html.push(' - Started <span id="' + pipeline.id + '\">' + formatDate(pipeline.timestamp, lastUpdate) + '</span></h2>');
-
                                            if (data.useFullLocaleTimeStrings) {
                                                html.push('<h3>Started on: ' + formatLongDate(pipeline.timestamp) + '</h3>');
+                                               html.push('<h3>Triggered by: ' + triggered + '</h3>');
+                                           }
+                                           else {
+                                              html.push('<h3>' + htmlEncode(pipeline.version));
+                                               if (triggered != "") {
+                                                   html.push(" triggered by " + triggered);
+                                               }
+                                               html.push(' - Started <span id="' + pipeline.id + '\">' + formatDate(pipeline.timestamp, lastUpdate) + '</span></h3>');
                                            }
 
                                            if (data.showTotalBuildTime) {
@@ -181,14 +182,25 @@ function pipelineUtils() {
 
                                            if (stage.column > column) {
                                                for (var as = column; as < stage.column; as++) {
-                                                   html.push('<div class="pipeline-cell"><div class="stage hide"></div></div>');
+                                                   if (data.viewMode == "Minimalist") {
+                                                       html.push('<div class="pipeline-cell"><div class="stage-minimalist hide"></div></div>');
+                                                   } else {
+                                                       html.push('<div class="pipeline-cell"><div class="stage hide"></div></div>');
+                                                   }
                                                    column++;
                                                }
                                            }
 
                                            html.push('<div class="pipeline-cell">');
-                                           html.push('<div id="' + getStageId(stage.id + "", i) + '" class="stage ' + getStageClassName(stage.name) + '">');
-                                           html.push('<div class="stage-header"><div class="stage-name">' + htmlEncode(stage.name) + '</div>');
+
+                                           if (data.viewMode == "Minimalist") {
+                                               html.push('<div id="' + getStageId(stage.id + "", i) + '" class="stage stage-minimalist ' + getStageClassName(stage.name) + '">');
+                                               html.push('<div class="stage-minimalist-header"><div class="stage-minimalist-name small_SUCCESS">' + htmlEncode("#" + stage.tasks[0].buildId) + '</div>'); // + htmlEncode(stage.name) + '</div>');
+                                           } else {
+                                               html.push('<div id="' + getStageId(stage.id + "", i) + '" class="stage ' + getStageClassName(stage.name) + '">');
+                                               html.push('<div class="stage-header"><div class="stage-name build_SUCCESS">' + htmlEncode(stage.name) + '</div>');
+                                           }
+
                                            if (!pipeline.aggregated) {
                                                html.push('</div>');
                                            } else {
@@ -229,36 +241,42 @@ function pipelineUtils() {
                                                   }
                                                }
 
-                                               html.push("<div id=\"" + id + "\" class=\"status stage-task " + task.status.type +
-                                                   "\"><div class=\"task-progress " + progressClass + "\" style=\"width: " + progress + "%;\"><div class=\"task-content\">" +
-                                                   "<div class=\"task-header\"><div class=\"taskname\"><a href=\"" + getLink(data, task.link) + consoleLogLink + "\">" + htmlEncode("#" + task.buildId + " " + task.name) + "</a></div>");
-                                               if (data.allowManualTriggers && task.manual && task.manualStep.enabled && task.manualStep.permission) {
-                                                   html.push('<div class="task-manual" id="manual-' + id + '" title="Trigger manual build" onclick="triggerManual(\'' + id + '\', \'' + task.id + '\', \'' + task.manualStep.upstreamProject + '\', \'' + task.manualStep.upstreamId + '\', \'' + view.viewUrl + '\');">');
-                                                   html.push("</div>");
+                                               if (data.viewMode == "Minimalist") {
+                                                   html.push("<div id=\"" + id + "\" class=\"status stage-minimalist-task " + // task.status.type +
+                                                       "\"><div class=\"minimalist-task-progress " + progressClass + "\" style=\"width: " + progress + "%;\"><div class=\"task-content\">" +
+                                                       "<div class=\"task-header\"><div class=\"taskname-minimalist\">" + task.name + "</div>");
+                                                   html.push("</div></div></div></div>");
                                                } else {
-                                                   if (!pipeline.aggregated && data.allowRebuild && task.rebuildable) {
-                                                       html.push('<div class="task-rebuild" id="rebuild-' + id + '" title="Trigger rebuild" onclick="triggerRebuild(\'' + id + '\', \'' + task.id + '\', \'' + task.buildId + '\', \'' + view.viewUrl + '\');">');
+                                                   html.push("<div id=\"" + id + "\" class=\"status stage-task " + task.status.type +
+                                                       "\"><div class=\"task-progress " + progressClass + "\" style=\"width: " + progress + "%;\"><div class=\"task-content\">" +
+                                                       "<div class=\"task-header\"><div class=\"taskname\"><a href=\"" + getLink(data, task.link) + consoleLogLink + "\">" + htmlEncode("#" + task.buildId + " " + task.name) + "</a></div>");
+                                                   if (data.allowManualTriggers && task.manual && task.manualStep.enabled && task.manualStep.permission) {
+                                                       html.push('<div class="task-manual" id="manual-' + id + '" title="Trigger manual build" onclick="triggerManual(\'' + id + '\', \'' + task.id + '\', \'' + task.manualStep.upstreamProject + '\', \'' + task.manualStep.upstreamId + '\', \'' + view.viewUrl + '\');">');
                                                        html.push("</div>");
+                                                   } else {
+                                                       if (!pipeline.aggregated && data.allowRebuild && task.rebuildable) {
+                                                           html.push('<div class="task-rebuild" id="rebuild-' + id + '" title="Trigger rebuild" onclick="triggerRebuild(\'' + id + '\', \'' + task.id + '\', \'' + task.buildId + '\', \'' + view.viewUrl + '\');">');
+                                                           html.push("</div>");
+                                                       }
                                                    }
-                                               }
 
-                                               html.push('</div><div class="task-details">');
+                                                   html.push('</div><div class="task-details">');
 
-                                               if (timestamp != "") {
-                                                   html.push("<div id=\"" + id + ".timestamp\" class='timestamp'>" + timestamp + "</div>");
-                                               }
+                                                   if (timestamp != "") {
+                                                       html.push("<div id=\"" + id + ".timestamp\" class='timestamp'>" + timestamp + "</div>");
+                                                   }
 
-                                               if (task.status.duration >= 0) {
-                                                   html.push("<div class='duration'>" + formatDuration(task.status.duration) + "</div>");
-                                               }
+                                                   if (task.status.duration >= 0) {
+                                                       html.push("<div class='duration'>" + formatDuration(task.status.duration) + "</div>");
+                                                   }
 
-                                               html.push("</div></div></div></div>");
+                                                   html.push("</div></div></div></div>");
 
-                                               html.push(generateDescription(data, task));
-                                               html.push(generateTestInfo(data, task));
-                                               html.push(generateStaticAnalysisInfo(data, task));
-                                               html.push(generatePromotionsInfo(data, task));
-
+                                                   html.push(generateDescription(data, task));
+                                                   html.push(generateTestInfo(data, task));
+                                                   html.push(generateStaticAnalysisInfo(data, task));
+                                                   html.push(generatePromotionsInfo(data, task));
+                                                   }
                                            }
 
                                            if (pipeline.aggregated && stage.changes && stage.changes.length > 0) {
@@ -905,10 +923,10 @@ function toggle(displayBuildId, toggleBuildId) {
 
     if (ele.style.display == "block") {
         ele.style.display = "none";
-        text.innerHTML = "Expand";
+        // text.innerHTML = "> " + displayBuildId;
     }
     else {
         ele.style.display = "block";
-        text.innerHTML = "Collapse";
+        // text.innerHTML = "v " + displayBuildId;
     }
 }
