@@ -229,7 +229,7 @@ div.stage-header {
 }
 
 .stage-name {
-    padding: 8px;
+    /*padding: 8px;*/
     display: table-cell;
     vertical-align: top;
 }
