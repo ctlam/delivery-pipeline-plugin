@@ -93,7 +93,7 @@ function pipelineUtils() {
                                           html.push('<br><a id="' + displayBuildId + '" class="build_header build_' + statusString + '" href="javascript:toggle(' + '\'' + displayBuildId + '\', \'' + toggleBuildId + '\'); redrawConnections();">' + dataString + " " + pipeline.stages[0].tasks[0].status.type + '</a> ');
                                        }
                                        catch(err) {
-                                          html.push('<br><a id="' + displayBuildId + '" href="javascript:toggle(' + '\'' + displayBuildId + '\', \'' + toggleBuildId + '\'); redrawConnections();">Collapse</a> ' + dataString);
+                                          html.push('<br><a id="' + displayBuildId + '" href="javascript:toggle(' + '\'' + displayBuildId + '\', \'' + toggleBuildId + '\'); redrawConnections();">' + dataString + '</a>');
                                        }
                                        html.push('<div id="' + toggleBuildId + '" style="display: block">');
 
@@ -143,13 +143,25 @@ function pipelineUtils() {
                                            if (data.showCL) {
                                                var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
                                                var buildNum = pipeline.version.substring(1);
+                                               var changelist = "";
 
                                                if (data.changelistType == "Promotion") {
-                                                   html.push('<h3>Changelist: ' + getPromoCL(jobName, buildNum) + '</h3>'); 
+                                                   changelist = getPromoCL(jobName, buildNum);
                                                }
                                                else if (data.changelistType == "Codedeploy") {
-                                                   html.push('<h3>Changelist: ' + getCodeDeployCL(jobName, buildNum) + '</h3>');
-                                               }                                               
+                                                   changelist = getCodeDeployCL(jobName, buildNum);
+                                               }
+                                                   
+                                               html.push('<h3>Changelist: ' + changelist + '</h3>');                                       
+
+                                               if (data.showManifestInfo && (data.manifestJobName != "")) {
+                                                   if (changelist != "No CL found" && changelist != "") {
+                                                       html.push('<h3 id="manifest-' + buildNum + '-' + changelist +'">Manifest Info: ' + getManifestInfo(data.manifestJobName, changelist, buildNum) + '</h3>'); 
+                                                   }
+                                                   else {
+                                                       html.push('<h3 id="manifest-' + buildNum + '-' + changelist +'">Manifest Info: No manifest info found</h3>'); 
+                                                   }
+                                               }
                                            }
 
                                            if (data.showArtifacts) {
@@ -195,10 +207,10 @@ function pipelineUtils() {
 
                                            if (data.viewMode == "Minimalist") {
                                                html.push('<div id="' + getStageId(stage.id + "", i) + '" class="stage stage-minimalist ' + getStageClassName(stage.name) + '">');
-                                               html.push('<div class="stage-minimalist-header"><div class="stage-minimalist-name small_SUCCESS">' + htmlEncode("#" + stage.tasks[0].buildId) + '</div>'); // + htmlEncode(stage.name) + '</div>');
+                                               html.push('<div class="stage-minimalist-header"><div class="stage-minimalist-name small_' + stage.tasks[0].status.type + '">' + htmlEncode("#" + stage.tasks[0].buildId) + '</div>'); // + htmlEncode(stage.name) + '</div>');
                                            } else {
                                                html.push('<div id="' + getStageId(stage.id + "", i) + '" class="stage ' + getStageClassName(stage.name) + '">');
-                                               html.push('<div class="stage-header"><div class="stage-name build_SUCCESS">' + htmlEncode(stage.name) + '</div>');
+                                               html.push('<div class="stage-header"><div class="stage-name build_' + stage.tasks[0].status.type +'">' + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + '</div>');
                                            }
 
                                            if (!pipeline.aggregated) {
@@ -242,9 +254,12 @@ function pipelineUtils() {
                                                }
 
                                                if (data.viewMode == "Minimalist") {
+                                                   var hoverString = "Timestamp: " + timestamp + "<br>Duration: " + formatDuration(task.status.duration);
+
+                                                   // TODO: Re-add console link
                                                    html.push("<div id=\"" + id + "\" class=\"status stage-minimalist-task " + // task.status.type +
                                                        "\"><div class=\"minimalist-task-progress " + progressClass + "\" style=\"width: " + progress + "%;\"><div class=\"task-content\">" +
-                                                       "<div class=\"task-header\"><div class=\"taskname-minimalist\">" + task.name + "</div>");
+                                                       "<div class=\"task-header\"><div class=\"taskname-minimalist\"><a>" + htmlEncode(task.name) + "<span class=\"tooltip\">" + hoverString + "</span></a></div>");
                                                    html.push("</div></div></div></div>");
                                                } else {
                                                    html.push("<div id=\"" + id + "\" class=\"status stage-task " + task.status.type +
@@ -276,7 +291,7 @@ function pipelineUtils() {
                                                    html.push(generateTestInfo(data, task));
                                                    html.push(generateStaticAnalysisInfo(data, task));
                                                    html.push(generatePromotionsInfo(data, task));
-                                                   }
+                                               }
                                            }
 
                                            if (pipeline.aggregated && stage.changes && stage.changes.length > 0) {
@@ -299,6 +314,7 @@ function pipelineUtils() {
                                }
 
                                var index = 0, source, target;
+                               var anchors = [];
                                lastResponse = data;
                                equalheight(".pipeline-row .stage");
 
@@ -307,13 +323,20 @@ function pipelineUtils() {
                                        index = j;
                                        Q.each(pipeline.stages, function (k, stage) {
                                            if (stage.downstreamStages) {
+
+                                               if (data.viewMode == "Minimalist") {
+                                                   anchors = [[1, 0, 1, 0, 0, 25], [0, 0, -1, 0, 0, 25]];
+                                               } else {
+                                                   anchors = [[1, 0, 1, 0, 0, 37], [0, 0, -1, 0, 0, 37]];
+                                               }
+
                                                Q.each(stage.downstreamStageIds, function (l, value) {
                                                    source = getStageId(stage.id + "", index);
                                                    target = getStageId(value + "", index);
                                                    jsplumb.connect({
                                                        source: source,
                                                        target: target,
-                                                       anchors: [[1, 0, 1, 0, 0, 37], [0, 0, -1, 0, 0, 37]], // allow boxes to increase in height but keep anchor lines on the top
+                                                       anchors: anchors, // allow boxes to increase in height but keep anchor lines on the top
                                                        overlays: [
                                                            [ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12}]
                                                        ],
@@ -781,7 +804,7 @@ function equalheight(container) {
 /**
  * Get the CL for a promotion job.
  * Should be safe to cache the results as they are static
- * TODO: Make this asynchronous -- A(synchronous)JAX for a reason
+ * Synchronous because it is a maximum of one api call
  */
 function getPromoCL(taskId, buildNum) {
 
@@ -815,7 +838,7 @@ function getPromoCL(taskId, buildNum) {
 /**
  * Get the CL for a production job.
  * Should be safe to cache the results as they are static
- * TODO: Make this asynchronous -- A(synchronous)JAX for a reason
+ * Synchronous because it is a maximum of one api call
  */
 function getCodeDeployCL(taskId, buildNum) {
     var CL = "No CL found";
@@ -909,12 +932,97 @@ function getBuildArtifactLinks(taskId, buildNum) {
 
     if (artifacts.length > 0) {
         for (var i=0; i<artifacts.length; i++) {
-            retVal += "<a href=\"http://localhost:8080/job/" + taskId + "/" + buildNum + "/artifact/" + artifacts[i] + "\">" + htmlEncode(artifacts[i]) + "</a>, "
+            var artifactInfo = "";
+            Q.ajax({
+                url: "http://localhost:8080/job/" + taskId + "/" + buildNum + "/artifact/" + artifacts[i],
+                type: "GET",
+                async: false,
+                cache: true,
+                timeout: 20000,
+                success: function (json) {
+                    artifactInfo = json;
+                },
+                error: function (xhr, status, error) {
+                }
+            })
+
+            retVal += "<a href=\"http://localhost:8080/job/" + taskId + "/" + buildNum + "/artifact/" + artifacts[i] + "\">" + htmlEncode(artifacts[i]) + 
+            "<span class=\"tooltip\">" + artifactInfo + "</span></a>, "
         }
         retVal = retVal.substring(0, retVal.length - 2);
     }
 
     return retVal;
+}
+
+/**
+ * Get the matching manifest information for a build CL.
+ * Potentially a lot of calls will be made here
+ * Deal with this asynchronously with a callback function
+ */
+function getManifestInfo(manifestJobName, CL, buildNum) {
+    var data = "";
+    Q.ajax({
+        url: "http://localhost:8080/job/" + manifestJobName + "/api/json",
+        type: "GET",
+        dataType: 'json',
+        async: false,
+        cache: true,
+        timeout: 20000,
+        success: function (json) {
+            data = json;
+        },
+        error: function (xhr, status, error) {
+        }
+    })
+
+    var builds = data.builds;
+    if (builds.length > 0) {
+        for(var i=0; i<builds.length; i++) {
+            if ("number" in builds[i]) {
+                var num = builds[i].number;
+
+                Q.ajax({
+                    url: "http://localhost:8080/job/" + manifestJobName + "/" + num + "/artifact/manifest_info.txt",
+                    type: "GET",
+                    async: true,
+                    cache: true,
+                    timeout: 20000,
+                    success: function(data) {
+                        updateManifestInfo(data, CL, buildNum, this.url);
+                    },
+                    error: function (xhr, status, error) {
+                    }
+                })
+            }
+        }
+    }
+
+    return "No manifest info found";
+}
+
+/**
+ * Callback function to update the manifest information if correct
+ */
+function updateManifestInfo(data, CL, buildNum, url) {
+    var changelist = "";
+
+    if (data.indexOf("CHANGELIST") != -1) {
+        var lines = data.split('\n');
+        for (var i=0; i < lines.length; i++) {
+            if (lines[i].indexOf("CHANGELIST") != -1) {
+                changelist = lines[i].replace("CHANGELIST=", "");
+            }
+        }
+    }
+
+    if (changelist = CL) {
+        // Replace all standard hyphens with: &#x2011; -- a Unicode NON-BREAKING HYPHEN
+        var toolTipData = data.replace(/-/g, '&#x2011;').replace(/(?:\r\n|\r|\n)/g, '<br>');
+        var ele = document.getElementById("manifest-" + buildNum + "-" + changelist);
+        
+        ele.innerHTML = "Manifest Info: <a href=\"" + url + "\">" + url.split("/job/")[1] + '<span class="tooltip">' + toolTipData + '</span></a>';
+    }
 }
 
 function toggle(displayBuildId, toggleBuildId) {
@@ -924,9 +1032,11 @@ function toggle(displayBuildId, toggleBuildId) {
     if (ele.style.display == "block") {
         ele.style.display = "none";
         // text.innerHTML = "> " + displayBuildId;
+
     }
     else {
         ele.style.display = "block";
         // text.innerHTML = "v " + displayBuildId;
+
     }
 }

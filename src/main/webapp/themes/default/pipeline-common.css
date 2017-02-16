@@ -25,6 +25,24 @@ div.hide {
     background: url("failed.png") no-repeat;
 }
 
+.build_CANCELLED {
+    padding: 8px 8px 8px 40px;
+    vertical-align: top;
+    background: url("cancelled.png") no-repeat;
+}
+
+.build_NOT_BUILT  {
+    padding: 8px 8px 8px 40px;
+    vertical-align: top;
+    background: url("not_built.png") no-repeat;
+}
+
+.build_IDLE  {
+    padding: 8px 8px 8px 40px;
+    vertical-align: top;
+    background: url("not_built.png") no-repeat;
+}
+
 .small_SUCCESS {
     padding: 0px 0px 0px 40px;
     vertical-align: top;
@@ -35,6 +53,24 @@ div.hide {
     padding: 0px 0px 0px 40px;
     vertical-align: top;
     background: url("failedSmall.png") no-repeat;
+}
+
+.small_CANCELLED {
+    padding: 0px 0px 0px 40px;
+    vertical-align: top;
+    background: url("cancelledSmall.png") no-repeat;
+}
+
+.small_NOT_BUILT {
+    padding: 0px 0px 0px 40px;
+    vertical-align: top;
+    background: url("not_builtSmall.png") no-repeat;
+}
+
+.small_IDLE {
+    padding: 0px 0px 0px 40px;
+    vertical-align: top;
+    background: url("not_builtSmall.png") no-repeat;
 }
 
 .circle_SUCCESS {
@@ -513,4 +549,24 @@ div.aggregatedChangesPanelInner > ul {
 	background-color:#F5F5F5;
 	color:#D7D7D7;
 	cursor:default;
+}
+
+a span {
+    display: none;
+    position: absolute;
+    color: #fff;
+    background-color: green;
+    padding: 5px;
+    font-size: 14px;
+    font-weight: normal;
+    min-height: 50px;
+    min-width: 100px;
+    z-index: 1;
+}
+a {
+    position: relative;
+}
+a:hover span {
+    display: block;
+    text-align: left;
 }

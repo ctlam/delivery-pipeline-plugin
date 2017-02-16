@@ -133,6 +133,8 @@ public class DeliveryPipelineView extends View {
     private boolean showCL = true;
     private String changelistType = ChangelistType.PROMOTION;
     private boolean showArtifacts = true;
+    private boolean showManifestInfo = true;
+    private String manifestJobName = "";
 
     private transient String error;
 
@@ -441,6 +443,10 @@ public class DeliveryPipelineView extends View {
         this.linkToConsoleLog = linkToConsoleLog;
     }
 
+    /* -------------------------------------------- */
+    /*          Additional Display Settings         */
+    /* -------------------------------------------- */
+
     @Exported
     public String getViewMode() {
         return viewMode;
@@ -484,6 +490,24 @@ public class DeliveryPipelineView extends View {
 
     public void setShowArtifacts(boolean showArtifacts) {
         this.showArtifacts = showArtifacts;
+    }
+
+    @Exported
+    public boolean isShowManifestInfo() {
+        return showManifestInfo;
+    }
+
+    public void setShowManifestInfo(boolean showManifestInfo) {
+        this.showManifestInfo = showManifestInfo;
+    }
+
+    @Exported
+    public String getManifestJobName() {
+        return manifestJobName;
+    }
+
+    public void setManifestJobName(String manifestJobName) {
+        this.manifestJobName = manifestJobName;
     }
 
     @JavaScriptMethod
