@@ -93,7 +93,7 @@ function pipelineUtils() {
                                            var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
                                            var dataString = jobName + " " + pipeline.version;
                                            var statusString = pipeline.stages[0].tasks[0].status.type;
-                                           html.push('<br><a id="' + displayBuildId + '" class="build_header build_' + statusString + '" href="javascript:toggle(' + '\'' + displayBuildId + '\', \'' + toggleBuildId + '\'); redrawConnections();">' + dataString + " " + pipeline.stages[0].tasks[0].status.type + '</a> ');
+                                           html.push('<br><a id="' + displayBuildId + '" class="build_header build_' + statusString + '" href="javascript:toggle(\'' + toggleBuildId + '\'); redrawConnections();">' + dataString + " " + pipeline.stages[0].tasks[0].status.type + '</a> ');
                                         }
                                         catch(err) {
                                            html.push('<br><a id="' + displayBuildId + '" href="javascript:toggle(' + '\'' + displayBuildId + '\', \'' + toggleBuildId + '\'); redrawConnections();">' + dataString + '</a>');
@@ -1054,18 +1054,12 @@ function updateManifestInfo(data, clManifestMap, url) {
     }
 }
 
-function toggle(displayBuildId, toggleBuildId) {
+function toggle(toggleBuildId) {
     var ele = document.getElementById(toggleBuildId);
-    var text = document.getElementById(displayBuildId);
-
     if (ele.style.display == "block") {
         ele.style.display = "none";
-        // text.innerHTML = "> " + displayBuildId;
-
     }
     else {
         ele.style.display = "block";
-        // text.innerHTML = "v " + displayBuildId;
-
     }
 }

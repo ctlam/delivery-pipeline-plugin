@@ -262,6 +262,7 @@ div.stage-header {
     display: table;
     width: 100%;
     white-space: nowrap;
+    border-bottom: 1px solid #C8C8C8;
 }
 
 .stage-name {
