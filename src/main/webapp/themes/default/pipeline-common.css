@@ -231,7 +231,8 @@ div.taskname-minimalist {
 
 .stage-minimalist-name {
     display: table-cell;
-    vertical-align: top;
+    vertical-align: middle;
+    border-bottom: 1px solid #C8C8C8;
 }
 
 div.minimalist-task-progress {
@@ -267,7 +268,7 @@ div.stage-header {
 
 .stage-name {
     display: table-cell;
-    vertical-align: top;
+    vertical-align: middle;
 }
 
 .stage-version {
