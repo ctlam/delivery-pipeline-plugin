@@ -203,7 +203,7 @@ function pipelineUtils() {
                                             if (data.displayArguments != "") {
                                                 html.push('<h3>Additional Display Values</h3>');
                                                 html.push("<table style=\"min-width:500px; text-align:left; padding: 0px 50px 0px 0px;\">");
-                                                html.push(retrieveDisplayArguments(data.displayArguments, pipeline));
+                                                html.push(generateDisplayValueTable(data.displayArguments, pipeline.version.substring(1)));
                                                 html.push("</table>");
                                             }
 
@@ -353,6 +353,8 @@ function pipelineUtils() {
                                             html.push("</div></div>");
                                             column++;
                                         }
+
+                                        getDisplayValues(data.displayArguments, pipeline, pipeline.version.substring(1));
 
                                         html.push('</div>');
                                         html.push("</section>");
@@ -1133,11 +1135,29 @@ function updateManifestInfo(data, clManifestMap, url) {
 }
 
 /**
+ * Generate an table of specified display values
+ */
+function generateDisplayValueTable(args, pipelineNum) {
+    var displayVals = JSON.parse(args);
+    var retVal = "";
+
+    for (var value in displayVals) {
+        var displayValConfig = displayVals[value];
+        var projectName = "";
+        if (displayValConfig.hasOwnProperty("projectName")) {
+            projectName = displayValConfig.projectName;
+        }
+        retVal += "<tr><th>" + value + "</th><td id=\"" + getStageId(value, pipelineNum) + "-" + projectName + "\">Value not found across pipeline</td></tr>";
+    }
+    return retVal;
+}
+
+/**
  * @param {JSON} args
  * @param {JSON} projectMap
  * Retrieve desired values from any projects along a pipeline
  */
- function retrieveDisplayArguments(args, pipeline) {
+ function getDisplayValues(args, pipeline, pipelineNum) {
      var stage;
      var projectNameIdMap = {};
      var updateString = "";
@@ -1201,24 +1221,25 @@ function updateManifestInfo(data, clManifestMap, url) {
              Q.ajax({
                  url: url,
                  type: "GET",
-                 async: false,
+                 async: true,
                  cache: true,
                  timeout: 20000,
                  success: function(data) {
-                     if (envName != "") {
-                         if (data.hasOwnProperty("envMap")) {
-                             var envMap = data.envMap;
-
-                             if (envMap.hasOwnProperty(envName)) {
-                                 retVal += "<tr><th>" + envName + ": " + "</th><td>" + envMap[envName] + "</td></tr>";
-                             }
-                         }
-                     }
-                     // filePath and artifactName do not require data parsing
-                     else {
-                         var link = "<a href=\"" + url + "\">" + url.split("/job/")[1] + '<span class="tooltip">' + data + "</span></a>";
-                         retVal += "<tr><th>" + displayVal + ": " + "</th><td>" + link + "</td></tr>";
-                     }
+                    //  if (envName != "") {
+                    //      if (data.hasOwnProperty("envMap")) {
+                    //          var envMap = data.envMap;
+                     //
+                    //          if (envMap.hasOwnProperty(envName)) {
+                    //              retVal += "<tr><th>" + envName + ": " + "</th><td>" + envMap[envName] + "</td></tr>";
+                    //          }
+                    //      }
+                    //  }
+                    //  // filePath and artifactName do not require data parsing
+                    //  else {
+                    //      var link = "<a href=\"" + url + "\">" + url.split("/job/")[1] + '<span class="tooltip">' + data + "</span></a>";
+                    //      retVal += "<tr><th>" + displayVal + ": " + "</th><td>" + link + "</td></tr>";
+                    //  }
+                    updateDisplayValues(data, this.url, args, pipelineNum);
                  },
                  error: function (xhr, status, error) {
                  }
@@ -1229,11 +1250,94 @@ function updateManifestInfo(data, clManifestMap, url) {
              continue;
          }
      }
+ }
 
-     if (retVal == "") {
-         return "No display arguments found";
+ /**
+  * Callback function to update the specified display values
+  */
+ function updateDisplayValues(data, url, args, pipelineNum) {
+     var projectName = (url.split("/job/")[1]).split("/")[0];
+     var displayVals = JSON.parse(args);
+
+     // Check if we are parsing for an environment variable
+     if (url.indexOf("/injectedEnvVars/") != -1) {
+         for (var displayVal in displayVals) {
+             var displayValConfig = displayVals[displayVal];
+             var envName = "";
+
+             if (displayValConfig.hasOwnProperty("projectName")) {
+                 if (displayValConfig.projectName != projectName) {
+                     continue;
+                 }
+                 if (displayValConfig.hasOwnProperty("envName")) {
+                    envName = displayValConfig.envName;
+
+                    if (data.hasOwnProperty("envMap")) {
+                        var envMap = data.envMap;
+
+                        if (envMap.hasOwnProperty(envName)) {
+                            var id = getStageId(displayVal, pipelineNum) + "-" + projectName;
+                            console.info(id);
+                            var ele = document.getElementById(id);
+                            ele.innerHTML = envMap[envName];
+                        }
+                    }
+                 }
+             }
+         }
      }
-     return retVal;
+     else {
+         // Check if we are parsing for a filePath
+         if (url.indexOf("/ws/") != -1) {
+             var filePath = url.split("/ws/")[1];
+             for (var displayVal in displayVals) {
+                 var displayValConfig = displayVals[displayVal];
+
+                 if (displayValConfig.hasOwnProperty("projectName")) {
+                     if (displayValConfig.projectName != projectName) {
+                         continue;
+                     }
+                     if (displayValConfig.hasOwnProperty("filePath")) {
+                         if (displayValConfig.filePath == filePath) {
+                             var toolTipData = data.replace(/-/g, '&#x2011;').replace(/(?:\r\n|\r|\n)/g, '<br>');
+                             var id = getStageId(displayVal, pipelineNum) + "-" + projectName;
+                             var ele = document.getElementById(id);
+                             ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
+                         }
+                     }
+                 }
+             }
+         }
+         else {
+             var artifactName = url.split("/artifact/")[1];
+             for (var displayVal in displayVals) {
+                 var displayValConfig = displayVals[displayVal];
+
+                 if (JSON.stringify(displayValConfig.projectName) == projectName) {
+                     console.info("Needs JSON parse 1");
+                 }
+
+
+                 if (displayValConfig.hasOwnProperty("projectName")) {
+                     if (displayValConfig.projectName != projectName) {
+                         continue;
+                     }
+                     if (displayValConfig.hasOwnProperty("artifactName")) {
+                         if (JSON.stringify(displayValConfig.artifactName) == artifactName) {
+                             console.info("Needs JSON parse");
+                         }
+
+                         if (displayValConfig.artifactName == artifactName) {
+                             var toolTipData = data.replace(/-/g, '&#x2011;').replace(/(?:\r\n|\r|\n)/g, '<br>');
+                             var id = getStageId(displayVal, pipelineNum) + "-" + projectName;
+                             var ele = document.getElementById(id);
+                             ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
+                         }
+                     }
+                 }
+             }
+         }
+     }
  }
 
 function toggle(toggleBuildId) {
