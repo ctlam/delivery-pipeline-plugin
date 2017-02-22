@@ -90,7 +90,7 @@
         <f:entry title="URL for custom CSS file (fullscreen)" field="fullScreenCss">
             <f:textbox/>
         </f:entry>
-        
+
         <f:entry title="Enable paging" field="pagingEnabled">
             <f:checkbox/>
         </f:entry>
@@ -141,6 +141,10 @@
 
         <f:entry title="Manifest Job Name" field="manifestJobName">
             <f:textbox/>
+        </f:entry>
+
+        <f:entry title="Display Arguments" field="displayArguments">
+            <f:textarea/>
         </f:entry>
     </f:section>
 

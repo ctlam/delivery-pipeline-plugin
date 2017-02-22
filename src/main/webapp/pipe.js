@@ -93,10 +93,10 @@ function pipelineUtils() {
                                            var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
                                            var dataString = jobName + " " + pipeline.version;
                                            var statusString = pipeline.stages[0].tasks[0].status.type;
-                                           html.push('<br><a id="' + displayBuildId + '" class="build_header build_' + statusString + '" href="javascript:toggle(\'' + toggleBuildId + '\'); redrawConnections();">' + dataString + " " + pipeline.stages[0].tasks[0].status.type + '</a> ');
+                                           html.push('<br><a id="' + displayBuildId + '" class="build_header build_' + statusString + '" href="javascript:toggle(\'' + toggleBuildId + '\');">' + dataString + " " + pipeline.stages[0].tasks[0].status.type + '</a> ');
                                         }
                                         catch(err) {
-                                           html.push('<br><a id="' + displayBuildId + '" href="javascript:toggle(' + '\'' + displayBuildId + '\', \'' + toggleBuildId + '\'); redrawConnections();">' + dataString + '</a>');
+                                           html.push('<br><a id="' + displayBuildId + '" href="javascript:toggle(' + '\'' + displayBuildId + '\', \'' + toggleBuildId + '\');">' + dataString + '</a>');
                                         }
                                         html.push('<div id="' + toggleBuildId + '" style="display: block">');
 
@@ -127,9 +127,14 @@ function pipelineUtils() {
                                                 html.push('<h3>Aggregated view</h3>');
                                             }
                                         } else {
+                                            html.push("<table style=\"min-width:500px; text-align:left; padding: 0px 50px 0px 0px;\">");
                                             if (data.useFullLocaleTimeStrings) {
-                                                html.push('<h3>Started on: ' + formatLongDate(pipeline.timestamp) + '</h3>');
-                                                html.push('<h3>Triggered by: ' + triggered + '</h3>');
+                                                // html.push('<h3>Started on: ' + formatLongDate(pipeline.timestamp) + '</h3>');
+                                                // html.push('<h3>Triggered by: ' + triggered + '</h3>');
+
+                                                html.push("<tr><th>Started on: </th><td>" + formatLongDate(pipeline.timestamp) + "</td></tr>");
+                                                html.push("<tr><th>Duration (Dd HH:MM:SS): </th><td>" + formatLongDuration(pipeline.stages[0].tasks[0].status.duration) + "</td></tr>");
+                                                html.push("<tr><th>Triggered by: </th><td>" + triggered + "</td></tr>");
                                             }
                                             else {
                                                html.push('<h3>' + htmlEncode(pipeline.version));
@@ -155,7 +160,8 @@ function pipelineUtils() {
                                                     changelist = getCodeDeployCL(jobName, buildNum);
                                                 }
 
-                                                html.push('<h3>Changelist: ' + changelist + '</h3>');
+                                                // html.push('<h3>Changelist: ' + changelist + '</h3>');
+                                                html.push("<tr><th>Changelist: </th><td>" + changelist + "</td></tr>");
 
                                                 if (data.showManifestInfo && (data.manifestJobName != "")) {
                                                     if (changelist != "No CL found" && changelist != "") {
@@ -170,10 +176,12 @@ function pipelineUtils() {
                                                         }
 
                                                         // Obtain all the manifest information once at the end to minimize the number of API calls
-                                                        html.push('<h3 id="' + manifestId + '">Manifest Info: Loading...</h3>');
+                                                        // html.push('<h3 id="' + manifestId + '">Manifest Info: Loading...</h3>');
+                                                        html.push("<tr><th>Manifest Info: </th><td id=\"" + manifestId + "\">Loading...</td></tr>");
                                                     }
                                                     else {
-                                                        html.push('<h3 id="manifest-' + buildNum + '-' + changelist +'">Manifest Info: No manifest info found</h3>');
+                                                        // html.push('<h3 id="manifest-' + buildNum + '-' + changelist +'">Manifest Info: No manifest info found</h3>');
+                                                        html.push("<tr><th>Manifest Info: </th><td id=\"" + manifestId + "\">No manifest info found</td></tr>");
                                                     }
                                                 }
                                             }
@@ -181,14 +189,25 @@ function pipelineUtils() {
                                             if (data.showArtifacts) {
                                                 var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
                                                 var buildNum = pipeline.version.substring(1);
-                                                html.push('<h3>Artifacts: ' + getBuildArtifactLinks(jobName, buildNum) + '</h3>');
-                                            }
+                                                // html.push('<h3>Artifacts: ' + getBuildArtifactLinks(jobName, buildNum) + '</h3>');
 
-                                            html.push('<h3><br></h3>');
+                                                html.push("<tr><th>Artifacts: </th><td>" + getBuildArtifactLinks(jobName, buildNum) + "</td></tr>");
+                                            }
 
                                             if (showChanges && pipeline.changes && pipeline.changes.length > 0) {
                                                 html.push(generateChangeLog(pipeline.changes));
                                             }
+
+                                            html.push("</table><h3><br></h3>");
+
+                                            if (data.displayArguments != "") {
+                                                html.push('<h3>Additional Display Values</h3>');
+                                                html.push("<table style=\"min-width:500px; text-align:left; padding: 0px 50px 0px 0px;\">");
+                                                html.push(retrieveDisplayArguments(data.displayArguments, pipeline));
+                                                html.push("</table>");
+                                            }
+
+                                            html.push('<h3><br></h3>');
                                         }
 
                                         html.push('<section class="pipeline">');
@@ -220,8 +239,17 @@ function pipelineUtils() {
                                             html.push('<div class="pipeline-cell">');
 
                                             if (data.viewMode == "Minimalist") {
-                                                html.push('<div id="' + getStageId(stage.id + "", i) + '" class="stage stage-minimalist ' + getStageClassName(stage.name) + '">');
-                                                html.push('<div class="stage-minimalist-header"><div class="stage-minimalist-name small_' + stage.tasks[0].status.type + '">' + htmlEncode("#" + stage.tasks[0].buildId) + '</div>'); // + htmlEncode(stage.name) + '</div>');
+                                                var timestamp = "";
+                                                if (data.useFullLocaleTimeStrings) {
+                                                  timestamp = formatCardLongDate(stage.tasks[0].status.timestamp);
+                                                } else {
+                                                  timestamp = formatDate(stage.tasks[0].status.timestamp, lastUpdate);
+                                                }
+
+                                                var hoverString = "Timestamp: " + timestamp + "<br>Duration: " + formatDuration(stage.tasks[0].status.duration);
+
+                                                html.push('<div class="stage-minimalist ' + getStageClassName(stage.name) + '">');
+                                                html.push('<div class="stage-minimalist-header"><div class="stage-minimalist-name"><a href="' + getLink(data, stage.tasks[0].link) + '">' + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + '</a></div>');
                                             } else {
                                                 html.push('<div id="' + getStageId(stage.id + "", i) + '" class="stage ' + getStageClassName(stage.name) + '">');
                                                 html.push('<div class="stage-header"><div class="stage-name build_' + stage.tasks[0].status.type +'">' + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + '</div>');
@@ -270,13 +298,16 @@ function pipelineUtils() {
                                                 }
 
                                                 if (data.viewMode == "Minimalist") {
-                                                    var hoverString = "Timestamp: " + timestamp + "<br>Duration: " + formatDuration(task.status.duration);
-
+                                                    var hoverString = "Timestamp: " + timestamp + "<br>Duration: " + formatLongDuration(task.status.duration);
                                                     // TODO: Re-add console link
-                                                    html.push("<div id=\"" + id + "\" class=\"status stage-minimalist-task " + // task.status.type +
-                                                        "\"><div class=\"minimalist-task-progress " + progressClass + "\" style=\"width: " + progress + "%;\"><div class=\"task-content\">" +
-                                                        "<div class=\"task-header\"><div class=\"taskname-minimalist\"><a>" + htmlEncode(task.name) + "<span class=\"tooltip\">" + hoverString + "</span></a></div>");
-                                                    html.push("</div></div></div></div>");
+                                                    // html.push("<div id=\"" + id + "\" class=\"status stage-minimalist-task " +
+                                                    //     "\"><div class=\"minimalist-task-progress " + progressClass + "\" style=\"width: " + progress + "%;\"><div class=\"task-content-minimalist\">" +
+                                                    //     "<div class=\"task-header\"><div class=\"taskname-minimalist\"><a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle_" + task.status.type + "\"><br><span class=\"tooltip\">" + hoverString + "</span></a></div>");
+
+                                                    html.push("<div id=\"" + id + "\" class=\"status stage-minimalist-task " +
+                                                        "\"><div class=\"task-content-minimalist\">" +
+                                                        "<div class=\"task-header\"><div class=\"taskname-minimalist\"><a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle_" + task.status.type + "\"><br><span class=\"tooltip\">" + hoverString + "</span></a></div>");
+                                                    html.push("</div></div></div>");
                                                 } else {
                                                     html.push("<div id=\"" + id + "\" class=\"status stage-task " + // task.status.type +
                                                         "\"><div class=\"task-progress " + progressClass + "\" style=\"width: " + progress + "%;\"><div class=\"task-content\">" +
@@ -340,7 +371,7 @@ function pipelineUtils() {
                                 }
 
                                 var index = 0, source, target;
-                                var anchors = [];
+                                var anchors, connector = [];
                                 lastResponse = data;
                                 equalheight(".pipeline-row .stage");
 
@@ -351,9 +382,11 @@ function pipelineUtils() {
                                             if (stage.downstreamStages) {
 
                                                 if (data.viewMode == "Minimalist") {
-                                                    anchors = [[1, 0, 1, 0, 0, 25], [0, 0, -1, 0, 0, 25]];
+                                                    anchors = [[1, 0, 1, 0, 0, 12], [0, 0, -1, 0, 0, 12]];
+                                                    connector = ["Flowchart", { stub: 50, gap: 0, midpoint: 0, alwaysRespectStubs: true } ];
                                                 } else {
                                                     anchors = [[1, 0, 1, 0, 0, 37], [0, 0, -1, 0, 0, 37]];
+                                                    connector = ["Flowchart", { stub: 25, gap: 2, midpoint: 1, alwaysRespectStubs: true } ];
                                                 }
 
                                                 Q.each(stage.downstreamStageIds, function (l, value) {
@@ -364,10 +397,11 @@ function pipelineUtils() {
                                                         target: target,
                                                         anchors: anchors, // allow boxes to increase in height but keep anchor lines on the top
                                                         overlays: [
-                                                            [ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12}]
+                                                            //[ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12}]
+                                                            [ "Arrow", { location: 1, foldback: 0.9, width: 1, length: 12}]
                                                         ],
                                                         cssClass: "relation",
-                                                        connector: ["Flowchart", { stub: 25, gap: 2, midpoint: 1, alwaysRespectStubs: true } ],
+                                                        connector: connector,
                                                         paintStyle: { lineWidth: 2, strokeStyle: "rgba(118,118,118,1)" },
                                                         endpoint: ["Blank"]
                                                     });
@@ -665,7 +699,16 @@ function formatLongDate(date) {
     // No moment method to get the timezone so we'll do it ourselves
     var dateString = moment(date, "YYYY-MM-DDTHH:mm:ss").toString();
     var timezoneString = getUSTimezone(dateString.split(' ')[5]);
-    dateString = moment(date, "YYYY-MM-DDTHH:mm:ss").toString().split(' ').slice(0, 5).join(' ') + " " + timezoneString;
+    var hourString = dateString.split(' ')[4];
+    var hour = hourString.split(':')[0];
+    var timeOfDayString = "AM";
+
+    if (parseInt(hour) > 12) {
+        timeOfDayString = "PM";
+        hourString = (parseInt(hour) - 12).toString() + ':' + hourString.split(':').slice(1).join(':');
+    }
+
+    dateString = moment(date, "YYYY-MM-DDTHH:mm:ss").toString().split(' ').slice(0, 4).join(' ') + " " + hourString + " " + timeOfDayString + " " + timezoneString;
     return dateString;
   }
   return "";
@@ -676,6 +719,40 @@ function formatCardLongDate(date) {
     return moment(date, "YYYY-MM-DDTHH:mm:ss").toString().split(' ').slice(1, 5).join(' ');
   }
   return "";
+}
+
+/**
+ * Returns a human readable duration string in Dd HH:MM:SS
+ */
+function formatLongDuration(ts) {
+    if (ts > 0) {
+        var timestamp = Math.floor(ts / 1000);
+        var seconds = (timestamp % 60).toString();
+
+        timestamp = Math.floor(timestamp / 60);
+        var minutes = (timestamp % 60).toString();
+
+        timestamp = Math.floor(timestamp / 60);
+        var hours = (timestamp % 24).toString();
+
+        timestamp = Math.floor(timestamp / 24);
+        var days = timestamp.toString();
+
+        if (hours.length == 1) {
+            hours = "0" + hours;
+        }
+
+        if (minutes.length == 1) {
+            minutes = "0" + minutes;
+        }
+
+        if (seconds.length == 1) {
+            seconds = "0" + seconds;
+        }
+
+        return days + 'd ' + hours + ':' + minutes + ':' + seconds;
+    }
+    return "never started";
 }
 
 function formatDuration(millis) {
@@ -1049,10 +1126,115 @@ function updateManifestInfo(data, clManifestMap, url) {
             var toolTipData = data.replace(/-/g, '&#x2011;').replace(/(?:\r\n|\r|\n)/g, '<br>');
             var ele = document.getElementById(manifestIds[i]);
 
-            ele.innerHTML = "Manifest Info: <a href=\"" + url + "\">" + url.split("/job/")[1] + '<span class="tooltip">' + toolTipData + '</span></a>';
+            // ele.innerHTML = "Manifest Info: <a href=\"" + url + "\">" + url.split("/job/")[1] + '<span class="tooltip">' + toolTipData + '</span></a>';
+            ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + '<span class="tooltip">' + toolTipData + '</span></a>';
         }
     }
 }
+
+/**
+ * @param {JSON} args
+ * @param {JSON} projectMap
+ * Retrieve desired values from any projects along a pipeline
+ */
+ function retrieveDisplayArguments(args, pipeline) {
+     var stage;
+     var projectNameIdMap = {};
+     var updateString = "";
+     var retVal = "";
+
+     // Get a mapping of project names to project build ids
+     for (var j = 0; j < pipeline.stages.length; j++) {
+         stage = pipeline.stages[j];
+         projectNameIdMap[stage.name] = stage.tasks[0].buildId;
+     }
+
+     var displayArgs = JSON.parse(args);
+
+     for (var displayVal in displayArgs) {
+         var displayValConfig = displayArgs[displayVal];
+         var projectName, filePath, artifactName, envName, grepPattern;
+         projectName = filePath = artifactName = envName = grepPattern = "";
+
+         if (displayValConfig.hasOwnProperty("projectName")) {
+             projectName = displayValConfig.projectName;
+
+             if (projectNameIdMap.hasOwnProperty(projectName) == false) {
+                 continue;
+             }
+
+             if (displayValConfig.hasOwnProperty("filePath")) {
+                 filePath = displayValConfig.filePath;
+             }
+
+             if (displayValConfig.hasOwnProperty("artifactName")) {
+                 artifactName = displayValConfig.artifactName;
+             }
+
+             if (displayValConfig.hasOwnProperty("envName")) {
+                 envName = displayValConfig.envName;
+             }
+
+             // We expect one of the following to be populated so we know where to look
+             if (filePath == "" && artifactName == "" && envName == "") {
+                 continue;
+             }
+
+             var url = "";
+             if (artifactName != "") {
+                 url = "http://localhost:8080/job/" + projectName + "/" + projectNameIdMap[projectName] + "/artifact/" + artifactName;
+             }
+
+             if (filePath != "") {
+                 url = "http://localhost:8080/job/" + projectName + "/ws/" + filePath;
+             }
+
+             if (envName != "") {
+                 url = "http://localhost:8080/job/" + projectName + "/" + projectNameIdMap[projectName] + "/injectedEnvVars/api/json";
+             }
+
+             // In the event that somehow we fail to create a URL
+             if (url == "") {
+                 continue;
+             }
+
+             Q.ajax({
+                 url: url,
+                 type: "GET",
+                 async: false,
+                 cache: true,
+                 timeout: 20000,
+                 success: function(data) {
+                     if (envName != "") {
+                         if (data.hasOwnProperty("envMap")) {
+                             var envMap = data.envMap;
+
+                             if (envMap.hasOwnProperty(envName)) {
+                                 retVal += "<tr><th>" + envName + ": " + "</th><td>" + envMap[envName] + "</td></tr>";
+                             }
+                         }
+                     }
+                     // filePath and artifactName do not require data parsing
+                     else {
+                         var link = "<a href=\"" + url + "\">" + url.split("/job/")[1] + '<span class="tooltip">' + data + "</span></a>";
+                         retVal += "<tr><th>" + displayVal + ": " + "</th><td>" + link + "</td></tr>";
+                     }
+                 },
+                 error: function (xhr, status, error) {
+                 }
+             })
+         }
+         else {
+             // We expect a project name for each display value -- otherwise we don't know where to look
+             continue;
+         }
+     }
+
+     if (retVal == "") {
+         return "No display arguments found";
+     }
+     return retVal;
+ }
 
 function toggle(toggleBuildId) {
     var ele = document.getElementById(toggleBuildId);
@@ -1062,4 +1244,5 @@ function toggle(toggleBuildId) {
     else {
         ele.style.display = "block";
     }
+    redrawConnections();
 }

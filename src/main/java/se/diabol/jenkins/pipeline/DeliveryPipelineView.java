@@ -135,6 +135,7 @@ public class DeliveryPipelineView extends View {
     private boolean showArtifacts = true;
     private boolean showManifestInfo = true;
     private String manifestJobName = "";
+    private String displayArguments = "";
 
     private transient String error;
 
@@ -508,6 +509,15 @@ public class DeliveryPipelineView extends View {
 
     public void setManifestJobName(String manifestJobName) {
         this.manifestJobName = manifestJobName;
+    }
+
+    @Exported
+    public String getDisplayArguments() {
+        return displayArguments;
+    }
+
+    public void setDisplayArguments(String displayArguments) {
+        this.displayArguments = displayArguments;
     }
 
     @JavaScriptMethod

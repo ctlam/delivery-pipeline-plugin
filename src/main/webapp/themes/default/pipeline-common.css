@@ -43,46 +43,52 @@ div.hide {
     background: url("not_built.png") no-repeat;
 }
 
-.small_SUCCESS {
-    padding: 0px 0px 0px 40px;
-    vertical-align: top;
-    background: url("successSmall.png") no-repeat;
-}
-
-.small_FAILED {
-    padding: 0px 0px 0px 40px;
-    vertical-align: top;
-    background: url("failedSmall.png") no-repeat;
-}
-
-.small_CANCELLED {
-    padding: 0px 0px 0px 40px;
-    vertical-align: top;
-    background: url("cancelledSmall.png") no-repeat;
-}
-
-.small_NOT_BUILT {
-    padding: 0px 0px 0px 40px;
-    vertical-align: top;
-    background: url("not_builtSmall.png") no-repeat;
-}
-
-.small_IDLE {
-    padding: 0px 0px 0px 40px;
-    vertical-align: top;
-    background: url("not_builtSmall.png") no-repeat;
-}
-
 .circle_SUCCESS {
-    padding: 8px 8px 8px 40px;
-    vertical-align: top;
+    float: left;
+    left: 37.5%;
     background: url("successCircle.png") no-repeat;
+    height: 26px;
+    width: 26px;
 }
 
 .circle_FAILED {
-    padding: 8px 8px 8px 40px;
-    vertical-align: top;
+    float: left;
+    left: 37.5%;
     background: url("failedCircle.png") no-repeat;
+    height: 26px;
+    width: 26px;
+}
+
+.circle_CANCELLED {
+    float: left;
+    left: 37.5%;
+    background: url("cancelledCircle.png") no-repeat;
+    height: 26px;
+    width: 26px;
+}
+
+.circle_NOT_BUILT {
+    float: left;
+    left: 37.5%;
+    background: url("notBuiltCircle.png") no-repeat;
+    height: 26px;
+    width: 26px;
+}
+
+.circle_IDLE {
+    float: left;
+    left: 37.5%;
+    background: url("notBuiltCircle.png") no-repeat;
+    height: 26px;
+    width: 26px;
+}
+
+.circle_RUNNING {
+    float: left;
+    left: 37.5%;
+    background: url("runningCircle.gif") no-repeat;
+    height: 26px;
+    width: 26px;
 }
 
 div.pipeline-loading-icon {
@@ -201,10 +207,9 @@ div.stage-task {
 }
 /* ------------------------------- */
 div.stage-minimalist {
-    margin-right: 60px;
-    min-width: 100px;
-    border: solid 1px #C8C8C8;
-    border-radius: 5px;
+    margin-right: 40px;
+    width: 120px;
+    border: none;
 }
 
 div.stage-minimalist a {
@@ -218,21 +223,23 @@ div.stage-minimalist a:visited {
 
 div.stage-minimalist-task {
     white-space: nowrap;
-    margin: 2px 2px 2px 2px;
     min-height: 20px;
+    padding: 0;
 }
 
 div.taskname-minimalist {
     display: table-cell;
     font-size: 12px;
     font-weight: normal;
-    text-align: center;
+    width: 100%;
 }
 
 .stage-minimalist-name {
     display: table-cell;
     vertical-align: middle;
-    border-bottom: 1px solid #C8C8C8;
+    white-space: normal;
+    word-wrap: break-word;
+    width: 120px;
 }
 
 div.minimalist-task-progress {
@@ -240,13 +247,18 @@ div.minimalist-task-progress {
 }
 
 div.stage-minimalist-header {
-    background: #EEEEEE;
+    background-color: transparent;
     font-size: 13px;
-    font-weight: bold;
+    font-weight: normal;;
     display: table;
     width: 100%;
     white-space: nowrap;
-    height: 25px;
+    text-align: center;
+}
+
+div.task-content {
+    padding: 0;
+    width: 100%;
 }
 
 /* ------------------------------- */
