@@ -42,7 +42,7 @@ function pipelineUtils() {
                             var clManifestMap = {};
 
                             if (sessionStorage.savedPipelineDisplayValues == null) {
-                                sessionStorage.savedPipelineDisplayValues = {};
+                                sessionStorage.savedPipelineDisplayValues = JSON.stringify({});
                             }
                             var savedPipelineDisplayValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
 
@@ -151,44 +151,6 @@ function pipelineUtils() {
 
                                             if (data.showTotalBuildTime) {
                                                 html.push('<h3>Total build time: ' + formatDuration(pipeline.totalBuildTime) + '</h3>');
-                                            }
-
-                                            if (data.showCL) {
-                                                var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                                                var buildNum = pipeline.version.substring(1);
-                                                var changelist = "";
-
-                                                if (data.changelistType == "Promotion") {
-                                                    changelist = getPromoCL(jobName, buildNum);
-                                                }
-                                                else if (data.changelistType == "Codedeploy") {
-                                                    changelist = getCodeDeployCL(jobName, buildNum);
-                                                }
-
-                                                // html.push('<h3>Changelist: ' + changelist + '</h3>');
-                                                html.push("<tr><th>Changelist: </th><td>" + changelist + "</td></tr>");
-
-                                                if (data.showManifestInfo && (data.manifestJobName != "")) {
-                                                    if (changelist != "No CL found" && changelist != "") {
-
-                                                        var manifestId = 'manifest-' + buildNum + '-' + changelist;
-
-                                                        if (clManifestMap.hasOwnProperty(changelist)) {
-                                                            clManifestMap[changelist] = clManifestMap[changelist] + "," + manifestId;
-                                                        }
-                                                        else {
-                                                            clManifestMap[changelist] = manifestId;
-                                                        }
-
-                                                        // Obtain all the manifest information once at the end to minimize the number of API calls
-                                                        // html.push('<h3 id="' + manifestId + '">Manifest Info: Loading...</h3>');
-                                                        html.push("<tr><th>Manifest Info: </th><td id=\"" + manifestId + "\">Loading...</td></tr>");
-                                                    }
-                                                    else {
-                                                        // html.push('<h3 id="manifest-' + buildNum + '-' + changelist +'">Manifest Info: No manifest info found</h3>');
-                                                        html.push("<tr><th>Manifest Info: </th><td id=\"" + manifestId + "\">No manifest info found</td></tr>");
-                                                    }
-                                                }
                                             }
 
                                             if (data.showArtifacts) {
@@ -914,94 +876,6 @@ function equalheight(container) {
 }
 
 /**
- * Get the CL for a promotion job.
- */
-function getPromoCL(taskId, buildNum) {
-
-    // Check that a CL exists first before attempting to find CL.txt so we aren't
-    // submitting GET requests only to receive a 404 error
-    var artifacts = getBuildArtifacts(taskId, buildNum);
-    var CL = "No CL found";
-
-    for(var i=0; i<artifacts.length; i++) {
-        if (artifacts[i] == 'CL.txt') {
-            Q.ajax({
-                url: rootURL + "/job/" + taskId + "/" + buildNum + "/artifact/CL.txt",
-                type: "GET",
-                dataType: 'json',
-                async: false,
-                cache: true,
-                timeout: 20000,
-                success: function (data) {
-                    CL = data;
-                },
-                error: function (xhr, status, error) {
-                }
-            })
-            // Don't expect too many artifacts but save time where we can
-            break;
-        }
-    }
-    return CL;
-}
-
-/**
- * Get the CL for a production job.
- */
-function getCodeDeployCL(taskId, buildNum) {
-    var CL = "No CL found";
-    Q.ajax({
-        url: rootURL + "/job/" + taskId + "/" + buildNum + "/api/json?tree=actions[parameters[*]]",
-        type: "GET",
-        dataType: 'json',
-        async: false,
-        cache: true,
-        timeout: 20000,
-        success: function (json) {
-            CL = extractCLFromJson(json);
-        },
-        error: function (xhr, status, error) {
-        }
-    })
-    return CL;
-}
-
-/**
- * Helper method to extract the CODEDEPLOY_CL from json
- */
-function extractCLFromJson(json) {
-    var actions = json.actions;
-    var params = {};
-
-    if (actions.length > 0) {
-        for(var i=0; i<actions.length; i++) {
-            if ("parameters" in actions[i]) {
-                params = actions[i].parameters;
-
-                for(var j=0; j<params.length; j++) {
-                    param = params[j];
-                    if (param.name == "CODEDEPLOY_CL") {
-                        return param.value;
-                    }
-                }
-            }
-        }
-    }
-    return "No CL found";
-}
-
-/**
- * TESTING PURPOSES ONLY
- */
-function testParse() {
-    var CL = "";
-    var json = {"actions":[{},{},{"parameters":[{"name":"TEST","value":false},{"name":"CODEDEPLOY_CL","value":"0123456789"}]},{}]};
-
-    CL = extractCLFromJson(json);
-    console.info(CL);
-}
-
-/**
  * Get all artifacts for a build.
  */
 function getBuildArtifacts(taskId, buildNum) {
@@ -1059,80 +933,6 @@ function getBuildArtifactLinks(taskId, buildNum) {
     }
 
     return retVal;
-}
-
-/**
- * Get the matching manifest information for a build CL.
- * Potentially a lot of calls will be made here
- * Deal with this asynchronously with a callback function
- */
-function getManifestInfo(manifestJobName, clManifestMap) {
-    var data = "";
-    Q.ajax({
-        url: rootURL + "/job/" + manifestJobName + "/api/json",
-        type: "GET",
-        dataType: 'json',
-        async: false,
-        cache: true,
-        timeout: 20000,
-        success: function (json) {
-            data = json;
-        },
-        error: function (xhr, status, error) {
-        }
-    })
-
-    var builds = data.builds;
-    if (builds.length > 0) {
-        for(var i=0; i<builds.length; i++) {
-            if ("number" in builds[i]) {
-                var num = builds[i].number;
-
-                Q.ajax({
-                    url: rootURL + "/job/" + manifestJobName + "/" + num + "/artifact/manifest_info.txt",
-                    type: "GET",
-                    async: true,
-                    cache: true,
-                    timeout: 20000,
-                    success: function(data) {
-                        updateManifestInfo(data, clManifestMap, this.url);
-                    },
-                    error: function (xhr, status, error) {
-                    }
-                })
-            }
-        }
-    }
-}
-
-/**
- * Callback function to update the manifest information if correct
- */
-function updateManifestInfo(data, clManifestMap, url) {
-    var changelist = "";
-
-    if (data.indexOf("CHANGELIST") != -1) {
-        var lines = data.split('\n');
-        for (var i=0; i < lines.length; i++) {
-            if (lines[i].indexOf("CHANGELIST") != -1) {
-                changelist = lines[i].replace("CHANGELIST=", "");
-            }
-        }
-    }
-
-    // Update all manifestIds with the correct manifest info
-    if (clManifestMap.hasOwnProperty(changelist)) {
-        var manifestIds = clManifestMap[changelist].split(',');
-
-        for (var i=0; i<manifestIds.length; i++) {
-            // Replace all standard hyphens with: &#x2011; -- a Unicode NON-BREAKING HYPHEN
-            var toolTipData = data.replace(/-/g, '&#x2011;').replace(/(?:\r\n|\r|\n)/g, '<br>');
-            var ele = document.getElementById(manifestIds[i]);
-
-            // ele.innerHTML = "Manifest Info: <a href=\"" + url + "\">" + url.split("/job/")[1] + '<span class="tooltip">' + toolTipData + '</span></a>';
-            ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + '<span class="tooltip">' + toolTipData + '</span></a>';
-        }
-    }
 }
 
 /**
