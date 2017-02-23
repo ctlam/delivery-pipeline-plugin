@@ -41,6 +41,11 @@ function pipelineUtils() {
                             // Need this for manifest - CL tracking
                             var clManifestMap = {};
 
+                            if (sessionStorage.savedPipelineDisplayValues == null) {
+                                sessionStorage.savedPipelineDisplayValues = {};
+                            }
+                            var savedPipelineDisplayValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+
                             if (data.error) {
                                 cErrorDiv.html('Error: ' + data.error).show();
                             } else {
@@ -203,7 +208,11 @@ function pipelineUtils() {
                                             if (data.displayArguments != "") {
                                                 html.push('<h3>Additional Display Values</h3>');
                                                 html.push("<table style=\"min-width:500px; text-align:left; padding: 0px 50px 0px 0px;\">");
-                                                html.push(generateDisplayValueTable(data.displayArguments, pipeline.version.substring(1)));
+                                                if (JSON.stringify(savedPipelineDisplayValues) == JSON.stringify({})) {
+                                                    html.push(generateDisplayValueTable(data.displayArguments, pipeline.version.substring(1)));
+                                                } else {
+                                                    html.push(loadDisplayValues(data.displayArguments, pipeline.version.substring(1), savedPipelineDisplayValues));
+                                                }
                                                 html.push("</table>");
                                             }
 
@@ -1153,6 +1162,39 @@ function generateDisplayValueTable(args, pipelineNum) {
 }
 
 /**
+ * Load the displayed values
+ */
+function loadDisplayValues(args, pipelineNum, savedPipelineDisplayValues) {
+    var displayVals;
+
+    try {
+        displayVals = JSON.parse(args);
+    }
+    catch (err) {
+        return "INVALID JSON"
+    }
+
+    var retVal = "";
+
+    for (var value in displayVals) {
+        var displayValConfig = displayVals[value];
+        var projectName = "";
+        if (displayValConfig.hasOwnProperty("projectName")) {
+            projectName = displayValConfig.projectName;
+        }
+
+        var id = getStageId(value, pipelineNum) + "-" + projectName;
+
+        if (savedPipelineDisplayValues.hasOwnProperty(id)) {
+            retVal += "<tr><th>" + value + "</th><td id=\"" + getStageId(value, pipelineNum) + "-" + projectName + "\">" + savedPipelineDisplayValues[id] + "</td></tr>";
+        } else {
+            retVal += "<tr><th>" + value + "</th><td id=\"" + getStageId(value, pipelineNum) + "-" + projectName + "\">Value not found across pipeline</td></tr>";
+        }
+    }
+    return retVal;
+}
+
+/**
  * Retrieve desired values from any projects along a pipeline
  */
 function getDisplayValues(args, pipeline, pipelineNum) {
@@ -1270,6 +1312,10 @@ function updateDisplayValues(data, url, args, pipelineNum) {
                             var id = getStageId(displayVal, pipelineNum) + "-" + projectName;
                             var ele = document.getElementById(id);
                             ele.innerHTML = envName + " : " + envMap[envName];
+
+                            var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+                            savedValues[id] = ele.innerHTML;
+                            sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
                         }
                     }
                 }
@@ -1317,6 +1363,10 @@ function updateDisplayValues(data, url, args, pipelineNum) {
                             var id = getStageId(displayVal, pipelineNum) + "-" + projectName;
                             var ele = document.getElementById(id);
                             ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
+
+                            var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+                            savedValues[id] = ele.innerHTML;
+                            sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
                         }
                     }
                 }
@@ -1361,6 +1411,10 @@ function updateDisplayValues(data, url, args, pipelineNum) {
                             var id = getStageId(displayVal, pipelineNum) + "-" + projectName;
                             var ele = document.getElementById(id);
                             ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
+
+                            var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+                            savedValues[id] = ele.innerHTML;
+                            sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
                         }
                     }
                 }
