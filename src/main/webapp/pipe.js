@@ -300,10 +300,6 @@ function pipelineUtils() {
                                                 if (data.viewMode == "Minimalist") {
                                                     var hoverString = "Timestamp: " + timestamp + "<br>Duration: " + formatLongDuration(task.status.duration);
                                                     // TODO: Re-add console link
-                                                    // html.push("<div id=\"" + id + "\" class=\"status stage-minimalist-task " +
-                                                    //     "\"><div class=\"minimalist-task-progress " + progressClass + "\" style=\"width: " + progress + "%;\"><div class=\"task-content-minimalist\">" +
-                                                    //     "<div class=\"task-header\"><div class=\"taskname-minimalist\"><a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle_" + task.status.type + "\"><br><span class=\"tooltip\">" + hoverString + "</span></a></div>");
-
                                                     html.push("<div id=\"" + id + "\" class=\"status stage-minimalist-task " +
                                                         "\"><div class=\"task-content-minimalist\">" +
                                                         "<div class=\"task-header\"><div class=\"taskname-minimalist\"><a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle_" + task.status.type + "\"><br><span class=\"tooltip\">" + hoverString + "</span></a></div>");
@@ -354,7 +350,9 @@ function pipelineUtils() {
                                             column++;
                                         }
 
-                                        getDisplayValues(data.displayArguments, pipeline, pipeline.version.substring(1));
+                                        if (!pipeline.aggregated) {
+                                            getDisplayValues(data.displayArguments, pipeline, pipeline.version.substring(1));
+                                        }
 
                                         html.push('</div>');
                                         html.push("</section>");
@@ -908,8 +906,6 @@ function equalheight(container) {
 
 /**
  * Get the CL for a promotion job.
- * Should be safe to cache the results as they are static
- * Synchronous because it is a maximum of one api call
  */
 function getPromoCL(taskId, buildNum) {
 
@@ -921,7 +917,7 @@ function getPromoCL(taskId, buildNum) {
     for(var i=0; i<artifacts.length; i++) {
         if (artifacts[i] == 'CL.txt') {
             Q.ajax({
-                url: "http://localhost:8080/job/" + taskId + "/" + buildNum + "/artifact/CL.txt",
+                url: rootURL + "/job/" + taskId + "/" + buildNum + "/artifact/CL.txt",
                 type: "GET",
                 dataType: 'json',
                 async: false,
@@ -942,13 +938,11 @@ function getPromoCL(taskId, buildNum) {
 
 /**
  * Get the CL for a production job.
- * Should be safe to cache the results as they are static
- * Synchronous because it is a maximum of one api call
  */
 function getCodeDeployCL(taskId, buildNum) {
     var CL = "No CL found";
     Q.ajax({
-        url: "http://localhost:8080/job/" + taskId + "/" + buildNum + "/api/json?tree=actions[parameters[*]]",
+        url: rootURL + "/job/" + taskId + "/" + buildNum + "/api/json?tree=actions[parameters[*]]",
         type: "GET",
         dataType: 'json',
         async: false,
@@ -1000,13 +994,11 @@ function testParse() {
 
 /**
  * Get all artifacts for a build.
- * Should be safe to cache the results as they are static
- * TODO: Make this asynchronous -- A(synchronous)JAX for a reason
  */
 function getBuildArtifacts(taskId, buildNum) {
     var artifacts = [];
     Q.ajax({
-        url: "http://localhost:8080/job/" + taskId + "/" + buildNum + "/api/json?tree=artifacts[*]",
+        url: rootURL + "/job/" + taskId + "/" + buildNum + "/api/json?tree=artifacts[*]",
         type: "GET",
         dataType: 'json',
         async: false,
@@ -1039,7 +1031,7 @@ function getBuildArtifactLinks(taskId, buildNum) {
         for (var i=0; i<artifacts.length; i++) {
             var artifactInfo = "";
             Q.ajax({
-                url: "http://localhost:8080/job/" + taskId + "/" + buildNum + "/artifact/" + artifacts[i],
+                url: rootURL + "/job/" + taskId + "/" + buildNum + "/artifact/" + artifacts[i],
                 type: "GET",
                 async: false,
                 cache: true,
@@ -1068,7 +1060,7 @@ function getBuildArtifactLinks(taskId, buildNum) {
 function getManifestInfo(manifestJobName, clManifestMap) {
     var data = "";
     Q.ajax({
-        url: "http://localhost:8080/job/" + manifestJobName + "/api/json",
+        url: rootURL + "/job/" + manifestJobName + "/api/json",
         type: "GET",
         dataType: 'json',
         async: false,
@@ -1088,7 +1080,7 @@ function getManifestInfo(manifestJobName, clManifestMap) {
                 var num = builds[i].number;
 
                 Q.ajax({
-                    url: "http://localhost:8080/job/" + manifestJobName + "/" + num + "/artifact/manifest_info.txt",
+                    url: rootURL + "/job/" + manifestJobName + "/" + num + "/artifact/manifest_info.txt",
                     type: "GET",
                     async: true,
                     cache: true,
@@ -1138,7 +1130,15 @@ function updateManifestInfo(data, clManifestMap, url) {
  * Generate an table of specified display values
  */
 function generateDisplayValueTable(args, pipelineNum) {
-    var displayVals = JSON.parse(args);
+    var displayVals;
+
+    try {
+        displayVals = JSON.parse(args);
+    }
+    catch (err) {
+        return "INVALID JSON"
+    }
+
     var retVal = "";
 
     for (var value in displayVals) {
@@ -1153,123 +1153,114 @@ function generateDisplayValueTable(args, pipelineNum) {
 }
 
 /**
- * @param {JSON} args
- * @param {JSON} projectMap
  * Retrieve desired values from any projects along a pipeline
  */
- function getDisplayValues(args, pipeline, pipelineNum) {
-     var stage;
-     var projectNameIdMap = {};
-     var updateString = "";
-     var retVal = "";
+function getDisplayValues(args, pipeline, pipelineNum) {
+    var displayVals;
+
+    try {
+        displayVals = JSON.parse(args);
+    }
+    catch (err) {
+        return;
+    }
+
+    var stage;
+    var projectNameIdMap = {};
+    var updateString = "";
+    var retVal = "";
 
      // Get a mapping of project names to project build ids
      for (var j = 0; j < pipeline.stages.length; j++) {
-         stage = pipeline.stages[j];
-         projectNameIdMap[stage.name] = stage.tasks[0].buildId;
+        stage = pipeline.stages[j];
+        projectNameIdMap[stage.name] = stage.tasks[0].buildId;
      }
 
-     var displayArgs = JSON.parse(args);
+    for (var displayVal in displayVals) {
+        var displayValConfig = displayVals[displayVal];
+        var projectName, filePath, artifactName, envName, grepPattern;
+        projectName = filePath = artifactName = envName = grepPattern = "";
 
-     for (var displayVal in displayArgs) {
-         var displayValConfig = displayArgs[displayVal];
-         var projectName, filePath, artifactName, envName, grepPattern;
-         projectName = filePath = artifactName = envName = grepPattern = "";
+        if (displayValConfig.hasOwnProperty("projectName")) {
+            projectName = displayValConfig.projectName;
 
-         if (displayValConfig.hasOwnProperty("projectName")) {
-             projectName = displayValConfig.projectName;
+            if (projectNameIdMap.hasOwnProperty(projectName) == false) {
+                continue;
+            }
 
-             if (projectNameIdMap.hasOwnProperty(projectName) == false) {
-                 continue;
-             }
+            if (displayValConfig.hasOwnProperty("filePath")) {
+                filePath = displayValConfig.filePath;
+            }
 
-             if (displayValConfig.hasOwnProperty("filePath")) {
-                 filePath = displayValConfig.filePath;
-             }
+            if (displayValConfig.hasOwnProperty("artifactName")) {
+                artifactName = displayValConfig.artifactName;
+            }
 
-             if (displayValConfig.hasOwnProperty("artifactName")) {
-                 artifactName = displayValConfig.artifactName;
-             }
+            if (displayValConfig.hasOwnProperty("envName")) {
+                envName = displayValConfig.envName;
+            }
 
-             if (displayValConfig.hasOwnProperty("envName")) {
-                 envName = displayValConfig.envName;
-             }
+            // We expect one of the following to be populated so we know where to look
+            if (filePath == "" && artifactName == "" && envName == "") {
+                continue;
+            }
 
-             // We expect one of the following to be populated so we know where to look
-             if (filePath == "" && artifactName == "" && envName == "") {
-                 continue;
-             }
+            var url = "";
+            if (artifactName != "") {
+                url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/artifact/" + artifactName;
+            }
 
-             var url = "";
-             if (artifactName != "") {
-                 url = "http://localhost:8080/job/" + projectName + "/" + projectNameIdMap[projectName] + "/artifact/" + artifactName;
-             }
+            if (filePath != "") {
+                url = "job/" + projectName + "/ws/" + filePath;
+            }
 
-             if (filePath != "") {
-                 url = "http://localhost:8080/job/" + projectName + "/ws/" + filePath;
-             }
+            if (envName != "") {
+                url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/injectedEnvVars/api/json";
+            }
 
-             if (envName != "") {
-                 url = "http://localhost:8080/job/" + projectName + "/" + projectNameIdMap[projectName] + "/injectedEnvVars/api/json";
-             }
+            // In the event that somehow we fail to create a URL
+            if (url == "") {
+                continue;
+            }
 
-             // In the event that somehow we fail to create a URL
-             if (url == "") {
-                 continue;
-             }
-
-             Q.ajax({
-                 url: url,
-                 type: "GET",
-                 async: true,
-                 cache: true,
-                 timeout: 20000,
-                 success: function(data) {
-                    //  if (envName != "") {
-                    //      if (data.hasOwnProperty("envMap")) {
-                    //          var envMap = data.envMap;
-                     //
-                    //          if (envMap.hasOwnProperty(envName)) {
-                    //              retVal += "<tr><th>" + envName + ": " + "</th><td>" + envMap[envName] + "</td></tr>";
-                    //          }
-                    //      }
-                    //  }
-                    //  // filePath and artifactName do not require data parsing
-                    //  else {
-                    //      var link = "<a href=\"" + url + "\">" + url.split("/job/")[1] + '<span class="tooltip">' + data + "</span></a>";
-                    //      retVal += "<tr><th>" + displayVal + ": " + "</th><td>" + link + "</td></tr>";
-                    //  }
+            Q.ajax({
+                url: rootURL + "/" + url,
+                type: "GET",
+                async: true,
+                cache: true,
+                timeout: 20000,
+                success: function(data) {
                     updateDisplayValues(data, this.url, args, pipelineNum);
-                 },
-                 error: function (xhr, status, error) {
-                 }
-             })
-         }
-         else {
-             // We expect a project name for each display value -- otherwise we don't know where to look
-             continue;
-         }
-     }
- }
+                },
+                error: function (xhr, status, error) {
+                }
+            })
+        }
+        else {
+            // We expect a project name for each display value -- otherwise we don't know where to look
+            continue;
+        }
+    }
+}
 
  /**
   * Callback function to update the specified display values
   */
- function updateDisplayValues(data, url, args, pipelineNum) {
-     var projectName = (url.split("/job/")[1]).split("/")[0];
-     var displayVals = JSON.parse(args);
+function updateDisplayValues(data, url, args, pipelineNum) {
+    var projectName = (url.split("/job/")[1]).split("/")[0];
+    var displayVals = JSON.parse(args);
 
-     // Check if we are parsing for an environment variable
-     if (url.indexOf("/injectedEnvVars/") != -1) {
-         for (var displayVal in displayVals) {
-             var displayValConfig = displayVals[displayVal];
-             var envName = "";
+    // Check if we are parsing for an environment variable
+    if (url.indexOf("/injectedEnvVars/") != -1) {
+        for (var displayVal in displayVals) {
+            var displayValConfig = displayVals[displayVal];
+            var envName = "";
 
-             if (displayValConfig.hasOwnProperty("projectName")) {
-                 if (displayValConfig.projectName != projectName) {
-                     continue;
-                 }
-                 if (displayValConfig.hasOwnProperty("envName")) {
+            if (displayValConfig.hasOwnProperty("projectName")) {
+                if (displayValConfig.projectName != projectName) {
+                    continue;
+                }
+                if (displayValConfig.hasOwnProperty("envName")) {
                     envName = displayValConfig.envName;
 
                     if (data.hasOwnProperty("envMap")) {
@@ -1277,68 +1268,106 @@ function generateDisplayValueTable(args, pipelineNum) {
 
                         if (envMap.hasOwnProperty(envName)) {
                             var id = getStageId(displayVal, pipelineNum) + "-" + projectName;
-                            console.info(id);
                             var ele = document.getElementById(id);
-                            ele.innerHTML = envMap[envName];
+                            ele.innerHTML = envName + " : " + envMap[envName];
                         }
                     }
-                 }
-             }
-         }
-     }
-     else {
-         // Check if we are parsing for a filePath
-         if (url.indexOf("/ws/") != -1) {
-             var filePath = url.split("/ws/")[1];
-             for (var displayVal in displayVals) {
-                 var displayValConfig = displayVals[displayVal];
+                }
+            }
+        }
+    }
+    else {
+        // Check if we are parsing for a filePath
+        if (url.indexOf("/ws/") != -1) {
+            var filePath = url.split("/ws/")[1];
+            for (var displayVal in displayVals) {
+                var displayValConfig = displayVals[displayVal];
 
-                 if (displayValConfig.hasOwnProperty("projectName")) {
-                     if (displayValConfig.projectName != projectName) {
-                         continue;
-                     }
-                     if (displayValConfig.hasOwnProperty("filePath")) {
-                         if (displayValConfig.filePath == filePath) {
-                             var toolTipData = data.replace(/-/g, '&#x2011;').replace(/(?:\r\n|\r|\n)/g, '<br>');
-                             var id = getStageId(displayVal, pipelineNum) + "-" + projectName;
-                             var ele = document.getElementById(id);
-                             ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
-                         }
-                     }
-                 }
-             }
-         }
-         else {
-             var artifactName = url.split("/artifact/")[1];
-             for (var displayVal in displayVals) {
-                 var displayValConfig = displayVals[displayVal];
+                if (displayValConfig.hasOwnProperty("projectName")) {
+                    if (displayValConfig.projectName != projectName) {
+                        continue;
+                    }
+                    if (displayValConfig.hasOwnProperty("filePath")) {
+                        if (displayValConfig.filePath == filePath) {
+                            var toolTipData = data.replace(/-/g, '&#x2011;');
 
-                 if (JSON.stringify(displayValConfig.projectName) == projectName) {
-                     console.info("Needs JSON parse 1");
-                 }
+                            if (displayValConfig.hasOwnProperty("grepPattern")) {
+                                var expression = displayValConfig.grepPattern;
+                                var grepFlag = 'g';
 
+                                if (displayValConfig.hasOwnProperty("grepFlag")) {
+                                    grepFlag = displayValConfig.grepFlag;
+                                }
 
-                 if (displayValConfig.hasOwnProperty("projectName")) {
-                     if (displayValConfig.projectName != projectName) {
-                         continue;
-                     }
-                     if (displayValConfig.hasOwnProperty("artifactName")) {
-                         if (JSON.stringify(displayValConfig.artifactName) == artifactName) {
-                             console.info("Needs JSON parse");
-                         }
+                                if (expression.charAt(0) == "/" && expression.charAt(expression.length - 1) == "/") {
+                                    expression = expression.substring(1, expression.length - 1);
+                                }
 
-                         if (displayValConfig.artifactName == artifactName) {
-                             var toolTipData = data.replace(/-/g, '&#x2011;').replace(/(?:\r\n|\r|\n)/g, '<br>');
-                             var id = getStageId(displayVal, pipelineNum) + "-" + projectName;
-                             var ele = document.getElementById(id);
-                             ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
-                         }
-                     }
-                 }
-             }
-         }
-     }
- }
+                                var regex = new RegExp(expression, grepFlag);
+                                var match;
+                                var results = [];
+
+                                while (match = regex.exec(toolTipData)) {
+                                    results.push(match[0]);
+                                }
+                                toolTipData = results.join("\n");
+                            }
+
+                            toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
+                            var id = getStageId(displayVal, pipelineNum) + "-" + projectName;
+                            var ele = document.getElementById(id);
+                            ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
+                        }
+                    }
+                }
+            }
+        }
+        else {
+            var artifactName = url.split("/artifact/")[1];
+            for (var displayVal in displayVals) {
+                var displayValConfig = displayVals[displayVal];
+
+                if (displayValConfig.hasOwnProperty("projectName")) {
+                    if (displayValConfig.projectName != projectName) {
+                        continue;
+                    }
+                    if (displayValConfig.hasOwnProperty("artifactName")) {
+                        if (displayValConfig.artifactName == artifactName) {
+                            var toolTipData = data.replace(/-/g, '&#x2011;');
+
+                            if (displayValConfig.hasOwnProperty("grepPattern")) {
+                                var expression = displayValConfig.grepPattern;
+                                var grepFlag = 'g';
+
+                                if (displayValConfig.hasOwnProperty("grepFlag")) {
+                                    grepFlag = displayValConfig.grepFlag;
+                                }
+
+                                if (expression.charAt(0) == "/" && expression.charAt(expression.length - 1) == "/") {
+                                    expression = expression.substring(1, expression.length - 1);
+                                }
+
+                                var regex = new RegExp(expression, grepFlag);
+                                var match;
+                                var results = [];
+
+                                while (match = regex.exec(toolTipData)) {
+                                    results.push(match[0]);
+                                }
+                                toolTipData = results.join("\n");
+                            }
+
+                            toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
+                            var id = getStageId(displayVal, pipelineNum) + "-" + projectName;
+                            var ele = document.getElementById(id);
+                            ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 function toggle(toggleBuildId) {
     var ele = document.getElementById(toggleBuildId);

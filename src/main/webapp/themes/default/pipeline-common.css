@@ -91,6 +91,30 @@ div.hide {
     width: 26px;
 }
 
+.circle_QUEUED {
+    float: left;
+    left: 37.5%;
+    background: url("runningCircle.gif") no-repeat;
+    height: 26px;
+    width: 26px;
+}
+
+.circle_UNSTABLE {
+    float: left;
+    left: 37.5%;
+    background: url("runningCircle.gif") no-repeat;
+    height: 26px;
+    width: 26px;
+}
+
+.circle_DISABLED {
+    float: left;
+    left: 37.5%;
+    background: url("runningCircle.gif") no-repeat;
+    height: 26px;
+    width: 26px;
+}
+
 div.pipeline-loading-icon {
     content: url("white-load.gif");
     display: block;
