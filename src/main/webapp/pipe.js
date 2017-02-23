@@ -134,9 +134,6 @@ function pipelineUtils() {
                                         } else {
                                             html.push("<table style=\"min-width:500px; text-align:left; padding: 0px 50px 0px 0px;\">");
                                             if (data.useFullLocaleTimeStrings) {
-                                                // html.push('<h3>Started on: ' + formatLongDate(pipeline.timestamp) + '</h3>');
-                                                // html.push('<h3>Triggered by: ' + triggered + '</h3>');
-
                                                 html.push("<tr><th>Started on: </th><td>" + formatLongDate(pipeline.timestamp) + "</td></tr>");
                                                 html.push("<tr><th>Duration (Dd HH:MM:SS): </th><td>" + formatLongDuration(pipeline.stages[0].tasks[0].status.duration) + "</td></tr>");
                                                 html.push("<tr><th>Triggered by: </th><td>" + triggered + "</td></tr>");
@@ -156,8 +153,6 @@ function pipelineUtils() {
                                             if (data.showArtifacts) {
                                                 var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
                                                 var buildNum = pipeline.version.substring(1);
-                                                // html.push('<h3>Artifacts: ' + getBuildArtifactLinks(jobName, buildNum) + '</h3>');
-
                                                 html.push("<tr><th>Artifacts: </th><td>" + getBuildArtifactLinks(jobName, buildNum) + "</td></tr>");
                                             }
 
@@ -168,12 +163,15 @@ function pipelineUtils() {
                                             html.push("</table><h3><br></h3>");
 
                                             if (data.displayArguments != "") {
+                                                var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                                                var buildNum = pipeline.version.substring(1);
+
                                                 html.push('<h3>Additional Display Values</h3>');
                                                 html.push("<table style=\"min-width:500px; text-align:left; padding: 0px 50px 0px 0px;\">");
                                                 if (JSON.stringify(savedPipelineDisplayValues) == JSON.stringify({})) {
-                                                    html.push(generateDisplayValueTable(data.displayArguments, pipeline.version.substring(1)));
+                                                    html.push(generateDisplayValueTable(data.displayArguments, jobName, buildNum));
                                                 } else {
-                                                    html.push(loadDisplayValues(data.displayArguments, pipeline.version.substring(1), savedPipelineDisplayValues));
+                                                    html.push(loadDisplayValues(data.displayArguments, jobName, buildNum, savedPipelineDisplayValues));
                                                 }
                                                 html.push("</table>");
                                             }
@@ -322,7 +320,8 @@ function pipelineUtils() {
                                         }
 
                                         if (!pipeline.aggregated) {
-                                            getDisplayValues(data.displayArguments, pipeline, pipeline.version.substring(1));
+                                            var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                                            getDisplayValues(data.displayArguments, pipeline, jobName, pipeline.version.substring(1));
                                         }
 
                                         html.push('</div>');
@@ -938,11 +937,11 @@ function getBuildArtifactLinks(taskId, buildNum) {
 /**
  * Generate an table of specified display values
  */
-function generateDisplayValueTable(args, pipelineNum) {
-    var displayVals;
+function generateDisplayValueTable(displayArgs, pipelineName, pipelineNum) {
+    var displayArgsJson;
 
     try {
-        displayVals = JSON.parse(args);
+        displayArgsJson = JSON.parse(displayArgs);
     }
     catch (err) {
         return "INVALID JSON"
@@ -950,13 +949,21 @@ function generateDisplayValueTable(args, pipelineNum) {
 
     var retVal = "";
 
-    for (var value in displayVals) {
-        var displayValConfig = displayVals[value];
-        var projectName = "";
-        if (displayValConfig.hasOwnProperty("projectName")) {
-            projectName = displayValConfig.projectName;
+    for (var mainProject in displayArgsJson) {
+        if (mainProject == pipelineName) {
+            var mainProjectDisplayConfig = displayArgsJson[mainProject];
+
+            for (var displayKey in mainProjectDisplayConfig) {
+                var displayKeyConfig = mainProjectDisplayConfig[displayKey];
+                var projectName = "";
+                if (displayKeyConfig.hasOwnProperty("projectName")) {
+                    projectName = displayKeyConfig.projectName;
+                }
+
+                var id = mainProject + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
+                retVal += "<tr><th>" + displayKey + "</th><td id=\"" + id + "\">Value not found across pipeline</td></tr>";    
+            }    
         }
-        retVal += "<tr><th>" + value + "</th><td id=\"" + getStageId(value, pipelineNum) + "-" + projectName + "\">Value not found across pipeline</td></tr>";
     }
     return retVal;
 }
@@ -964,11 +971,11 @@ function generateDisplayValueTable(args, pipelineNum) {
 /**
  * Load the displayed values
  */
-function loadDisplayValues(args, pipelineNum, savedPipelineDisplayValues) {
-    var displayVals;
+function loadDisplayValues(displayArgs, pipelineName, pipelineNum, savedPipelineDisplayValues) {
+    var displayArgsJson;
 
     try {
-        displayVals = JSON.parse(args);
+        displayArgsJson = JSON.parse(displayArgs);
     }
     catch (err) {
         return "INVALID JSON"
@@ -976,19 +983,25 @@ function loadDisplayValues(args, pipelineNum, savedPipelineDisplayValues) {
 
     var retVal = "";
 
-    for (var value in displayVals) {
-        var displayValConfig = displayVals[value];
-        var projectName = "";
-        if (displayValConfig.hasOwnProperty("projectName")) {
-            projectName = displayValConfig.projectName;
-        }
+    for (var mainProject in displayArgsJson) {
+        if (mainProject == pipelineName) {
+            var mainProjectDisplayConfig = displayArgsJson[mainProject];
 
-        var id = getStageId(value, pipelineNum) + "-" + projectName;
+            for (var displayKey in mainProjectDisplayConfig) {
+                var displayKeyConfig = mainProjectDisplayConfig[displayKey];
+                var projectName = "";
+                if (displayKeyConfig.hasOwnProperty("projectName")) {
+                    projectName = displayKeyConfig.projectName;
+                }
 
-        if (savedPipelineDisplayValues.hasOwnProperty(id)) {
-            retVal += "<tr><th>" + value + "</th><td id=\"" + getStageId(value, pipelineNum) + "-" + projectName + "\">" + savedPipelineDisplayValues[id] + "</td></tr>";
-        } else {
-            retVal += "<tr><th>" + value + "</th><td id=\"" + getStageId(value, pipelineNum) + "-" + projectName + "\">Value not found across pipeline</td></tr>";
+                var id = mainProject + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
+
+                if (savedPipelineDisplayValues.hasOwnProperty(id)) {
+                    retVal += "<tr><th>" + displayKey + "</th><td id=\"" + id + "\">" + savedPipelineDisplayValues[id] + "</td></tr>";
+                } else {
+                    retVal += "<tr><th>" + displayKey + "</th><td id=\"" + id + "\">Value not found across pipeline</td></tr>";
+                }
+            }
         }
     }
     return retVal;
@@ -997,11 +1010,11 @@ function loadDisplayValues(args, pipelineNum, savedPipelineDisplayValues) {
 /**
  * Retrieve desired values from any projects along a pipeline
  */
-function getDisplayValues(args, pipeline, pipelineNum) {
-    var displayVals;
+function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
+    var displayArgsJson;
 
     try {
-        displayVals = JSON.parse(args);
+        displayArgsJson = JSON.parse(displayArgs);
     }
     catch (err) {
         return;
@@ -1018,65 +1031,71 @@ function getDisplayValues(args, pipeline, pipelineNum) {
         projectNameIdMap[stage.name] = stage.tasks[0].buildId;
      }
 
-    for (var displayVal in displayVals) {
-        var displayValConfig = displayVals[displayVal];
-        var projectName, filePath, artifactName, envName, grepPattern;
-        projectName = filePath = artifactName = envName = grepPattern = "";
+    for (var mainProject in displayArgsJson) {
+        if (mainProject == pipelineName) {
+            var mainProjectDisplayConfig = displayArgsJson[mainProject];
 
-        if (displayValConfig.hasOwnProperty("projectName")) {
-            projectName = displayValConfig.projectName;
+            for (var displayKey in mainProjectDisplayConfig) {
+                var displayKeyConfig = mainProjectDisplayConfig[displayKey];
+                var projectName, filePath, artifactName, envName, grepPattern;
+                projectName = filePath = artifactName = envName = grepPattern = "";
 
-            if (projectNameIdMap.hasOwnProperty(projectName) == false) {
-                continue;
-            }
+                if (displayKeyConfig.hasOwnProperty("projectName")) {
+                    projectName = displayKeyConfig.projectName;
 
-            if (displayValConfig.hasOwnProperty("filePath")) {
-                filePath = displayValConfig.filePath;
-            }
+                    if (projectNameIdMap.hasOwnProperty(projectName) == false) {
+                        continue;
+                    }
 
-            if (displayValConfig.hasOwnProperty("artifactName")) {
-                artifactName = displayValConfig.artifactName;
-            }
+                    if (displayKeyConfig.hasOwnProperty("filePath")) {
+                        filePath = displayKeyConfig.filePath;
+                    }
 
-            if (displayValConfig.hasOwnProperty("envName")) {
-                envName = displayValConfig.envName;
-            }
+                    if (displayKeyConfig.hasOwnProperty("artifactName")) {
+                        artifactName = displayKeyConfig.artifactName;
+                    }
 
-            // We expect one of the following to be populated so we know where to look
-            if (filePath == "" && artifactName == "" && envName == "") {
-                continue;
-            }
+                    if (displayKeyConfig.hasOwnProperty("envName")) {
+                        envName = displayKeyConfig.envName;
+                    }
 
-            var url = "";
-            if (artifactName != "") {
-                url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/artifact/" + artifactName;
-            }
+                    // We expect one of the following to be populated so we know where to look
+                    if (filePath == "" && artifactName == "" && envName == "") {
+                        continue;
+                    }
 
-            if (filePath != "") {
-                url = "job/" + projectName + "/ws/" + filePath;
-            }
+                    var url = "";
+                    if (artifactName != "") {
+                        url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/artifact/" + artifactName;
+                    }
 
-            if (envName != "") {
-                url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/injectedEnvVars/api/json";
-            }
+                    if (filePath != "") {
+                        url = "job/" + projectName + "/ws/" + filePath;
+                    }
 
-            // In the event that somehow we fail to create a URL
-            if (url == "") {
-                continue;
-            }
+                    if (envName != "") {
+                        url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/injectedEnvVars/api/json";
+                    }
 
-            Q.ajax({
-                url: rootURL + "/" + url,
-                type: "GET",
-                async: true,
-                cache: true,
-                timeout: 20000,
-                success: function(data) {
-                    updateDisplayValues(data, this.url, args, pipelineNum);
-                },
-                error: function (xhr, status, error) {
+                    // In the event that somehow we fail to create a URL
+                    if (url == "") {
+                        continue;
+                    }
+
+                    Q.ajax({
+                        url: rootURL + "/" + url,
+                        type: "GET",
+                        async: true,
+                        cache: true,
+                        timeout: 20000,
+                        success: function(data) {
+                            updateDisplayValues(data, this.url, displayArgs, pipelineName, pipelineNum);
+                        },
+                        error: function (xhr, status, error) {
+                        }
+                    })
                 }
-            })
+            }
         }
         else {
             // We expect a project name for each display value -- otherwise we don't know where to look
@@ -1088,34 +1107,40 @@ function getDisplayValues(args, pipeline, pipelineNum) {
  /**
   * Callback function to update the specified display values
   */
-function updateDisplayValues(data, url, args, pipelineNum) {
+function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) {
     var projectName = (url.split("/job/")[1]).split("/")[0];
-    var displayVals = JSON.parse(args);
+    var displayArgsJson = JSON.parse(displayArgs);
 
     // Check if we are parsing for an environment variable
     if (url.indexOf("/injectedEnvVars/") != -1) {
-        for (var displayVal in displayVals) {
-            var displayValConfig = displayVals[displayVal];
-            var envName = "";
+        for (var mainProject in displayArgsJson) {
+            if (mainProject == pipelineName) {
+                var mainProjectDisplayConfig = displayArgsJson[mainProject];
 
-            if (displayValConfig.hasOwnProperty("projectName")) {
-                if (displayValConfig.projectName != projectName) {
-                    continue;
-                }
-                if (displayValConfig.hasOwnProperty("envName")) {
-                    envName = displayValConfig.envName;
+                for (var displayKey in mainProjectDisplayConfig) {
+                    var displayKeyConfig = mainProjectDisplayConfig[displayKey];
+                    var envName = "";
 
-                    if (data.hasOwnProperty("envMap")) {
-                        var envMap = data.envMap;
+                    if (displayKeyConfig.hasOwnProperty("projectName")) {
+                        if (displayKeyConfig.projectName != projectName) {
+                            continue;
+                        }
+                        if (displayKeyConfig.hasOwnProperty("envName")) {
+                            envName = displayKeyConfig.envName;
 
-                        if (envMap.hasOwnProperty(envName)) {
-                            var id = getStageId(displayVal, pipelineNum) + "-" + projectName;
-                            var ele = document.getElementById(id);
-                            ele.innerHTML = envName + " : " + envMap[envName];
+                            if (data.hasOwnProperty("envMap")) {
+                                var envMap = data.envMap;
 
-                            var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
-                            savedValues[id] = ele.innerHTML;
-                            sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
+                                if (envMap.hasOwnProperty(envName)) {
+                                    var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
+                                    var ele = document.getElementById(id);
+                                    ele.innerHTML = envName + " : " + envMap[envName];
+
+                                    var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+                                    savedValues[id] = ele.innerHTML;
+                                    sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
+                                }
+                            }
                         }
                     }
                 }
@@ -1126,47 +1151,53 @@ function updateDisplayValues(data, url, args, pipelineNum) {
         // Check if we are parsing for a filePath
         if (url.indexOf("/ws/") != -1) {
             var filePath = url.split("/ws/")[1];
-            for (var displayVal in displayVals) {
-                var displayValConfig = displayVals[displayVal];
+            for (var mainProject in displayArgsJson) {
+                if (mainProject == pipelineName) {
+                    var mainProjectDisplayConfig = displayArgsJson[mainProject];
 
-                if (displayValConfig.hasOwnProperty("projectName")) {
-                    if (displayValConfig.projectName != projectName) {
-                        continue;
-                    }
-                    if (displayValConfig.hasOwnProperty("filePath")) {
-                        if (displayValConfig.filePath == filePath) {
-                            var toolTipData = data.replace(/-/g, '&#x2011;');
+                    for (var displayKey in mainProjectDisplayConfig) {
+                        var displayKeyConfig = mainProjectDisplayConfig[displayKey];
 
-                            if (displayValConfig.hasOwnProperty("grepPattern")) {
-                                var expression = displayValConfig.grepPattern;
-                                var grepFlag = 'g';
-
-                                if (displayValConfig.hasOwnProperty("grepFlag")) {
-                                    grepFlag = displayValConfig.grepFlag;
-                                }
-
-                                if (expression.charAt(0) == "/" && expression.charAt(expression.length - 1) == "/") {
-                                    expression = expression.substring(1, expression.length - 1);
-                                }
-
-                                var regex = new RegExp(expression, grepFlag);
-                                var match;
-                                var results = [];
-
-                                while (match = regex.exec(toolTipData)) {
-                                    results.push(match[0]);
-                                }
-                                toolTipData = results.join("\n");
+                        if (displayKeyConfig.hasOwnProperty("projectName")) {
+                            if (displayKeyConfig.projectName != projectName) {
+                                continue;
                             }
+                            if (displayKeyConfig.hasOwnProperty("filePath")) {
+                                if (displayKeyConfig.filePath == filePath) {
+                                    var toolTipData = data.replace(/-/g, '&#x2011;');
 
-                            toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
-                            var id = getStageId(displayVal, pipelineNum) + "-" + projectName;
-                            var ele = document.getElementById(id);
-                            ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
+                                    if (displayKeyConfig.hasOwnProperty("grepPattern")) {
+                                        var expression = displayKeyConfig.grepPattern;
+                                        var grepFlag = 'g';
 
-                            var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
-                            savedValues[id] = ele.innerHTML;
-                            sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
+                                        if (displayKeyConfig.hasOwnProperty("grepFlag")) {
+                                            grepFlag = displayKeyConfig.grepFlag;
+                                        }
+
+                                        if (expression.charAt(0) == "/" && expression.charAt(expression.length - 1) == "/") {
+                                            expression = expression.substring(1, expression.length - 1);
+                                        }
+
+                                        var regex = new RegExp(expression, grepFlag);
+                                        var match;
+                                        var results = [];
+
+                                        while (match = regex.exec(toolTipData)) {
+                                            results.push(match[0]);
+                                        }
+                                        toolTipData = results.join("\n");
+                                    }
+
+                                    toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
+                                    var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
+                                    var ele = document.getElementById(id);
+                                    ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
+
+                                    var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+                                    savedValues[id] = ele.innerHTML;
+                                    sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
+                                }
+                            }
                         }
                     }
                 }
@@ -1174,47 +1205,53 @@ function updateDisplayValues(data, url, args, pipelineNum) {
         }
         else {
             var artifactName = url.split("/artifact/")[1];
-            for (var displayVal in displayVals) {
-                var displayValConfig = displayVals[displayVal];
+            for (var mainProject in displayArgsJson) {
+                if (mainProject == pipelineName) {
+                    var mainProjectDisplayConfig = displayArgsJson[mainProject];
 
-                if (displayValConfig.hasOwnProperty("projectName")) {
-                    if (displayValConfig.projectName != projectName) {
-                        continue;
-                    }
-                    if (displayValConfig.hasOwnProperty("artifactName")) {
-                        if (displayValConfig.artifactName == artifactName) {
-                            var toolTipData = data.replace(/-/g, '&#x2011;');
+                    for (var displayKey in mainProjectDisplayConfig) {
+                        var displayKeyConfig = mainProjectDisplayConfig[displayKey];
 
-                            if (displayValConfig.hasOwnProperty("grepPattern")) {
-                                var expression = displayValConfig.grepPattern;
-                                var grepFlag = 'g';
-
-                                if (displayValConfig.hasOwnProperty("grepFlag")) {
-                                    grepFlag = displayValConfig.grepFlag;
-                                }
-
-                                if (expression.charAt(0) == "/" && expression.charAt(expression.length - 1) == "/") {
-                                    expression = expression.substring(1, expression.length - 1);
-                                }
-
-                                var regex = new RegExp(expression, grepFlag);
-                                var match;
-                                var results = [];
-
-                                while (match = regex.exec(toolTipData)) {
-                                    results.push(match[0]);
-                                }
-                                toolTipData = results.join("\n");
+                        if (displayKeyConfig.hasOwnProperty("projectName")) {
+                            if (displayKeyConfig.projectName != projectName) {
+                                continue;
                             }
+                            if (displayKeyConfig.hasOwnProperty("artifactName")) {
+                                if (displayKeyConfig.artifactName == artifactName) {
+                                    var toolTipData = data.replace(/-/g, '&#x2011;');
 
-                            toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
-                            var id = getStageId(displayVal, pipelineNum) + "-" + projectName;
-                            var ele = document.getElementById(id);
-                            ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
+                                    if (displayKeyConfig.hasOwnProperty("grepPattern")) {
+                                        var expression = displayKeyConfig.grepPattern;
+                                        var grepFlag = 'g';
 
-                            var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
-                            savedValues[id] = ele.innerHTML;
-                            sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
+                                        if (displayKeyConfig.hasOwnProperty("grepFlag")) {
+                                            grepFlag = displayKeyConfig.grepFlag;
+                                        }
+
+                                        if (expression.charAt(0) == "/" && expression.charAt(expression.length - 1) == "/") {
+                                            expression = expression.substring(1, expression.length - 1);
+                                        }
+
+                                        var regex = new RegExp(expression, grepFlag);
+                                        var match;
+                                        var results = [];
+
+                                        while (match = regex.exec(toolTipData)) {
+                                            results.push(match[0]);
+                                        }
+                                        toolTipData = results.join("\n");
+                                    }
+
+                                    toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
+                                    var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
+                                    var ele = document.getElementById(id);
+                                    ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
+
+                                    var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+                                    savedValues[id] = ele.innerHTML;
+                                    sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
+                                }
+                            }
                         }
                     }
                 }
