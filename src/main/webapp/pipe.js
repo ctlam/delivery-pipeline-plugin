@@ -134,40 +134,39 @@ function pipelineUtils() {
                                                 html.push('<h3>Aggregated view</h3>');
                                             }
                                         } else {
-                                            html.push("<table style=\"min-width:500px; text-align:left; padding: 0px 50px 0px 0px;\">");
-                                            if (data.useFullLocaleTimeStrings) {
-                                                html.push("<tr><th>Started on: </th><td>" + formatLongDate(pipeline.timestamp) + "</td></tr>");
-                                                html.push("<tr><th>Duration (Dd HH:MM:SS): </th><td>" + formatLongDuration(pipeline.stages[0].tasks[0].status.duration) + "</td></tr>");
-                                                html.push("<tr><th>Triggered by: </th><td>" + triggered + "</td></tr>");
+                                            var pipelineTimestamp = formatLongDate(pipeline.timestamp);
+                                            var pipelineDuration = formatLongDuration(pipeline.stages[0].tasks[0].status.duration);
+                                            
+                                            if (!data.useFullLocaleTimeStrings) {
+                                                pipelineTimestamp = formatDate(pipeline.timestamp);
+                                                pipelineDuration = formatDuration(pipeline.stages[0].tasks[0].status.duration);
                                             }
-                                            else {
-                                               html.push('<h3>' + htmlEncode(pipeline.version));
-                                                if (triggered != "") {
-                                                    html.push(" triggered by " + triggered);
-                                                }
-                                                html.push(' - Started <span id="' + pipeline.id + '\">' + formatDate(pipeline.timestamp, lastUpdate) + '</span></h3>');
+                                            
+                                            html.push("<table style=\"min-width:500px; text-align:left; padding: 5px; border: 1px solid ddd; border-collapse: collapse;\">");
+                                            html.push("<tr><th style=\"border: 1px solid #ddd;\">Started on: </th><td style=\"border: 1px solid #ddd;\">" + pipelineTimestamp + "</td></tr>");
+                                            html.push("<tr><th style=\"border: 1px solid #ddd;\">Duration (Dd HH:MM:SS): </th><td style=\"border: 1px solid #ddd;\">" + pipelineDuration + "</td></tr>");
+                                            html.push("<tr><th style=\"border: 1px solid #ddd;\">Triggered by: </th><td style=\"border: 1px solid #ddd;\">" + triggered + "</td></tr>");
+
+                                            if (data.showArtifacts) {
+                                                html.push("<tr><th style=\"border: 1px solid #ddd;\">Artifacts: </th><td style=\"border: 1px solid #ddd;\">" + getBuildArtifactLinks(jobName, buildNum) + "</td></tr>");
                                             }
+                                            
+                                            html.push("</table><h3><br></h3>");
 
                                             if (data.showTotalBuildTime) {
                                                 html.push('<h3>Total build time: ' + formatDuration(pipeline.totalBuildTime) + '</h3>');
                                             }
-
-                                            if (data.showArtifacts) {
-                                                html.push("<tr><th>Artifacts: </th><td>" + getBuildArtifactLinks(jobName, buildNum) + "</td></tr>");
-                                            }
-
+                                            
                                             if (showChanges && pipeline.changes && pipeline.changes.length > 0) {
                                                 html.push(generateChangeLog(pipeline.changes));
                                             }
-
-                                            html.push("</table><h3><br></h3>");
 
                                             if (data.displayArguments != "") {
                                                 var toggleTableId = "toggle-table-" + jobName + "-" + buildNum;
                                                 var displayTableId = "display-table-" + jobName + "-" + buildNum;
 
                                                 html.push('<h3><a id="' + displayTableId + '" href="javascript:toggleTable(\'' + toggleTableId + '\');">Additional Display Values</a></h3>');
-                                                html.push("<table id=\"" + toggleTableId + "\" style=\"display:" +  getToggleState(toggleTableId, "table") + "; min-width:500px; text-align:left; padding: 0px 50px 0px 0px;\">");
+                                                html.push("<table id=\"" + toggleTableId + "\" style=\"display:" +  getToggleState(toggleTableId, "table") + "; min-width:500px; text-align:left; padding: 5px; border: 1px solid ddd; border-collapse: collapse;\">");
                                                 if (JSON.stringify(savedPipelineDisplayValues) == JSON.stringify({})) {
                                                     html.push(generateDisplayValueTable(data.displayArguments, jobName, buildNum));
                                                 } else {
@@ -179,10 +178,8 @@ function pipelineUtils() {
                                             html.push('<h3><br></h3>');
                                         }
 
-                                        html.push('<section class="pipeline">');
-
                                         var row = 0, column = 0, stage;
-
+                                        html.push('<section class="pipeline">');
                                         html.push('<div class="pipeline-row">');
  
                                         for (var j = 0; j < pipeline.stages.length; j++) {
@@ -208,15 +205,6 @@ function pipelineUtils() {
                                             html.push('<div class="pipeline-cell">');
 
                                             if (data.viewMode == "Minimalist") {
-                                                var timestamp = "";
-                                                if (data.useFullLocaleTimeStrings) {
-                                                  timestamp = formatCardLongDate(stage.tasks[0].status.timestamp);
-                                                } else {
-                                                  timestamp = formatDate(stage.tasks[0].status.timestamp, lastUpdate);
-                                                }
-
-                                                var hoverString = "Timestamp: " + timestamp + "<br>Duration: " + formatDuration(stage.tasks[0].status.duration);
-
                                                 html.push('<div class="stage-minimalist ' + getStageClassName(stage.name) + '">');
                                                 html.push('<div class="stage-minimalist-header"><div class="stage-minimalist-name"><a href="' + getLink(data, stage.tasks[0].link) + '">' + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + '</a></div>');
                                             } else {
@@ -242,7 +230,7 @@ function pipelineUtils() {
                                                 id = getTaskId(task.id, i);
 
                                                 if (data.useFullLocaleTimeStrings) {
-                                                  timestamp = formatCardLongDate(task.status.timestamp);
+                                                  timestamp = formatLongDate(task.status.timestamp);
                                                 } else {
                                                   timestamp = formatDate(task.status.timestamp, lastUpdate);
                                                 }
@@ -961,7 +949,7 @@ function generateDisplayValueTable(displayArgs, pipelineName, pipelineNum) {
                 }
 
                 var id = mainProject + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
-                retVal += "<tr><th>" + displayKey + "</th><td id=\"" + id + "\">Value not found across pipeline</td></tr>";    
+                retVal += "<tr><th style=\"border: 1px solid #ddd;\">" + displayKey + "</th><td id=\"" + id + "\" style=\"border: 1px solid #ddd;\">Value not found across pipeline</td></tr>";    
             }    
         }
     }
@@ -997,9 +985,9 @@ function loadDisplayValues(displayArgs, pipelineName, pipelineNum, savedPipeline
                 var id = mainProject + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
 
                 if (savedPipelineDisplayValues.hasOwnProperty(id)) {
-                    retVal += "<tr><th>" + displayKey + "</th><td id=\"" + id + "\">" + savedPipelineDisplayValues[id] + "</td></tr>";
+                    retVal += "<tr><th style=\"border: 1px solid #ddd;\">" + displayKey + "</th><td id=\"" + id + "\" style=\"border: 1px solid #ddd;\">" + savedPipelineDisplayValues[id] + "</td></tr>";
                 } else {
-                    retVal += "<tr><th>" + displayKey + "</th><td id=\"" + id + "\">Value not found across pipeline</td></tr>";
+                    retVal += "<tr><th style=\"border: 1px solid #ddd;\">" + displayKey + "</th><td id=\"" + id + "\" style=\"border: 1px solid #ddd;\">Value not found across pipeline</td></tr>";
                 }
             }
         }
