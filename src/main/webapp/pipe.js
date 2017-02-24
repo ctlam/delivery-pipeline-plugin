@@ -46,6 +46,10 @@ function pipelineUtils() {
                             }
                             var savedPipelineDisplayValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
 
+                            if (sessionStorage.toggleStates == null) {
+                                sessionStorage.toggleStates = JSON.stringify({});
+                            }
+
                             if (data.error) {
                                 cErrorDiv.html('Error: ' + data.error).show();
                             } else {
@@ -92,18 +96,16 @@ function pipelineUtils() {
                                     for (var i = 0; i < component.pipelines.length; i++) {
                                         pipeline = component.pipelines[i];
 
-                                        try {
-                                           var displayBuildId = "displayBuild" + pipeline.version.substring(1);
-                                           var toggleBuildId = "toggleBuild" + pipeline.version.substring(1);
-                                           var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                                           var dataString = jobName + " " + pipeline.version;
-                                           var statusString = pipeline.stages[0].tasks[0].status.type;
-                                           html.push('<br><a id="' + displayBuildId + '" class="build_header build_' + statusString + '" href="javascript:toggle(\'' + toggleBuildId + '\');">' + dataString + " " + pipeline.stages[0].tasks[0].status.type + '</a> ');
-                                        }
-                                        catch(err) {
-                                           html.push('<br><a id="' + displayBuildId + '" href="javascript:toggle(' + '\'' + displayBuildId + '\', \'' + toggleBuildId + '\');">' + dataString + '</a>');
-                                        }
-                                        html.push('<div id="' + toggleBuildId + '" style="display: block">');
+                                        var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                                        var buildNum = pipeline.version.substring(1);
+                                        var statusString = pipeline.stages[0].tasks[0].status.type;
+
+                                        var dataString = jobName + " " + pipeline.version;
+                                        var displayBuildId = "display-build-" + jobName + "-" + buildNum;
+                                        var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
+
+                                        html.push('<br><a id="' + displayBuildId + '" class="build_header build_' + statusString + '" href="javascript:toggle(\'' + toggleBuildId + '\');">' + dataString + " " + statusString + '</a> ');
+                                        html.push('<div id="' + toggleBuildId + '" style="display:' + getToggleState(toggleBuildId, "block") +'">');
 
                                         if (pipeline.triggeredBy && pipeline.triggeredBy.length > 0) {
                                             triggered = "";
@@ -151,8 +153,6 @@ function pipelineUtils() {
                                             }
 
                                             if (data.showArtifacts) {
-                                                var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                                                var buildNum = pipeline.version.substring(1);
                                                 html.push("<tr><th>Artifacts: </th><td>" + getBuildArtifactLinks(jobName, buildNum) + "</td></tr>");
                                             }
 
@@ -163,11 +163,11 @@ function pipelineUtils() {
                                             html.push("</table><h3><br></h3>");
 
                                             if (data.displayArguments != "") {
-                                                var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                                                var buildNum = pipeline.version.substring(1);
+                                                var toggleTableId = "toggle-table-" + jobName + "-" + buildNum;
+                                                var displayTableId = "display-table-" + jobName + "-" + buildNum;
 
-                                                html.push('<h3>Additional Display Values</h3>');
-                                                html.push("<table style=\"min-width:500px; text-align:left; padding: 0px 50px 0px 0px;\">");
+                                                html.push('<h3><a id="' + displayTableId + '" href="javascript:toggleTable(\'' + toggleTableId + '\');">Additional Display Values</a></h3>');
+                                                html.push("<table id=\"" + toggleTableId + "\" style=\"display:" +  getToggleState(toggleTableId, "table") + "; min-width:500px; text-align:left; padding: 0px 50px 0px 0px;\">");
                                                 if (JSON.stringify(savedPipelineDisplayValues) == JSON.stringify({})) {
                                                     html.push(generateDisplayValueTable(data.displayArguments, jobName, buildNum));
                                                 } else {
@@ -184,7 +184,7 @@ function pipelineUtils() {
                                         var row = 0, column = 0, stage;
 
                                         html.push('<div class="pipeline-row">');
-
+ 
                                         for (var j = 0; j < pipeline.stages.length; j++) {
                                             stage = pipeline.stages[j];
 
@@ -1037,8 +1037,8 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
 
             for (var displayKey in mainProjectDisplayConfig) {
                 var displayKeyConfig = mainProjectDisplayConfig[displayKey];
-                var projectName, filePath, artifactName, envName, grepPattern;
-                projectName = filePath = artifactName = envName = grepPattern = "";
+                var projectName, filePath, artifactName, envName, paramName, grepPattern;
+                projectName = filePath = artifactName = envName = paramName = grepPattern = "";
 
                 if (displayKeyConfig.hasOwnProperty("projectName")) {
                     projectName = displayKeyConfig.projectName;
@@ -1059,8 +1059,12 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
                         envName = displayKeyConfig.envName;
                     }
 
+                    if (displayKeyConfig.hasOwnProperty("paramName")) {
+                        paramName = displayKeyConfig.paramName;
+                    }
+
                     // We expect one of the following to be populated so we know where to look
-                    if (filePath == "" && artifactName == "" && envName == "") {
+                    if (filePath == "" && artifactName == "" && envName == "" && paramName == "") {
                         continue;
                     }
 
@@ -1075,6 +1079,10 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
 
                     if (envName != "") {
                         url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/injectedEnvVars/api/json";
+                    }
+
+                    if (paramName != "") {
+                        url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/api/json?tree=actions[parameters[*]]";
                     }
 
                     // In the event that somehow we fail to create a URL
@@ -1146,56 +1154,48 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                 }
             }
         }
-    }
-    else {
-        // Check if we are parsing for a filePath
-        if (url.indexOf("/ws/") != -1) {
-            var filePath = url.split("/ws/")[1];
-            for (var mainProject in displayArgsJson) {
-                if (mainProject == pipelineName) {
-                    var mainProjectDisplayConfig = displayArgsJson[mainProject];
+    } else if (url.indexOf("json?tree=actions[parameters[*]]") != -1) {
+        for (var mainProject in displayArgsJson) {
+            if (mainProject == pipelineName) {
+                var mainProjectDisplayConfig = displayArgsJson[mainProject];
 
-                    for (var displayKey in mainProjectDisplayConfig) {
-                        var displayKeyConfig = mainProjectDisplayConfig[displayKey];
+                for (var displayKey in mainProjectDisplayConfig) {
+                    var displayKeyConfig = mainProjectDisplayConfig[displayKey];
+                    var paramName = "";
 
-                        if (displayKeyConfig.hasOwnProperty("projectName")) {
-                            if (displayKeyConfig.projectName != projectName) {
-                                continue;
-                            }
-                            if (displayKeyConfig.hasOwnProperty("filePath")) {
-                                if (displayKeyConfig.filePath == filePath) {
-                                    var toolTipData = data.replace(/-/g, '&#x2011;');
+                    if (displayKeyConfig.hasOwnProperty("projectName")) {
+                        if (displayKeyConfig.projectName != projectName) {
+                            continue;
+                        }
 
-                                    if (displayKeyConfig.hasOwnProperty("grepPattern")) {
-                                        var expression = displayKeyConfig.grepPattern;
-                                        var grepFlag = 'g';
+                        if (displayKeyConfig.hasOwnProperty("paramName")) {
+                            paramName = displayKeyConfig.paramName;
+                        }
 
-                                        if (displayKeyConfig.hasOwnProperty("grepFlag")) {
-                                            grepFlag = displayKeyConfig.grepFlag;
+                        for (var key in data) {
+                            if (key == "actions") {
+                                var actions = data.actions;
+                                
+                                for (var i = 0; i < actions.length; i++) {
+                                    if (actions[i].hasOwnProperty("parameters")) {
+                                        var parameters = actions[i].parameters;
+
+                                        for (var j = 0; j < parameters.length; j++) {
+                                            var param = parameters[j];
+                                            var name = param.name;
+                                            var value = param.value;
+
+                                            if (name == paramName) {
+                                                var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
+                                                var ele = document.getElementById(id);
+                                                ele.innerHTML = paramName + " : " + value;
+
+                                                var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+                                                savedValues[id] = ele.innerHTML;
+                                                sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
+                                            }
                                         }
-
-                                        if (expression.charAt(0) == "/" && expression.charAt(expression.length - 1) == "/") {
-                                            expression = expression.substring(1, expression.length - 1);
-                                        }
-
-                                        var regex = new RegExp(expression, grepFlag);
-                                        var match;
-                                        var results = [];
-
-                                        while (match = regex.exec(toolTipData)) {
-                                            results.push(match[0]);
-                                        }
-                                        toolTipData = results.join("\n");
                                     }
-
-                                    toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
-                                    var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
-                                    var ele = document.getElementById(id);
-                                    ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
-
-                                    var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
-                                    savedValues[id] = ele.innerHTML;
-                                    sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
                                 }
                             }
                         }
@@ -1203,54 +1203,63 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                 }
             }
         }
-        else {
-            var artifactName = url.split("/artifact/")[1];
-            for (var mainProject in displayArgsJson) {
-                if (mainProject == pipelineName) {
-                    var mainProjectDisplayConfig = displayArgsJson[mainProject];
+    } else {
+        var file;
+        var propertyType;
+        // Check if we are parsing for a filePath or an artifact
+        if (url.indexOf("/ws/") != -1) {
+            file = url.split("/ws/")[1];
+            propertyType = "filePath";
+        } else {
+            file = url.split("/artifact/")[1];
+            propertyType = "artifactName";
+        }
 
-                    for (var displayKey in mainProjectDisplayConfig) {
-                        var displayKeyConfig = mainProjectDisplayConfig[displayKey];
+        for (var mainProject in displayArgsJson) {
+            if (mainProject == pipelineName) {
+                var mainProjectDisplayConfig = displayArgsJson[mainProject];
 
-                        if (displayKeyConfig.hasOwnProperty("projectName")) {
-                            if (displayKeyConfig.projectName != projectName) {
-                                continue;
-                            }
-                            if (displayKeyConfig.hasOwnProperty("artifactName")) {
-                                if (displayKeyConfig.artifactName == artifactName) {
-                                    var toolTipData = data.replace(/-/g, '&#x2011;');
+                for (var displayKey in mainProjectDisplayConfig) {
+                    var displayKeyConfig = mainProjectDisplayConfig[displayKey];
 
-                                    if (displayKeyConfig.hasOwnProperty("grepPattern")) {
-                                        var expression = displayKeyConfig.grepPattern;
-                                        var grepFlag = 'g';
+                    if (displayKeyConfig.hasOwnProperty("projectName")) {
+                        if (displayKeyConfig.projectName != projectName) {
+                            continue;
+                        }
+                        if (displayKeyConfig.hasOwnProperty(propertyType)) {
+                            if (displayKeyConfig[propertyType] == file) {
+                                var toolTipData = data.replace(/-/g, '&#x2011;');
 
-                                        if (displayKeyConfig.hasOwnProperty("grepFlag")) {
-                                            grepFlag = displayKeyConfig.grepFlag;
-                                        }
+                                if (displayKeyConfig.hasOwnProperty("grepPattern")) {
+                                    var expression = displayKeyConfig.grepPattern;
+                                    var grepFlag = 'g';
 
-                                        if (expression.charAt(0) == "/" && expression.charAt(expression.length - 1) == "/") {
-                                            expression = expression.substring(1, expression.length - 1);
-                                        }
-
-                                        var regex = new RegExp(expression, grepFlag);
-                                        var match;
-                                        var results = [];
-
-                                        while (match = regex.exec(toolTipData)) {
-                                            results.push(match[0]);
-                                        }
-                                        toolTipData = results.join("\n");
+                                    if (displayKeyConfig.hasOwnProperty("grepFlag")) {
+                                        grepFlag = displayKeyConfig.grepFlag;
                                     }
 
-                                    toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
-                                    var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
-                                    var ele = document.getElementById(id);
-                                    ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
+                                    if (expression.charAt(0) == "/" && expression.charAt(expression.length - 1) == "/") {
+                                        expression = expression.substring(1, expression.length - 1);
+                                    }
 
-                                    var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
-                                    savedValues[id] = ele.innerHTML;
-                                    sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
+                                    var regex = new RegExp(expression, grepFlag);
+                                    var match;
+                                    var results = [];
+
+                                    while (match = regex.exec(toolTipData)) {
+                                        results.push(match[0]);
+                                    }
+                                    toolTipData = results.join("\n");
                                 }
+
+                                toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
+                                var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
+                                var ele = document.getElementById(id);
+                                ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
+
+                                var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+                                savedValues[id] = ele.innerHTML;
+                                sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
                             }
                         }
                     }
@@ -1260,13 +1269,54 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
     }
 }
 
+function getToggleState(toggleId, toggleType) {
+    var toggleStates = JSON.parse(sessionStorage.toggleStates);
+
+    if (toggleType == "block") {
+        if (toggleStates.hasOwnProperty(toggleId)) {
+            return toggleStates[toggleId];
+        } else {
+            return "block";
+        }
+    }
+
+    if (toggleType == "table") {
+        if (toggleStates.hasOwnProperty(toggleId)) {
+            return toggleStates[toggleId];
+        } else {
+            return "table";
+        }
+    }
+}
+
 function toggle(toggleBuildId) {
+    var toggleStates = JSON.parse(sessionStorage.toggleStates);
     var ele = document.getElementById(toggleBuildId);
+
     if (ele.style.display == "block") {
         ele.style.display = "none";
-    }
-    else {
+        toggleStates[toggleBuildId] = "none";
+    } else {
         ele.style.display = "block";
+        toggleStates[toggleBuildId] = "block";
     }
+
+    sessionStorage.toggleStates = JSON.stringify(toggleStates);
+    redrawConnections();
+}
+
+function toggleTable(toggleTableId) {
+    var toggleStates = JSON.parse(sessionStorage.toggleStates);
+    var ele = document.getElementById(toggleTableId);
+
+    if (ele.style.display == "table") {
+        ele.style.display = "none";
+        toggleStates[toggleTableId] = "none";
+    } else {
+        ele.style.display = "table";
+        toggleStates[toggleTableId] = "table";
+    }
+
+    sessionStorage.toggleStates = JSON.stringify(toggleStates);
     redrawConnections();
 }
