@@ -1077,12 +1077,8 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
                         url = "job/" + projectName + "/ws/" + filePath;
                     }
 
-                    if (envName != "") {
+                    if (envName != "" || paramName != "") {
                         url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/injectedEnvVars/api/json";
-                    }
-
-                    if (paramName != "") {
-                        url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/api/json?tree=actions[parameters[*]]";
                     }
 
                     // In the event that somehow we fail to create a URL
@@ -1119,7 +1115,7 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
     var projectName = (url.split("/job/")[1]).split("/")[0];
     var displayArgsJson = JSON.parse(displayArgs);
 
-    // Check if we are parsing for an environment variable
+    // Check if we are parsing for an environment variable / parameter
     if (url.indexOf("/injectedEnvVars/") != -1) {
         for (var mainProject in displayArgsJson) {
             if (mainProject == pipelineName) {
@@ -1133,69 +1129,24 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                         if (displayKeyConfig.projectName != projectName) {
                             continue;
                         }
-                        if (displayKeyConfig.hasOwnProperty("envName")) {
-                            envName = displayKeyConfig.envName;
-
+                        if (displayKeyConfig.hasOwnProperty("envName") || displayKeyConfig.hasOwnProperty("paramName")) {
+                            if (displayKeyConfig.hasOwnProperty("envName")) {
+                                envName = displayKeyConfig.envName;
+                            } else {
+                                envName = displayKeyConfig.paramName;
+                            }
+                            
                             if (data.hasOwnProperty("envMap")) {
                                 var envMap = data.envMap;
 
                                 if (envMap.hasOwnProperty(envName)) {
                                     var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
                                     var ele = document.getElementById(id);
-                                    ele.innerHTML = envName + " : " + envMap[envName];
+                                    ele.innerHTML = envMap[envName];
 
                                     var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
                                     savedValues[id] = ele.innerHTML;
                                     sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    } else if (url.indexOf("json?tree=actions[parameters[*]]") != -1) {
-        for (var mainProject in displayArgsJson) {
-            if (mainProject == pipelineName) {
-                var mainProjectDisplayConfig = displayArgsJson[mainProject];
-
-                for (var displayKey in mainProjectDisplayConfig) {
-                    var displayKeyConfig = mainProjectDisplayConfig[displayKey];
-                    var paramName = "";
-
-                    if (displayKeyConfig.hasOwnProperty("projectName")) {
-                        if (displayKeyConfig.projectName != projectName) {
-                            continue;
-                        }
-
-                        if (displayKeyConfig.hasOwnProperty("paramName")) {
-                            paramName = displayKeyConfig.paramName;
-                        }
-
-                        for (var key in data) {
-                            if (key == "actions") {
-                                var actions = data.actions;
-                                
-                                for (var i = 0; i < actions.length; i++) {
-                                    if (actions[i].hasOwnProperty("parameters")) {
-                                        var parameters = actions[i].parameters;
-
-                                        for (var j = 0; j < parameters.length; j++) {
-                                            var param = parameters[j];
-                                            var name = param.name;
-                                            var value = param.value;
-
-                                            if (name == paramName) {
-                                                var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
-                                                var ele = document.getElementById(id);
-                                                ele.innerHTML = paramName + " : " + value;
-
-                                                var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
-                                                savedValues[id] = ele.innerHTML;
-                                                sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
-                                            }
-                                        }
-                                    }
                                 }
                             }
                         }
@@ -1252,10 +1203,17 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                                     toolTipData = results.join("\n");
                                 }
 
-                                toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
                                 var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
                                 var ele = document.getElementById(id);
-                                ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
+
+                                if (displayKeyConfig.hasOwnProperty("flattenValue")) {
+                                    if (displayKeyConfig.flattenValue == "true") {
+                                        ele.innerHTML = toolTipData;                                        
+                                    }
+                                } else {
+                                    toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
+                                    ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";    
+                                }
 
                                 var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
                                 savedValues[id] = ele.innerHTML;
