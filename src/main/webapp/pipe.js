@@ -93,6 +93,8 @@ function pipelineUtils() {
                                         html.push("No builds done yet.");
                                     }
 
+                                    var isLatestPipeline = true;
+
                                     for (var i = 0; i < component.pipelines.length; i++) {
                                         pipeline = component.pipelines[i];
 
@@ -105,7 +107,12 @@ function pipelineUtils() {
                                         var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
 
                                         html.push('<br><a id="' + displayBuildId + '" class="build_header build_' + statusString + '" href="javascript:toggle(\'' + toggleBuildId + '\');">' + dataString + " " + statusString + '</a> ');
-                                        html.push('<div id="' + toggleBuildId + '" style="display:' + getToggleState(toggleBuildId, "block") +'">');
+                                        html.push('<div id="' + toggleBuildId + '" style="display:' + getToggleState(toggleBuildId, "block", isLatestPipeline) +'">');
+
+                                        // Only expand the latest pipeline
+                                        if (isLatestPipeline) {
+                                            isLatestPipeline = false;
+                                        }
 
                                         if (pipeline.triggeredBy && pipeline.triggeredBy.length > 0) {
                                             triggered = "";
@@ -166,7 +173,7 @@ function pipelineUtils() {
                                                 var displayTableId = "display-table-" + jobName + "-" + buildNum;
 
                                                 html.push('<h3><a id="' + displayTableId + '" href="javascript:toggleTable(\'' + toggleTableId + '\');">Additional Display Values</a></h3>');
-                                                html.push("<table id=\"" + toggleTableId + "\" style=\"display:" +  getToggleState(toggleTableId, "table") + "; min-width:500px; text-align:left; padding: 5px; border: 1px solid ddd; border-collapse: collapse;\">");
+                                                html.push("<table id=\"" + toggleTableId + "\" style=\"display:" +  getToggleState(toggleTableId, "table", true) + "; min-width:500px; text-align:left; padding: 5px; border: 1px solid ddd; border-collapse: collapse;\">");
                                                 if (JSON.stringify(savedPipelineDisplayValues) == JSON.stringify({})) {
                                                     html.push(generateDisplayValueTable(data.displayArguments, jobName, buildNum));
                                                 } else {
@@ -1191,15 +1198,17 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                                     toolTipData = results.join("\n");
                                 }
 
+                                toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
                                 var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
                                 var ele = document.getElementById(id);
 
                                 if (displayKeyConfig.hasOwnProperty("flattenValue")) {
                                     if (displayKeyConfig.flattenValue == "true") {
-                                        ele.innerHTML = toolTipData;                                        
+                                        ele.innerHTML = toolTipData;
+                                        // In the event of multi-line values, redraw the connections to line them up correctly
+                                        redrawConnections();
                                     }
                                 } else {
-                                    toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
                                     ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";    
                                 }
 
@@ -1215,14 +1224,16 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
     }
 }
 
-function getToggleState(toggleId, toggleType) {
+function getToggleState(toggleId, toggleType, defaultToggleOn) {
     var toggleStates = JSON.parse(sessionStorage.toggleStates);
 
     if (toggleType == "block") {
         if (toggleStates.hasOwnProperty(toggleId)) {
             return toggleStates[toggleId];
         } else {
-            return "block";
+            if (defaultToggleOn) {
+                return "block";
+            }
         }
     }
 
@@ -1230,9 +1241,13 @@ function getToggleState(toggleId, toggleType) {
         if (toggleStates.hasOwnProperty(toggleId)) {
             return toggleStates[toggleId];
         } else {
-            return "table";
+            if (defaultToggleOn) {
+                return "table";
+            }
         }
     }
+
+    return "none";
 }
 
 function toggle(toggleBuildId) {
