@@ -81,14 +81,6 @@ public class DeliveryPipelineView extends View {
         static final String DETAILED = "Detailed";
     }
 
-    /**
-     * Retrieving the CL differs between promotion and production jobs.
-     */
-    private static final class ChangelistType {
-        static final String PROMOTION = "Promotion";
-        static final String CODEDEPLOY = "Codedeploy";
-    }
-
     private static final Logger LOG = Logger.getLogger(DeliveryPipelineView.class.getName());
 
     private static final int DEFAULT_INTERVAL = 2;
@@ -130,9 +122,9 @@ public class DeliveryPipelineView extends View {
 
     private String viewMode = ViewMode.MINIMALIST;
     private boolean useFullLocaleTimeStrings = true;
-    private boolean showCL = true;
-    private String changelistType = ChangelistType.PROMOTION;
     private boolean showArtifacts = true;
+    private String displayArguments = "";
+    private String displayArgumentProject = "";
 
     private transient String error;
 
@@ -441,6 +433,10 @@ public class DeliveryPipelineView extends View {
         this.linkToConsoleLog = linkToConsoleLog;
     }
 
+    /* -------------------------------------------- */
+    /*          Additional Display Settings         */
+    /* -------------------------------------------- */
+
     @Exported
     public String getViewMode() {
         return viewMode;
@@ -460,30 +456,30 @@ public class DeliveryPipelineView extends View {
     }
 
     @Exported
-    public boolean isShowCL() {
-        return showCL;
-    }
-
-    public void setShowCL(boolean showCL) {
-        this.showCL = showCL;
-    }
-
-    @Exported
-    public String getChangelistType() {
-        return changelistType;
-    }
-
-    public void setChangelistType(String changelistType) {
-        this.changelistType = changelistType;
-    }
-
-    @Exported
     public boolean isShowArtifacts() {
         return showArtifacts;
     }
 
     public void setShowArtifacts(boolean showArtifacts) {
         this.showArtifacts = showArtifacts;
+    }
+
+    @Exported
+    public String getDisplayArguments() {
+        return displayArguments;
+    }
+
+    public void setDisplayArguments(String displayArguments) {
+        this.displayArguments = displayArguments;
+    }
+
+    @Exported
+    public String getDisplayArgumentProject() {
+        return displayArgumentProject;
+    }
+
+    public void setDisplayArgumentProject(String displayArgumentProject) {
+        this.displayArgumentProject = displayArgumentProject;
     }
 
     @JavaScriptMethod
@@ -715,13 +711,6 @@ public class DeliveryPipelineView extends View {
             ListBoxModel options = new ListBoxModel();
             options.add(ViewMode.MINIMALIST);
             options.add(ViewMode.DETAILED);
-            return options;
-        }
-
-        public ListBoxModel doFillChangelistTypeItems() {
-            ListBoxModel options = new ListBoxModel();
-            options.add(ChangelistType.PROMOTION);
-            options.add(ChangelistType.CODEDEPLOY);
             return options;
         }
 

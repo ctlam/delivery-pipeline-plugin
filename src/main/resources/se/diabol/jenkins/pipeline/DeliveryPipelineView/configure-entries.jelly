@@ -90,7 +90,7 @@
         <f:entry title="URL for custom CSS file (fullscreen)" field="fullScreenCss">
             <f:textbox/>
         </f:entry>
-        
+
         <f:entry title="Enable paging" field="pagingEnabled">
             <f:checkbox/>
         </f:entry>
@@ -123,16 +123,16 @@
             <f:checkbox/>
         </f:entry>
 
-        <f:entry title="Display CL" field="showCL">
+        <f:entry title="Display Top-Level Artifacts" field="showArtifacts">
             <f:checkbox/>
         </f:entry>
 
-        <f:entry title="CL Type" field="changelistType">
-            <f:select/>
+        <f:entry title="Display Argument JSON Project Name" field="displayArgumentProject">
+            <f:textbox/>
         </f:entry>
 
-        <f:entry title="Display Artifacts" field="showArtifacts">
-            <f:checkbox/>
+        <f:entry title="Display Arguments" field="displayArguments">
+            <f:textarea/>
         </f:entry>
     </f:section>
 

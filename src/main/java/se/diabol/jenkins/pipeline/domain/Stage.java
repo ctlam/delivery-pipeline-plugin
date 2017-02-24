@@ -256,41 +256,53 @@ public class Stage extends AbstractItem {
 
         List<List<Stage>> allPaths = findAllRunnablePaths(findStageForJob(firstProject.getRelativeNameFrom(
                 Jenkins.getInstance()), stages), graph);
-        Collections.sort(allPaths, new Comparator<List<Stage>>() {
-            public int compare(List<Stage> stages1, List<Stage> stages2) {
-                return stages2.size() - stages1.size();
-            }
-        });
-        
+        // Collections.sort(allPaths, new Comparator<List<Stage>>() {
+        //     public int compare(List<Stage> stages1, List<Stage> stages2) {
+        //         return stages2.size() - stages1.size();
+        //     }
+        // });
+
         //for keeping track of which row has an available column
         final Map<Integer,Integer> columnRowMap = Maps.newHashMap();
         final List<Stage> processedStages = Lists.newArrayList();
-        
+        int lastRowDiscovered = 0;
+
         for (int row = 0; row < allPaths.size(); row++) {
-            List<Stage> path = allPaths.get(row);            
+            List<Stage> path = allPaths.get(row);
             for (int column = 0; column < path.size(); column++) {
                 Stage stage = path.get(column);
-                
+
                 //skip processed stage since the row/column has already been set
                 if (!processedStages.contains(stage)) {
                     stage.setColumn(Math.max(stage.getColumn(), column));
 
                     final int effectiveColumn = stage.getColumn();
-
                     final Integer previousRowForThisColumn = columnRowMap.get(effectiveColumn);
                     //set it to 0 if no previous setting is set; if found, previous value + 1
                     final int currentRowForThisColumn = previousRowForThisColumn == null
                             ? 0 : previousRowForThisColumn + 1;
-                    //update/set row number in the columnRowMap for this effective column
-                    columnRowMap.put(effectiveColumn, currentRowForThisColumn);
 
-                    stage.setRow(currentRowForThisColumn);
+                    if (lastRowDiscovered > currentRowForThisColumn) {
+                        //update/set row number in the columnRowMap for this effective column
+                        columnRowMap.put(effectiveColumn, lastRowDiscovered);
 
-                    processedStages.add(stage);
+                        stage.setRow(lastRowDiscovered);
+
+                        processedStages.add(stage);
+                    } else {
+                        lastRowDiscovered = currentRowForThisColumn;
+                        //update/set row number in the columnRowMap for this effective column
+                        columnRowMap.put(effectiveColumn, currentRowForThisColumn);
+
+                        stage.setRow(currentRowForThisColumn);
+
+                        processedStages.add(stage);
+                    }
                 }
             }
+            lastRowDiscovered = row + 1;
         }
-        
+
         List<Stage> result = new ArrayList<Stage>(stages);
 
         sortByRowsCols(result);

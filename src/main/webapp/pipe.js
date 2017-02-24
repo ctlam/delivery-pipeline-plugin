@@ -28,7 +28,7 @@ function pipelineUtils() {
     var lastResponse = null;
 
     this.refreshPipelines = function(data, divNames, errorDiv, view, showAvatars, showChanges, aggregatedChangesGroupingPattern, pipelineid, jsplumb) {
-                           var lastUpdate = data.lastUpdated,
+                            var lastUpdate = data.lastUpdated,
                                cErrorDiv = Q("#" + errorDiv),
                                pipeline,
                                component,
@@ -38,305 +38,364 @@ function pipelineUtils() {
                                contributors,
                                tasks = [];
 
-                           if (data.error) {
-                               cErrorDiv.html('Error: ' + data.error).show();
-                           } else {
-                               cErrorDiv.hide().html('');
-                           }
+                            // Need this for manifest - CL tracking
+                            var clManifestMap = {};
 
-                           if (lastResponse === null || JSON.stringify(data.pipelines) !== JSON.stringify(lastResponse.pipelines)) {
+                            if (sessionStorage.savedPipelineDisplayValues == null) {
+                                sessionStorage.savedPipelineDisplayValues = JSON.stringify({});
+                            }
+                            var savedPipelineDisplayValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
 
-                               for (var z = 0; z < divNames.length; z++) {
-                                   Q("#" + divNames[z]).html('');
-                               }
+                            if (sessionStorage.toggleStates == null) {
+                                sessionStorage.toggleStates = JSON.stringify({});
+                            }
 
-                               if (!data.pipelines || data.pipelines.length === 0) {
-                                   Q("#pipeline-message-" + pipelineid).html('No pipelines configured or found. Please review the <a href="configure">configuration</a>')
-                               }
+                            if (data.error) {
+                                cErrorDiv.html('Error: ' + data.error).show();
+                            } else {
+                                cErrorDiv.hide().html('');
+                            }
 
-                               jsplumb.reset();
-                               instance = jsplumb;
+                            if (lastResponse === null || JSON.stringify(data.pipelines) !== JSON.stringify(lastResponse.pipelines)) {
 
-                               for (var c = 0; c < data.pipelines.length; c++) {
-                                   html = [];
-                                   component = data.pipelines[c];
-                                   html.push("<section class='pipeline-component'>");
-                                   html.push("<h1>" + htmlEncode(component.name));
-                                   if (data.allowPipelineStart) {
-                                       if (component.firstJobParameterized) {
-                                           html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" onclick="triggerParameterizedBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
-                                       } else {
-                                           html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" onclick="triggerBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
-                                       }
-                                       html.push('<img class="icon-clock icon-md" title="Build now" src="' + resURL + '/images/24x24/clock.png">');
-                                       html.push("</a>");
-                                   }
-                                   html.push("</h1>");
-                                   if (!showAvatars) {
-                                       html.push("<div class='pagination'>");
-                                       html.push(component.pagingData);
-                                       html.push("</div>");
-                                   }
-                                   if (component.pipelines.length === 0) {
-                                       html.push("No builds done yet.");
-                                   }
+                                for (var z = 0; z < divNames.length; z++) {
+                                    Q("#" + divNames[z]).html('');
+                                }
 
-                                   for (var i = 0; i < component.pipelines.length; i++) {
-                                       pipeline = component.pipelines[i];
+                                if (!data.pipelines || data.pipelines.length === 0) {
+                                    Q("#pipeline-message-" + pipelineid).html('No pipelines configured or found. Please review the <a href="configure">configuration</a>')
+                                }
 
-                                       try {
-                                          var displayBuildId = "displayBuild" + pipeline.version.substring(1);
-                                          var toggleBuildId = "toggleBuild" + pipeline.version.substring(1);
-                                          var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                                          var dataString = jobName + " " + pipeline.version;
-                                          var statusString = pipeline.stages[0].tasks[0].status.type;
-                                          html.push('<br><a id="' + displayBuildId + '" href="javascript:toggle(' + '\'' + displayBuildId + '\', \'' + toggleBuildId + '\'); redrawConnections();">Collapse</a> ' + dataString + " " + pipeline.stages[0].tasks[0].status.type);
-                                       }
-                                       catch(err) {
-                                          html.push('<br><a id="' + displayBuildId + '" href="javascript:toggle(' + '\'' + displayBuildId + '\', \'' + toggleBuildId + '\'); redrawConnections();">Collapse</a> ' + dataString);
-                                       }
-                                       html.push('<div id="' + toggleBuildId + '" style="display: block">');
+                                jsplumb.reset();
+                                instance = jsplumb;
 
-                                       if (pipeline.triggeredBy && pipeline.triggeredBy.length > 0) {
-                                           triggered = "";
-                                           for (var y = 0; y < pipeline.triggeredBy.length; y++) {
-                                               trigger = pipeline.triggeredBy[y];
-                                               triggered = triggered + ' <span class="' + trigger.type + '">' + htmlEncode(trigger.description) + '</span>';
-                                               if (y < pipeline.triggeredBy.length - 1) {
-                                                   triggered = triggered + ", ";
-                                               }
-                                           }
-                                       }
+                                for (var c = 0; c < data.pipelines.length; c++) {
+                                    html = [];
+                                    component = data.pipelines[c];
+                                    html.push("<section class='pipeline-component'>");
+                                    html.push("<h1>" + htmlEncode(component.name));
+                                    if (data.allowPipelineStart) {
+                                        if (component.firstJobParameterized) {
+                                            html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" onclick="triggerParameterizedBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
+                                        } else {
+                                            html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" onclick="triggerBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
+                                        }
+                                        html.push('<img class="icon-clock icon-md" title="Build now" src="' + resURL + '/images/24x24/clock.png">');
+                                        html.push("</a>");
+                                    }
+                                    html.push("</h1>");
+                                    if (!showAvatars) {
+                                        html.push("<div class='pagination'>");
+                                        html.push(component.pagingData);
+                                        html.push("</div>");
+                                    }
+                                    if (component.pipelines.length === 0) {
+                                        html.push("No builds done yet.");
+                                    }
 
-                                       contributors = [];
-                                       if (pipeline.contributors) {
-                                           Q.each(pipeline.contributors, function (index, contributor) {
-                                               contributors.push(htmlEncode(contributor.name));
-                                           });
-                                       }
+                                    for (var i = 0; i < component.pipelines.length; i++) {
+                                        pipeline = component.pipelines[i];
 
-                                       if (contributors.length > 0) {
-                                           triggered = triggered + " changes by " + contributors.join(", ");
-                                       }
+                                        var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                                        var buildNum = pipeline.version.substring(1);
+                                        var statusString = pipeline.stages[0].tasks[0].status.type;
 
-                                       if (pipeline.aggregated) {
-                                           if (component.pipelines.length > 1) {
-                                               html.push('<h2>Aggregated view</h2>');
-                                           }
-                                       } else {
-                                           html.push('<h2>' + htmlEncode(pipeline.version));
-                                           if (triggered != "") {
-                                               html.push(" triggered by " + triggered);
-                                           }
+                                        var dataString = jobName + " " + pipeline.version;
+                                        var displayBuildId = "display-build-" + jobName + "-" + buildNum;
+                                        var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
 
-                                           html.push(' - Started <span id="' + pipeline.id + '\">' + formatDate(pipeline.timestamp, lastUpdate) + '</span></h2>');
+                                        html.push('<br><a id="' + displayBuildId + '" class="build_header build_' + statusString + '" href="javascript:toggle(\'' + toggleBuildId + '\');">' + dataString + " " + statusString + '</a> ');
+                                        html.push('<div id="' + toggleBuildId + '" style="display:' + getToggleState(toggleBuildId, "block") +'">');
 
-                                           if (data.useFullLocaleTimeStrings) {
-                                               html.push('<h3>Started on: ' + formatLongDate(pipeline.timestamp) + '</h3>');
-                                           }
+                                        if (pipeline.triggeredBy && pipeline.triggeredBy.length > 0) {
+                                            triggered = "";
+                                            for (var y = 0; y < pipeline.triggeredBy.length; y++) {
+                                                trigger = pipeline.triggeredBy[y];
+                                                triggered = triggered + ' <span class="' + trigger.type + '">' + htmlEncode(trigger.description) + '</span>';
+                                                if (y < pipeline.triggeredBy.length - 1) {
+                                                    triggered = triggered + ", ";
+                                                }
+                                            }
+                                        }
 
-                                           if (data.showTotalBuildTime) {
-                                               html.push('<h3>Total build time: ' + formatDuration(pipeline.totalBuildTime) + '</h3>');
-                                           }
+                                        contributors = [];
+                                        if (pipeline.contributors) {
+                                            Q.each(pipeline.contributors, function (index, contributor) {
+                                                contributors.push(htmlEncode(contributor.name));
+                                            });
+                                        }
 
-                                           if (data.showCL) {
-                                               var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                                               var buildNum = pipeline.version.substring(1);
+                                        if (contributors.length > 0) {
+                                            triggered = triggered + " changes by " + contributors.join(", ");
+                                        }
 
-                                               if (data.changelistType == "Promotion") {
-                                                   html.push('<h3>Changelist: ' + getPromoCL(jobName, buildNum) + '</h3>'); 
-                                               }
-                                               else if (data.changelistType == "Codedeploy") {
-                                                   html.push('<h3>Changelist: ' + getCodeDeployCL(jobName, buildNum) + '</h3>');
-                                               }                                               
-                                           }
+                                        if (pipeline.aggregated) {
+                                            if (component.pipelines.length > 1) {
+                                                html.push('<h3>Aggregated view</h3>');
+                                            }
+                                        } else {
+                                            var pipelineTimestamp = formatLongDate(pipeline.timestamp);
+                                            var pipelineDuration = formatLongDuration(pipeline.stages[0].tasks[0].status.duration);
+                                            
+                                            if (!data.useFullLocaleTimeStrings) {
+                                                pipelineTimestamp = formatDate(pipeline.timestamp);
+                                                pipelineDuration = formatDuration(pipeline.stages[0].tasks[0].status.duration);
+                                            }
+                                            
+                                            html.push("<table style=\"min-width:500px; text-align:left; padding: 5px; border: 1px solid ddd; border-collapse: collapse;\">");
+                                            html.push("<tr><th style=\"border: 1px solid #ddd;\">Started on: </th><td style=\"border: 1px solid #ddd;\">" + pipelineTimestamp + "</td></tr>");
+                                            html.push("<tr><th style=\"border: 1px solid #ddd;\">Duration (Dd HH:MM:SS): </th><td style=\"border: 1px solid #ddd;\">" + pipelineDuration + "</td></tr>");
+                                            html.push("<tr><th style=\"border: 1px solid #ddd;\">Triggered by: </th><td style=\"border: 1px solid #ddd;\">" + triggered + "</td></tr>");
 
-                                           if (data.showArtifacts) {
-                                               var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                                               var buildNum = pipeline.version.substring(1);
-                                               html.push('<h3>Artifacts: ' + getBuildArtifactLinks(jobName, buildNum) + '</h3>');
-                                           }
+                                            if (data.showArtifacts) {
+                                                html.push("<tr><th style=\"border: 1px solid #ddd;\">Artifacts: </th><td style=\"border: 1px solid #ddd;\">" + getBuildArtifactLinks(jobName, buildNum) + "</td></tr>");
+                                            }
+                                            
+                                            html.push("</table><h3><br></h3>");
 
-                                           html.push('<h3><br></h3>');
+                                            if (data.showTotalBuildTime) {
+                                                html.push('<h3>Total build time: ' + formatDuration(pipeline.totalBuildTime) + '</h3>');
+                                            }
+                                            
+                                            if (showChanges && pipeline.changes && pipeline.changes.length > 0) {
+                                                html.push(generateChangeLog(pipeline.changes));
+                                            }
 
-                                           if (showChanges && pipeline.changes && pipeline.changes.length > 0) {
-                                               html.push(generateChangeLog(pipeline.changes));
-                                           }
-                                       }
+                                            if (data.displayArguments != "") {
+                                                var toggleTableId = "toggle-table-" + jobName + "-" + buildNum;
+                                                var displayTableId = "display-table-" + jobName + "-" + buildNum;
 
-                                       html.push('<section class="pipeline">');
+                                                html.push('<h3><a id="' + displayTableId + '" href="javascript:toggleTable(\'' + toggleTableId + '\');">Additional Display Values</a></h3>');
+                                                html.push("<table id=\"" + toggleTableId + "\" style=\"display:" +  getToggleState(toggleTableId, "table") + "; min-width:500px; text-align:left; padding: 5px; border: 1px solid ddd; border-collapse: collapse;\">");
+                                                if (JSON.stringify(savedPipelineDisplayValues) == JSON.stringify({})) {
+                                                    html.push(generateDisplayValueTable(data.displayArguments, jobName, buildNum));
+                                                } else {
+                                                    html.push(loadDisplayValues(data.displayArguments, jobName, buildNum, savedPipelineDisplayValues));
+                                                }
+                                                html.push("</table>");
+                                            }
 
-                                       var row = 0, column = 0, stage;
+                                            html.push('<h3><br></h3>');
+                                        }
 
-                                       html.push('<div class="pipeline-row">');
+                                        var row = 0, column = 0, stage;
+                                        html.push('<section class="pipeline">');
+                                        html.push('<div class="pipeline-row">');
+ 
+                                        for (var j = 0; j < pipeline.stages.length; j++) {
+                                            stage = pipeline.stages[j];
 
-                                       for (var j = 0; j < pipeline.stages.length; j++) {
-                                           stage = pipeline.stages[j];
+                                            if (stage.row > row) {
+                                                html.push('</div><div class="pipeline-row">');
+                                                column = 0;
+                                                row++;
+                                            }
 
-                                           if (stage.row > row) {
-                                               html.push('</div><div class="pipeline-row">');
-                                               column = 0;
-                                               row++;
-                                           }
+                                            if (stage.column > column) {
+                                                for (var as = column; as < stage.column; as++) {
+                                                    if (data.viewMode == "Minimalist") {
+                                                        html.push('<div class="pipeline-cell"><div class="stage-minimalist hide"></div></div>');
+                                                    } else {
+                                                        html.push('<div class="pipeline-cell"><div class="stage hide"></div></div>');
+                                                    }
+                                                    column++;
+                                                }
+                                            }
 
-                                           if (stage.column > column) {
-                                               for (var as = column; as < stage.column; as++) {
-                                                   html.push('<div class="pipeline-cell"><div class="stage hide"></div></div>');
-                                                   column++;
-                                               }
-                                           }
+                                            html.push('<div class="pipeline-cell">');
 
-                                           html.push('<div class="pipeline-cell">');
-                                           html.push('<div id="' + getStageId(stage.id + "", i) + '" class="stage ' + getStageClassName(stage.name) + '">');
-                                           html.push('<div class="stage-header"><div class="stage-name">' + htmlEncode(stage.name) + '</div>');
-                                           if (!pipeline.aggregated) {
-                                               html.push('</div>');
-                                           } else {
-                                               var stageversion = stage.version;
-                                               if (!stageversion) {
-                                                   stageversion = "N/A"
-                                               }
-                                               html.push(' <div class="stage-version">' + htmlEncode(stageversion) + '</div></div>');
-                                           }
+                                            if (data.viewMode == "Minimalist") {
+                                                html.push('<div class="stage-minimalist ' + getStageClassName(stage.name) + '">');
+                                                html.push('<div class="stage-minimalist-header"><div class="stage-minimalist-name"><a href="' + getLink(data, stage.tasks[0].link) + '">' + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + '</a></div>');
+                                            } else {
+                                                html.push('<div id="' + getStageId(stage.id + "", i) + '" class="stage ' + getStageClassName(stage.name) + '">');
+                                                html.push('<div class="stage-header"><div class="stage-name build_' + stage.tasks[0].status.type +'">' + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + '</div>');
+                                            }
 
-                                           var task, id, timestamp, progress, progressClass, consoleLogLink = "";
+                                            if (!pipeline.aggregated) {
+                                                html.push('</div>');
+                                            } else {
+                                                var stageversion = stage.version;
+                                                if (!stageversion) {
+                                                    stageversion = "N/A"
+                                                }
+                                                html.push(' <div class="stage-version">' + htmlEncode(stageversion) + '</div></div>');
+                                            }
 
-                                           for (var k = 0; k < stage.tasks.length; k++) {
-                                               task = stage.tasks[k];
+                                            var task, id, timestamp, progress, progressClass, consoleLogLink = "";
 
-                                               id = getTaskId(task.id, i);
+                                            for (var k = 0; k < stage.tasks.length; k++) {
+                                                task = stage.tasks[k];
 
-                                               if (data.useFullLocaleTimeStrings) {
-                                                 timestamp = formatCardLongDate(task.status.timestamp);
-                                               } else {
-                                                 timestamp = formatDate(task.status.timestamp, lastUpdate); 
-                                               }
-                                               
-                                               tasks.push({id: id, taskId: task.id, buildId: task.buildId});
+                                                id = getTaskId(task.id, i);
 
-                                               progress = 100;
-                                               progressClass = "task-progress-notrunning";
+                                                if (data.useFullLocaleTimeStrings) {
+                                                  timestamp = formatLongDate(task.status.timestamp);
+                                                } else {
+                                                  timestamp = formatDate(task.status.timestamp, lastUpdate);
+                                                }
 
-                                               if (task.status.percentage) {
-                                                   progress = task.status.percentage;
-                                                   progressClass = "task-progress-running";
-                                               } else if (data.linkToConsoleLog) {
-                                                  if (task.status.success ||
-                                                      task.status.failed ||
-                                                      task.status.unstable ||
-                                                      task.status.cancelled) {
-                                                      consoleLogLink = "console";
-                                                  }
-                                               }
+                                                tasks.push({id: id, taskId: task.id, buildId: task.buildId});
 
-                                               html.push("<div id=\"" + id + "\" class=\"status stage-task " + task.status.type +
-                                                   "\"><div class=\"task-progress " + progressClass + "\" style=\"width: " + progress + "%;\"><div class=\"task-content\">" +
-                                                   "<div class=\"task-header\"><div class=\"taskname\"><a href=\"" + getLink(data, task.link) + consoleLogLink + "\">" + htmlEncode("#" + task.buildId + " " + task.name) + "</a></div>");
-                                               if (data.allowManualTriggers && task.manual && task.manualStep.enabled && task.manualStep.permission) {
-                                                   html.push('<div class="task-manual" id="manual-' + id + '" title="Trigger manual build" onclick="triggerManual(\'' + id + '\', \'' + task.id + '\', \'' + task.manualStep.upstreamProject + '\', \'' + task.manualStep.upstreamId + '\', \'' + view.viewUrl + '\');">');
-                                                   html.push("</div>");
-                                               } else {
-                                                   if (!pipeline.aggregated && data.allowRebuild && task.rebuildable) {
-                                                       html.push('<div class="task-rebuild" id="rebuild-' + id + '" title="Trigger rebuild" onclick="triggerRebuild(\'' + id + '\', \'' + task.id + '\', \'' + task.buildId + '\', \'' + view.viewUrl + '\');">');
-                                                       html.push("</div>");
+                                                progress = 100;
+                                                progressClass = "task-progress-notrunning";
+                                                var taskHeader = task.name + "/" + task.buildId;
+
+                                                if (task.status.percentage) {
+                                                    progress = task.status.percentage;
+                                                    progressClass = "task-progress-running";
+                                                } else if (data.linkToConsoleLog) {
+                                                   if (task.status.success ||
+                                                       task.status.failed ||
+                                                       task.status.unstable ||
+                                                       task.status.cancelled) {
+                                                       consoleLogLink = "console";
+                                                       taskHeader = "Console";
                                                    }
-                                               }
+                                                }
 
-                                               html.push('</div><div class="task-details">');
+                                                if (data.viewMode == "Minimalist") {
+                                                    var hoverString = "Timestamp: " + timestamp + "<br>Duration: " + formatLongDuration(task.status.duration);
+                                                    // TODO: Re-add console link
+                                                    html.push("<div id=\"" + id + "\" class=\"status stage-minimalist-task " +
+                                                        "\"><div class=\"task-content-minimalist\">" +
+                                                        "<div class=\"task-header\"><div class=\"taskname-minimalist\"><a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle_" + task.status.type + "\"><br><span class=\"tooltip\">" + hoverString + "</span></a></div>");
+                                                    html.push("</div></div></div>");
+                                                } else {
+                                                    html.push("<div id=\"" + id + "\" class=\"status stage-task " + // task.status.type +
+                                                        "\"><div class=\"task-progress " + progressClass + "\" style=\"width: " + progress + "%;\"><div class=\"task-content\">" +
+                                                        "<div class=\"task-header\"><div class=\"taskname\"></div>");
+                                                    if (data.allowManualTriggers && task.manual && task.manualStep.enabled && task.manualStep.permission) {
+                                                        html.push('<div class="task-manual" id="manual-' + id + '" title="Trigger manual build" onclick="triggerManual(\'' + id + '\', \'' + task.id + '\', \'' + task.manualStep.upstreamProject + '\', \'' + task.manualStep.upstreamId + '\', \'' + view.viewUrl + '\');">');
+                                                        html.push("</div>");
+                                                    } else {
+                                                        if (!pipeline.aggregated && data.allowRebuild && task.rebuildable) {
+                                                            html.push('<div class="task-rebuild" id="rebuild-' + id + '" title="Trigger rebuild" onclick="triggerRebuild(\'' + id + '\', \'' + task.id + '\', \'' + task.buildId + '\', \'' + view.viewUrl + '\');">');
+                                                            html.push("</div>");
+                                                        }
+                                                    }
 
-                                               if (timestamp != "") {
-                                                   html.push("<div id=\"" + id + ".timestamp\" class='timestamp'>" + timestamp + "</div>");
-                                               }
+                                                    html.push('</div><div class="task-details">');
+                                                    if (timestamp != "") {
+                                                        html.push("<div class='console'><a href=\"" + getLink(data, task.link) + consoleLogLink + "\">" + taskHeader + "</a></div>");
+                                                    }
 
-                                               if (task.status.duration >= 0) {
-                                                   html.push("<div class='duration'>" + formatDuration(task.status.duration) + "</div>");
-                                               }
+                                                    html.push('</div><div class="task-details">');
+                                                    if (timestamp != "") {
+                                                        html.push("<div id=\"" + id + ".timestamp\" class='timestamp'>" + timestamp + "</div>");
+                                                    }
 
-                                               html.push("</div></div></div></div>");
+                                                    html.push('</div><div class="task-details">');
+                                                    if (task.status.duration >= 0) {
+                                                        html.push("<div class='duration'>" + formatDuration(task.status.duration) + "</div>");
+                                                    }
 
-                                               html.push(generateDescription(data, task));
-                                               html.push(generateTestInfo(data, task));
-                                               html.push(generateStaticAnalysisInfo(data, task));
-                                               html.push(generatePromotionsInfo(data, task));
+                                                    html.push("</div></div></div></div>");
 
-                                           }
+                                                    html.push(generateDescription(data, task));
+                                                    html.push(generateTestInfo(data, task));
+                                                    html.push(generateStaticAnalysisInfo(data, task));
+                                                    html.push(generatePromotionsInfo(data, task));
+                                                }
+                                            }
 
-                                           if (pipeline.aggregated && stage.changes && stage.changes.length > 0) {
-                                               html.push(generateAggregatedChangelog(stage.changes, aggregatedChangesGroupingPattern));
-                                           }
+                                            if (pipeline.aggregated && stage.changes && stage.changes.length > 0) {
+                                                html.push(generateAggregatedChangelog(stage.changes, aggregatedChangesGroupingPattern));
+                                            }
 
-                                           html.push("</div></div>");
-                                           column++;
-                                       }
+                                            html.push("</div></div>");
+                                            column++;
+                                        }
 
-                                       html.push('</div>');
-                                       html.push("</section>");
+                                        if (!pipeline.aggregated) {
+                                            var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                                            getDisplayValues(data.displayArguments, pipeline, jobName, pipeline.version.substring(1));
+                                        }
 
-                                       html.push('</div>');
-                                   }
+                                        html.push('</div>');
+                                        html.push("</section>");
 
-                                   html.push("</section>");
-                                   Q("#" + divNames[c % divNames.length]).append(html.join(""));
-                                   Q("#pipeline-message-" + pipelineid).html('');
-                               }
+                                        html.push('</div>');
+                                    }
 
-                               var index = 0, source, target;
-                               lastResponse = data;
-                               equalheight(".pipeline-row .stage");
+                                    html.push("</section>");
+                                    Q("#" + divNames[c % divNames.length]).append(html.join(""));
+                                    Q("#pipeline-message-" + pipelineid).html('');
+                                }
 
-                               Q.each(data.pipelines, function (i, component) {
-                                   Q.each(component.pipelines, function (j, pipeline) {
-                                       index = j;
-                                       Q.each(pipeline.stages, function (k, stage) {
-                                           if (stage.downstreamStages) {
-                                               Q.each(stage.downstreamStageIds, function (l, value) {
-                                                   source = getStageId(stage.id + "", index);
-                                                   target = getStageId(value + "", index);
-                                                   jsplumb.connect({
-                                                       source: source,
-                                                       target: target,
-                                                       anchors: [[1, 0, 1, 0, 0, 37], [0, 0, -1, 0, 0, 37]], // allow boxes to increase in height but keep anchor lines on the top
-                                                       overlays: [
-                                                           [ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12}]
-                                                       ],
-                                                       cssClass: "relation",
-                                                       connector: ["Flowchart", { stub: 25, gap: 2, midpoint: 1, alwaysRespectStubs: true } ],
-                                                       paintStyle: { lineWidth: 2, strokeStyle: "rgba(118,118,118,1)" },
-                                                       endpoint: ["Blank"]
-                                                   });
-                                               });
-                                           }
-                                       });
-                                   });
-                               });
+                                // Update all the manifest information at the end to minimize number of calls required
+                                if (data.showManifestInfo && (data.manifestJobName != "")) {
+                                    getManifestInfo(data.manifestJobName, clManifestMap);
+                                }
 
-                           } else {
-                               var comp, pipe, head, st, ta, time;
+                                var index = 0, source, target;
+                                var anchors, connector = [];
+                                lastResponse = data;
+                                equalheight(".pipeline-row .stage");
 
-                               for (var p = 0; p < data.pipelines.length; p++) {
-                                   comp = data.pipelines[p];
-                                   for (var d = 0; d < comp.pipelines.length; d++) {
-                                       pipe = comp.pipelines[d];
-                                       head = document.getElementById(pipe.id);
-                                       if (head) {
-                                           head.innerHTML = formatDate(pipe.timestamp, lastUpdate)
-                                       }
+                                Q.each(data.pipelines, function (i, component) {
+                                    Q.each(component.pipelines, function (j, pipeline) {
+                                        index = j;
+                                        Q.each(pipeline.stages, function (k, stage) {
+                                            if (stage.downstreamStages) {
 
-                                       for (var l = 0; l < pipe.stages.length; l++) {
-                                           st = pipe.stages[l];
-                                           for (var m = 0; m < st.tasks.length; m++) {
-                                               ta = st.tasks[m];
-                                               time = document.getElementById(getTaskId(ta.id, d) + ".timestamp");
-                                               if (time) {
-                                                   time.innerHTML = formatDate(ta.status.timestamp, lastUpdate);
-                                               }
-                                           }
-                                       }
-                                   }
-                               }
-                           }
-                        jsplumb.repaintEverything();
-                       }
+                                                if (data.viewMode == "Minimalist") {
+                                                    anchors = [[1, 0, 1, 0, 0, 12], [0, 0, -1, 0, 0, 12]];
+                                                    connector = ["Flowchart", { stub: 50, gap: 0, midpoint: 0, alwaysRespectStubs: true } ];
+                                                } else {
+                                                    anchors = [[1, 0, 1, 0, 0, 37], [0, 0, -1, 0, 0, 37]];
+                                                    connector = ["Flowchart", { stub: 25, gap: 2, midpoint: 1, alwaysRespectStubs: true } ];
+                                                }
+
+                                                Q.each(stage.downstreamStageIds, function (l, value) {
+                                                    source = getStageId(stage.id + "", index);
+                                                    target = getStageId(value + "", index);
+                                                    jsplumb.connect({
+                                                        source: source,
+                                                        target: target,
+                                                        anchors: anchors, // allow boxes to increase in height but keep anchor lines on the top
+                                                        overlays: [
+                                                            //[ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12}]
+                                                            [ "Arrow", { location: 1, foldback: 0.9, width: 1, length: 12}]
+                                                        ],
+                                                        cssClass: "relation",
+                                                        connector: connector,
+                                                        paintStyle: { lineWidth: 2, strokeStyle: "rgba(118,118,118,1)" },
+                                                        endpoint: ["Blank"]
+                                                    });
+                                                });
+                                            }
+                                        });
+                                    });
+                                });
+
+                            } else {
+                                var comp, pipe, head, st, ta, time;
+
+                                for (var p = 0; p < data.pipelines.length; p++) {
+                                    comp = data.pipelines[p];
+                                    for (var d = 0; d < comp.pipelines.length; d++) {
+                                        pipe = comp.pipelines[d];
+                                        head = document.getElementById(pipe.id);
+                                        if (head) {
+                                            head.innerHTML = formatDate(pipe.timestamp, lastUpdate)
+                                        }
+
+                                        for (var l = 0; l < pipe.stages.length; l++) {
+                                            st = pipe.stages[l];
+                                            for (var m = 0; m < st.tasks.length; m++) {
+                                                ta = st.tasks[m];
+                                                time = document.getElementById(getTaskId(ta.id, d) + ".timestamp");
+                                                if (time) {
+                                                    time.innerHTML = formatDate(ta.status.timestamp, lastUpdate);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                         jsplumb.repaintEverything();
+                        }
 }
 
 function redrawConnections() {
@@ -598,7 +657,16 @@ function formatLongDate(date) {
     // No moment method to get the timezone so we'll do it ourselves
     var dateString = moment(date, "YYYY-MM-DDTHH:mm:ss").toString();
     var timezoneString = getUSTimezone(dateString.split(' ')[5]);
-    dateString = moment(date, "YYYY-MM-DDTHH:mm:ss").toString().split(' ').slice(0, 5).join(' ') + " " + timezoneString;
+    var hourString = dateString.split(' ')[4];
+    var hour = hourString.split(':')[0];
+    var timeOfDayString = "AM";
+
+    if (parseInt(hour) > 12) {
+        timeOfDayString = "PM";
+        hourString = (parseInt(hour) - 12).toString() + ':' + hourString.split(':').slice(1).join(':');
+    }
+
+    dateString = moment(date, "YYYY-MM-DDTHH:mm:ss").toString().split(' ').slice(0, 4).join(' ') + " " + hourString + " " + timeOfDayString + " " + timezoneString;
     return dateString;
   }
   return "";
@@ -609,6 +677,40 @@ function formatCardLongDate(date) {
     return moment(date, "YYYY-MM-DDTHH:mm:ss").toString().split(' ').slice(1, 5).join(' ');
   }
   return "";
+}
+
+/**
+ * Returns a human readable duration string in Dd HH:MM:SS
+ */
+function formatLongDuration(ts) {
+    if (ts > 0) {
+        var timestamp = Math.floor(ts / 1000);
+        var seconds = (timestamp % 60).toString();
+
+        timestamp = Math.floor(timestamp / 60);
+        var minutes = (timestamp % 60).toString();
+
+        timestamp = Math.floor(timestamp / 60);
+        var hours = (timestamp % 24).toString();
+
+        timestamp = Math.floor(timestamp / 24);
+        var days = timestamp.toString();
+
+        if (hours.length == 1) {
+            hours = "0" + hours;
+        }
+
+        if (minutes.length == 1) {
+            minutes = "0" + minutes;
+        }
+
+        if (seconds.length == 1) {
+            seconds = "0" + seconds;
+        }
+
+        return days + 'd ' + hours + ':' + minutes + ':' + seconds;
+    }
+    return "never started";
 }
 
 function formatDuration(millis) {
@@ -761,106 +863,12 @@ function equalheight(container) {
 }
 
 /**
- * Get the CL for a promotion job.
- * Should be safe to cache the results as they are static
- * TODO: Make this asynchronous -- A(synchronous)JAX for a reason
- */
-function getPromoCL(taskId, buildNum) {
-
-    // Check that a CL exists first before attempting to find CL.txt so we aren't
-    // submitting GET requests only to receive a 404 error
-    var artifacts = getBuildArtifacts(taskId, buildNum);
-    var CL = "No CL found";
-
-    for(var i=0; i<artifacts.length; i++) {
-        if (artifacts[i] == 'CL.txt') {
-            Q.ajax({
-                url: "http://localhost:8080/job/" + taskId + "/" + buildNum + "/artifact/CL.txt",
-                type: "GET",
-                dataType: 'json',
-                async: false,
-                cache: true,
-                timeout: 20000,
-                success: function (data) {
-                    CL = data;
-                },
-                error: function (xhr, status, error) {
-                }
-            })
-            // Don't expect too many artifacts but save time where we can
-            break;
-        }
-    }
-    return CL;
-}
-
-/**
- * Get the CL for a production job.
- * Should be safe to cache the results as they are static
- * TODO: Make this asynchronous -- A(synchronous)JAX for a reason
- */
-function getCodeDeployCL(taskId, buildNum) {
-    var CL = "No CL found";
-    Q.ajax({
-        url: "http://localhost:8080/job/" + taskId + "/" + buildNum + "/api/json?tree=actions[parameters[*]]",
-        type: "GET",
-        dataType: 'json',
-        async: false,
-        cache: true,
-        timeout: 20000,
-        success: function (json) {
-            CL = extractCLFromJson(json);
-        },
-        error: function (xhr, status, error) {
-        }
-    })
-    return CL;
-}
-
-/**
- * Helper method to extract the CODEDEPLOY_CL from json
- */
-function extractCLFromJson(json) {
-    var actions = json.actions;
-    var params = {};
-
-    if (actions.length > 0) {
-        for(var i=0; i<actions.length; i++) {
-            if ("parameters" in actions[i]) {
-                params = actions[i].parameters;
-
-                for(var j=0; j<params.length; j++) {
-                    param = params[j];
-                    if (param.name == "CODEDEPLOY_CL") {
-                        return param.value;
-                    }  
-                }
-            }
-        }
-    }
-    return "No CL found";
-}
-
-/**
- * TESTING PURPOSES ONLY
- */
-function testParse() {
-    var CL = "";
-    var json = {"actions":[{},{},{"parameters":[{"name":"TEST","value":false},{"name":"CODEDEPLOY_CL","value":"0123456789"}]},{}]};
-
-    CL = extractCLFromJson(json);
-    console.info(CL);
-}
-
-/**
  * Get all artifacts for a build.
- * Should be safe to cache the results as they are static
- * TODO: Make this asynchronous -- A(synchronous)JAX for a reason
  */
 function getBuildArtifacts(taskId, buildNum) {
     var artifacts = [];
     Q.ajax({
-        url: "http://localhost:8080/job/" + taskId + "/" + buildNum + "/api/json?tree=artifacts[*]",
+        url: rootURL + "/job/" + taskId + "/" + buildNum + "/api/json?tree=artifacts[*]",
         type: "GET",
         dataType: 'json',
         async: false,
@@ -891,7 +899,22 @@ function getBuildArtifactLinks(taskId, buildNum) {
 
     if (artifacts.length > 0) {
         for (var i=0; i<artifacts.length; i++) {
-            retVal += "<a href=\"http://localhost:8080/job/" + taskId + "/" + buildNum + "/artifact/" + artifacts[i] + "\">" + htmlEncode(artifacts[i]) + "</a>, "
+            var artifactInfo = "";
+            Q.ajax({
+                url: rootURL + "/job/" + taskId + "/" + buildNum + "/artifact/" + artifacts[i],
+                type: "GET",
+                async: false,
+                cache: true,
+                timeout: 20000,
+                success: function (json) {
+                    artifactInfo = json;
+                },
+                error: function (xhr, status, error) {
+                }
+            })
+
+            retVal += "<a href=\"http://localhost:8080/job/" + taskId + "/" + buildNum + "/artifact/" + artifacts[i] + "\">" + htmlEncode(artifacts[i]) +
+            "<span class=\"tooltip\">" + artifactInfo + "</span></a>, "
         }
         retVal = retVal.substring(0, retVal.length - 2);
     }
@@ -899,16 +922,347 @@ function getBuildArtifactLinks(taskId, buildNum) {
     return retVal;
 }
 
-function toggle(displayBuildId, toggleBuildId) {
+/**
+ * Generate an table of specified display values
+ */
+function generateDisplayValueTable(displayArgs, pipelineName, pipelineNum) {
+    var displayArgsJson;
+
+    try {
+        displayArgsJson = JSON.parse(displayArgs);
+    }
+    catch (err) {
+        return "INVALID JSON"
+    }
+
+    var retVal = "";
+
+    for (var mainProject in displayArgsJson) {
+        if (mainProject == pipelineName) {
+            var mainProjectDisplayConfig = displayArgsJson[mainProject];
+
+            for (var displayKey in mainProjectDisplayConfig) {
+                var displayKeyConfig = mainProjectDisplayConfig[displayKey];
+                var projectName = "";
+                if (displayKeyConfig.hasOwnProperty("projectName")) {
+                    projectName = displayKeyConfig.projectName;
+                }
+
+                var id = mainProject + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
+                retVal += "<tr><th style=\"border: 1px solid #ddd;\">" + displayKey + "</th><td id=\"" + id + "\" style=\"border: 1px solid #ddd;\">Value not found across pipeline</td></tr>";    
+            }    
+        }
+    }
+    return retVal;
+}
+
+/**
+ * Load the displayed values
+ */
+function loadDisplayValues(displayArgs, pipelineName, pipelineNum, savedPipelineDisplayValues) {
+    var displayArgsJson;
+
+    try {
+        displayArgsJson = JSON.parse(displayArgs);
+    }
+    catch (err) {
+        return "INVALID JSON"
+    }
+
+    var retVal = "";
+
+    for (var mainProject in displayArgsJson) {
+        if (mainProject == pipelineName) {
+            var mainProjectDisplayConfig = displayArgsJson[mainProject];
+
+            for (var displayKey in mainProjectDisplayConfig) {
+                var displayKeyConfig = mainProjectDisplayConfig[displayKey];
+                var projectName = "";
+                if (displayKeyConfig.hasOwnProperty("projectName")) {
+                    projectName = displayKeyConfig.projectName;
+                }
+
+                var id = mainProject + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
+
+                if (savedPipelineDisplayValues.hasOwnProperty(id)) {
+                    retVal += "<tr><th style=\"border: 1px solid #ddd;\">" + displayKey + "</th><td id=\"" + id + "\" style=\"border: 1px solid #ddd;\">" + savedPipelineDisplayValues[id] + "</td></tr>";
+                } else {
+                    retVal += "<tr><th style=\"border: 1px solid #ddd;\">" + displayKey + "</th><td id=\"" + id + "\" style=\"border: 1px solid #ddd;\">Value not found across pipeline</td></tr>";
+                }
+            }
+        }
+    }
+    return retVal;
+}
+
+/**
+ * Retrieve desired values from any projects along a pipeline
+ */
+function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
+    var displayArgsJson;
+
+    try {
+        displayArgsJson = JSON.parse(displayArgs);
+    }
+    catch (err) {
+        return;
+    }
+
+    var stage;
+    var projectNameIdMap = {};
+    var updateString = "";
+    var retVal = "";
+
+     // Get a mapping of project names to project build ids
+     for (var j = 0; j < pipeline.stages.length; j++) {
+        stage = pipeline.stages[j];
+        projectNameIdMap[stage.name] = stage.tasks[0].buildId;
+     }
+
+    for (var mainProject in displayArgsJson) {
+        if (mainProject == pipelineName) {
+            var mainProjectDisplayConfig = displayArgsJson[mainProject];
+
+            for (var displayKey in mainProjectDisplayConfig) {
+                var displayKeyConfig = mainProjectDisplayConfig[displayKey];
+                var projectName, filePath, artifactName, envName, paramName, grepPattern;
+                projectName = filePath = artifactName = envName = paramName = grepPattern = "";
+
+                if (displayKeyConfig.hasOwnProperty("projectName")) {
+                    projectName = displayKeyConfig.projectName;
+
+                    if (projectNameIdMap.hasOwnProperty(projectName) == false) {
+                        continue;
+                    }
+
+                    if (displayKeyConfig.hasOwnProperty("filePath")) {
+                        filePath = displayKeyConfig.filePath;
+                    }
+
+                    if (displayKeyConfig.hasOwnProperty("artifactName")) {
+                        artifactName = displayKeyConfig.artifactName;
+                    }
+
+                    if (displayKeyConfig.hasOwnProperty("envName")) {
+                        envName = displayKeyConfig.envName;
+                    }
+
+                    if (displayKeyConfig.hasOwnProperty("paramName")) {
+                        paramName = displayKeyConfig.paramName;
+                    }
+
+                    // We expect one of the following to be populated so we know where to look
+                    if (filePath == "" && artifactName == "" && envName == "" && paramName == "") {
+                        continue;
+                    }
+
+                    var url = "";
+                    if (artifactName != "") {
+                        url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/artifact/" + artifactName;
+                    }
+
+                    if (filePath != "") {
+                        url = "job/" + projectName + "/ws/" + filePath;
+                    }
+
+                    if (envName != "" || paramName != "") {
+                        url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/injectedEnvVars/api/json";
+                    }
+
+                    // In the event that somehow we fail to create a URL
+                    if (url == "") {
+                        continue;
+                    }
+
+                    Q.ajax({
+                        url: rootURL + "/" + url,
+                        type: "GET",
+                        async: true,
+                        cache: true,
+                        timeout: 20000,
+                        success: function(data) {
+                            updateDisplayValues(data, this.url, displayArgs, pipelineName, pipelineNum);
+                        },
+                        error: function (xhr, status, error) {
+                        }
+                    })
+                }
+            }
+        }
+        else {
+            // We expect a project name for each display value -- otherwise we don't know where to look
+            continue;
+        }
+    }
+}
+
+ /**
+  * Callback function to update the specified display values
+  */
+function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) {
+    var projectName = (url.split("/job/")[1]).split("/")[0];
+    var displayArgsJson = JSON.parse(displayArgs);
+
+    // Check if we are parsing for an environment variable / parameter
+    if (url.indexOf("/injectedEnvVars/") != -1) {
+        for (var mainProject in displayArgsJson) {
+            if (mainProject == pipelineName) {
+                var mainProjectDisplayConfig = displayArgsJson[mainProject];
+
+                for (var displayKey in mainProjectDisplayConfig) {
+                    var displayKeyConfig = mainProjectDisplayConfig[displayKey];
+                    var envName = "";
+
+                    if (displayKeyConfig.hasOwnProperty("projectName")) {
+                        if (displayKeyConfig.projectName != projectName) {
+                            continue;
+                        }
+                        if (displayKeyConfig.hasOwnProperty("envName") || displayKeyConfig.hasOwnProperty("paramName")) {
+                            if (displayKeyConfig.hasOwnProperty("envName")) {
+                                envName = displayKeyConfig.envName;
+                            } else {
+                                envName = displayKeyConfig.paramName;
+                            }
+                            
+                            if (data.hasOwnProperty("envMap")) {
+                                var envMap = data.envMap;
+
+                                if (envMap.hasOwnProperty(envName)) {
+                                    var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
+                                    var ele = document.getElementById(id);
+                                    ele.innerHTML = envMap[envName];
+
+                                    var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+                                    savedValues[id] = ele.innerHTML;
+                                    sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        var file;
+        var propertyType;
+        // Check if we are parsing for a filePath or an artifact
+        if (url.indexOf("/ws/") != -1) {
+            file = url.split("/ws/")[1];
+            propertyType = "filePath";
+        } else {
+            file = url.split("/artifact/")[1];
+            propertyType = "artifactName";
+        }
+
+        for (var mainProject in displayArgsJson) {
+            if (mainProject == pipelineName) {
+                var mainProjectDisplayConfig = displayArgsJson[mainProject];
+
+                for (var displayKey in mainProjectDisplayConfig) {
+                    var displayKeyConfig = mainProjectDisplayConfig[displayKey];
+
+                    if (displayKeyConfig.hasOwnProperty("projectName")) {
+                        if (displayKeyConfig.projectName != projectName) {
+                            continue;
+                        }
+                        if (displayKeyConfig.hasOwnProperty(propertyType)) {
+                            if (displayKeyConfig[propertyType] == file) {
+                                var toolTipData = data.replace(/-/g, '&#x2011;');
+
+                                if (displayKeyConfig.hasOwnProperty("grepPattern")) {
+                                    var expression = displayKeyConfig.grepPattern;
+                                    var grepFlag = 'g';
+
+                                    if (displayKeyConfig.hasOwnProperty("grepFlag")) {
+                                        grepFlag = displayKeyConfig.grepFlag;
+                                    }
+
+                                    if (expression.charAt(0) == "/" && expression.charAt(expression.length - 1) == "/") {
+                                        expression = expression.substring(1, expression.length - 1);
+                                    }
+
+                                    var regex = new RegExp(expression, grepFlag);
+                                    var match;
+                                    var results = [];
+
+                                    while (match = regex.exec(toolTipData)) {
+                                        results.push(match[0]);
+                                    }
+                                    toolTipData = results.join("\n");
+                                }
+
+                                var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
+                                var ele = document.getElementById(id);
+
+                                if (displayKeyConfig.hasOwnProperty("flattenValue")) {
+                                    if (displayKeyConfig.flattenValue == "true") {
+                                        ele.innerHTML = toolTipData;                                        
+                                    }
+                                } else {
+                                    toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
+                                    ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";    
+                                }
+
+                                var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+                                savedValues[id] = ele.innerHTML;
+                                sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+function getToggleState(toggleId, toggleType) {
+    var toggleStates = JSON.parse(sessionStorage.toggleStates);
+
+    if (toggleType == "block") {
+        if (toggleStates.hasOwnProperty(toggleId)) {
+            return toggleStates[toggleId];
+        } else {
+            return "block";
+        }
+    }
+
+    if (toggleType == "table") {
+        if (toggleStates.hasOwnProperty(toggleId)) {
+            return toggleStates[toggleId];
+        } else {
+            return "table";
+        }
+    }
+}
+
+function toggle(toggleBuildId) {
+    var toggleStates = JSON.parse(sessionStorage.toggleStates);
     var ele = document.getElementById(toggleBuildId);
-    var text = document.getElementById(displayBuildId);
 
     if (ele.style.display == "block") {
         ele.style.display = "none";
-        text.innerHTML = "Expand";
-    }
-    else {
+        toggleStates[toggleBuildId] = "none";
+    } else {
         ele.style.display = "block";
-        text.innerHTML = "Collapse";
+        toggleStates[toggleBuildId] = "block";
     }
+
+    sessionStorage.toggleStates = JSON.stringify(toggleStates);
+    redrawConnections();
+}
+
+function toggleTable(toggleTableId) {
+    var toggleStates = JSON.parse(sessionStorage.toggleStates);
+    var ele = document.getElementById(toggleTableId);
+
+    if (ele.style.display == "table") {
+        ele.style.display = "none";
+        toggleStates[toggleTableId] = "none";
+    } else {
+        ele.style.display = "table";
+        toggleStates[toggleTableId] = "table";
+    }
+
+    sessionStorage.toggleStates = JSON.stringify(toggleStates);
+    redrawConnections();
 }

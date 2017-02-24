@@ -1,0 +1,58 @@
+<div>
+    Define the additional values that can be found somewhere along the pipeline that you would like to display.<br/>
+    You must pass in a valid JSON for this to work.<br/>
+    You can validate your JSON at <a href="http://jsonlint.com/">http://jsonlint.com/</a><br/>
+    This will eventually support reading JSON from SCM -- however that day has not yet come.<br/>
+    <br/>
+<pre>
+{
+    "The pipeline project name": {
+        "The display value": {
+            "projectName": "some project name",
+            "filePath": "file path relative to the workspace",
+            "artifactName": "the name of the artifact",
+            "envName": "the name of an environment variable",
+            "paramName": "the name of a parameter",
+            "grepPattern": "a regex expression -- see notes below",
+            "grepFlag": "the regexp flag",
+            "flattenValue": "boolean value of true or false"
+        }
+    }
+}
+</pre>
+
+<p>
+Additional Notes:<br/>
+- The pipeline project name is the name of the first job in your pipeline.<br/>
+- The display value is simply a header.<br/><br/>
+- Only specify one of {filePath | artifactName | envName | paramName}.<br/>
+- flattenValue and grepPattern are used in conjunction with filePath and artifactName and are OPTIONAL.<br/>
+- For example, if you want to track an artifact, specify artifactName.<br/><br/>
+- For filePath and artifactName, it will display a link to the file in question if flattenValue is not specified to be true.<br/>
+&nbsp;&nbsp;When hovered over, it will display the full contents of the file, unless a grepPattern was specified to look for something specific.<br/>
+&nbsp;&nbsp;If flattenValue is set to true, the value will be displayed on a single line -- This will also attempt to display multi-line files on one line.<br/><br/>
+- The grepPattern can be enclosed in forward slashes or without. e.g. "/some regexp here/" or "some regexp here"<br/>
+- However, ALL BACKSLASHES '\' MUST BE ESCAPED -- use double backslashes for every backslash<br/>
+- For example, if your regexp is [\w\s]+ , specify "[\\w\\s]+" as the grepPattern.<br/><br/>
+Example of usage:
+</p>
+
+<pre>
+{
+    "SOME_PROJECT_NAME": {
+        "Executor Number": {
+            "projectName": "test-project",
+            "envName": "EXECUTOR_NUMBER",
+        }
+    }
+}
+</pre>
+
+<p>
+may result in:
+</p>
+
+<pre>
+Executor Number: 5
+</pre>
+</div>
