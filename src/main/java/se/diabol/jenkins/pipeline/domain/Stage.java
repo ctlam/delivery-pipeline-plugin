@@ -27,10 +27,13 @@ import static java.util.Collections.singleton;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import hudson.Util;
 import hudson.model.AbstractBuild;
 import hudson.model.AbstractProject;
 import hudson.model.ItemGroup;
 import hudson.model.Result;
+import hudson.plugins.parameterizedtrigger.BlockableBuildTriggerConfig;
+import hudson.plugins.parameterizedtrigger.SubProjectsAction;
 import hudson.util.RunList;
 import jenkins.model.Jenkins;
 import org.jgrapht.DirectedGraph;
@@ -68,6 +71,7 @@ public class Stage extends AbstractItem {
     private List<Long> downstreamStageIds;
     private final long id;
     private Set<Change> changes = new HashSet<Change>();
+    private String blockingConfig;
 
     public Stage(String name, List<Task> tasks) {
         super(name);
@@ -75,13 +79,21 @@ public class Stage extends AbstractItem {
         this.id = PipelineUtils.getRandom();
     }
 
+    public Stage(String name, List<Task> tasks, String blockingConfig) {
+        super(name);
+        this.tasks = ImmutableList.copyOf(tasks);
+        this.id = PipelineUtils.getRandom();
+        this.blockingConfig = blockingConfig;
+    }
+
     private Stage(Stage stage, List<Task> tasks, String version, long id) {
         this(stage.getName(), tasks, stage.getDownstreamStages(), stage.getDownstreamStageIds(),
-                stage.getTaskConnections(), version, stage.getRow(), stage.getColumn(), id);
+                stage.getTaskConnections(), version, stage.getRow(), stage.getColumn(), id, stage.getBlockingConfig());
     }
 
     private Stage(String name, List<Task> tasks, List<String> downstreamStages, List<Long> downstreamStageIds,
-                  Map<String, List<String>> taskConnections, String version, int row, int column, long id) {
+                  Map<String, List<String>> taskConnections, String version, int row, int column, long id,
+                  String blockingConfig) {
         super(name);
         this.tasks = tasks;
         this.version = version;
@@ -91,6 +103,7 @@ public class Stage extends AbstractItem {
         this.taskConnections = taskConnections;
         this.downstreamStageIds = downstreamStageIds;
         this.id = id;
+        this.blockingConfig = blockingConfig;
     }
 
     @Exported
@@ -158,12 +171,25 @@ public class Stage extends AbstractItem {
         this.changes = changes;
     }
 
+    @Exported
+    public String getBlockingConfig() {
+        return blockingConfig;
+    }
+
+    public void setBlockingConfig(String blockingConfig) {
+        this.blockingConfig = blockingConfig;
+    }
+
     public void setTaskConnections(Map<String, List<String>> taskConnections) {
         this.taskConnections = taskConnections;
     }
 
     public static Stage getPrototypeStage(String name, List<Task> tasks) {
         return new Stage(name, tasks);
+    }
+
+    public static Stage getPrototypeStage(String name, List<Task> tasks, String blockingConfig) {
+        return new Stage(name, tasks, blockingConfig);
     }
 
     public static List<Stage> extractStages(AbstractProject firstProject, AbstractProject lastProject)
@@ -176,6 +202,8 @@ public class Stage extends AbstractItem {
                 task.getDownstreamTasks().clear();
             }
 
+            String blockingConfig = retrieveBlockingConfig(project);
+
             PipelineProperty property = (PipelineProperty) project.getProperty(PipelineProperty.class);
             if (property == null && project.getParent() instanceof AbstractProject) {
                 property = (PipelineProperty) ((AbstractProject)
@@ -185,10 +213,11 @@ public class Stage extends AbstractItem {
                     ? property.getStageName() : project.getDisplayName();
             Stage stage = stages.get(stageName);
             if (stage == null) {
-                stage = Stage.getPrototypeStage(stageName, Collections.<Task>emptyList());
+                stage = Stage.getPrototypeStage(stageName, Collections.<Task>emptyList(), blockingConfig);
             }
             stages.put(stageName,
-                    Stage.getPrototypeStage(stage.getName(), newArrayList(concat(stage.getTasks(), singleton(task)))));
+                    Stage.getPrototypeStage(stage.getName(), newArrayList(concat(stage.getTasks(), singleton(task))),
+                                            blockingConfig));
         }
         Collection<Stage> stagesResult = stages.values();
 
@@ -375,6 +404,21 @@ public class Stage extends AbstractItem {
             }
         }
         return result;
+    }
+
+    private static String retrieveBlockingConfig(AbstractProject project) {
+        String retVal = "";
+        for (SubProjectsAction action : Util.filter(project.getActions(), SubProjectsAction.class)) {
+            for (BlockableBuildTriggerConfig config : action.getConfigs()) {
+                if (config.getBlock() != null) {
+                    retVal += config.getProjects() + ", ";
+                }
+            }
+        }
+        if (retVal != "") {
+            return retVal.substring(0, retVal.length() - 2);    
+        }
+        return retVal;
     }
 
     @CheckForNull

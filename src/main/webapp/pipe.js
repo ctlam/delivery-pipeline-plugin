@@ -41,6 +41,10 @@ function pipelineUtils() {
                             // Need this for manifest - CL tracking
                             var clManifestMap = {};
 
+                            // Need this to keep track of blocking projects
+                            var blockingMap = {};
+                            var projectNameIdMap = {};
+
                             if (sessionStorage.savedPipelineDisplayValues == null) {
                                 sessionStorage.savedPipelineDisplayValues = JSON.stringify({});
                             }
@@ -191,6 +195,15 @@ function pipelineUtils() {
  
                                         for (var j = 0; j < pipeline.stages.length; j++) {
                                             stage = pipeline.stages[j];
+
+                                            console.info("#" + stage.tasks[0].buildId + " " + stage.name);
+                                            console.info(stage.blockingConfig);
+
+                                            if (stage.blockingConfig != "") {
+                                                blockingMap[getStageId(stage.id + "", i)] = stage.blockingConfig.split(', ');;    
+                                            }
+
+                                            projectNameIdMap[getStageId(stage.id + "", i)] = stage.name;
 
                                             if (stage.row > row) {
                                                 html.push('</div><div class="pipeline-row">');
@@ -353,21 +366,37 @@ function pipelineUtils() {
                                                     anchors = [[1, 0, 1, 0, 0, 37], [0, 0, -1, 0, 0, 37]];
                                                     connector = ["Flowchart", { stub: 25, gap: 2, midpoint: 1, alwaysRespectStubs: true } ];
                                                 }
-
+                                                
                                                 Q.each(stage.downstreamStageIds, function (l, value) {
                                                     source = getStageId(stage.id + "", index);
                                                     target = getStageId(value + "", index);
+                                                    var width = 1;
+                                                    var color = "rgba(118,118,118,1)";
+
+                                                    if (blockingMap.hasOwnProperty(source)) {
+                                                        var blockedProjects = blockingMap[source];
+
+                                                        if (projectNameIdMap.hasOwnProperty(target)) {
+                                                            var targetName = projectNameIdMap[target];
+
+                                                            if (blockedProjects.indexOf(targetName) != -1) {
+                                                                width = 12;
+                                                                color = "rgba(000,178,238,1)";
+                                                            }
+                                                        }                                                        
+                                                    }
                                                     jsplumb.connect({
                                                         source: source,
                                                         target: target,
                                                         anchors: anchors, // allow boxes to increase in height but keep anchor lines on the top
                                                         overlays: [
                                                             //[ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12}]
-                                                            [ "Arrow", { location: 1, foldback: 0.9, width: 1, length: 12}]
+                                                            // [ "Arrow", { location: 1, foldback: 0.9, width: 1, length: 12}]
+                                                            [ "Arrow", { location: 1, foldback: 0.9, width: width, length: 12}]
                                                         ],
                                                         cssClass: "relation",
                                                         connector: connector,
-                                                        paintStyle: { lineWidth: 2, strokeStyle: "rgba(118,118,118,1)" },
+                                                        paintStyle: { lineWidth: 2, strokeStyle: color },
                                                         endpoint: ["Blank"]
                                                     });
                                                 });
@@ -375,7 +404,6 @@ function pipelineUtils() {
                                         });
                                     });
                                 });
-
                             } else {
                                 var comp, pipe, head, st, ta, time;
 
