@@ -43,12 +43,17 @@ function pipelineUtils() {
 
                             // Need this to keep track of blocking projects
                             var blockingMap = {};
+                            var conditionalMap = {};
                             var projectNameIdMap = {};
 
                             if (sessionStorage.savedPipelineDisplayValues == null) {
                                 sessionStorage.savedPipelineDisplayValues = JSON.stringify({});
                             }
                             var savedPipelineDisplayValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+
+                            if (sessionStorage.previousDisplayArgConfig == null) {
+                                sessionStorage.previousDisplayArgConfig = JSON.stringify({});
+                            }
 
                             if (sessionStorage.toggleStates == null) {
                                 sessionStorage.toggleStates = JSON.stringify({});
@@ -197,10 +202,15 @@ function pipelineUtils() {
                                             stage = pipeline.stages[j];
 
                                             console.info("#" + stage.tasks[0].buildId + " " + stage.name);
-                                            console.info(stage.blockingConfig);
+                                            console.info(stage.blockingJobs);
+                                            console.info(stage.conditionalJobs);
 
-                                            if (stage.blockingConfig != "") {
-                                                blockingMap[getStageId(stage.id + "", i)] = stage.blockingConfig.split(', ');;    
+                                            if (stage.blockingJobs != "") {
+                                                blockingMap[getStageId(stage.id + "", i)] = stage.blockingJobs.split(', ');
+                                            }
+
+                                            if (stage.conditionalJobs != "") {
+                                                conditionalMap[getStageId(stage.id + "", i)] = stage.conditionalJobs.split(', ');
                                             }
 
                                             projectNameIdMap[getStageId(stage.id + "", i)] = stage.name;
@@ -224,12 +234,20 @@ function pipelineUtils() {
 
                                             html.push('<div class="pipeline-cell">');
 
+                                            var link = getLink(data, stage.tasks[0].link);
+                                            var buildStatus = stage.tasks[0].status;
+                                            if (data.linkToConsoleLog) {
+                                                if (buildStatus.success || buildStatus.failed || buildStatus.unstable || buildStatus.cancelled) {
+                                                    link += "console";
+                                                }
+                                            }
+
                                             if (data.viewMode == "Minimalist") {
                                                 html.push('<div class="stage-minimalist ' + getStageClassName(stage.name) + '">');
-                                                html.push('<div class="stage-minimalist-header"><div class="stage-minimalist-name"><a href="' + getLink(data, stage.tasks[0].link) + '">' + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + '</a></div>');
+                                                html.push('<div class="stage-minimalist-header"><div class="stage-minimalist-name"><a href="' + link + '">' + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + '</a></div>');
                                             } else {
                                                 html.push('<div id="' + getStageId(stage.id + "", i) + '" class="stage ' + getStageClassName(stage.name) + '">');
-                                                html.push('<div class="stage-header"><div class="stage-name build_' + stage.tasks[0].status.type +'">' + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + '</div>');
+                                                html.push('<div class="stage-header"><div class="stage-name build_' + buildStatus.type +'">' + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + '</div>');
                                             }
 
                                             if (!pipeline.aggregated) {
@@ -265,7 +283,7 @@ function pipelineUtils() {
                                                     progress = task.status.percentage;
                                                     progressClass = "task-progress-running";
                                                 } else if (data.linkToConsoleLog) {
-                                                   if (task.status.success ||
+                                                    if (task.status.success ||
                                                        task.status.failed ||
                                                        task.status.unstable ||
                                                        task.status.cancelled) {
@@ -276,10 +294,10 @@ function pipelineUtils() {
 
                                                 if (data.viewMode == "Minimalist") {
                                                     var hoverString = "Timestamp: " + timestamp + "<br>Duration: " + formatLongDuration(task.status.duration);
-                                                    // TODO: Re-add console link
+                                                    var hoverTable = "<table><tr><th>Timestamp:</th><td>" + timestamp + "</td></tr><tr><th>Duration: </th><td>" + formatLongDuration(task.status.duration) + "</td></tr></table>";
                                                     html.push("<div id=\"" + id + "\" class=\"status stage-minimalist-task " +
                                                         "\"><div class=\"task-content-minimalist\">" +
-                                                        "<div class=\"task-header\"><div class=\"taskname-minimalist\"><a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle_" + task.status.type + "\"><br><span class=\"tooltip\">" + hoverString + "</span></a></div>");
+                                                        "<div class=\"task-header\"><div class=\"taskname-minimalist\"><a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle_" + task.status.type + "\"><br><span class=\"tooltip\">" + hoverTable + "</span></a></div>");
                                                     html.push("</div></div></div>");
                                                 } else {
                                                     html.push("<div id=\"" + id + "\" class=\"status stage-task " + // task.status.type +
@@ -370,29 +388,43 @@ function pipelineUtils() {
                                                 Q.each(stage.downstreamStageIds, function (l, value) {
                                                     source = getStageId(stage.id + "", index);
                                                     target = getStageId(value + "", index);
-                                                    var width = 1;
+
+                                                    // black
                                                     var color = "rgba(118,118,118,1)";
 
+                                                    var blockedProjects = conditionalProjects = [];
+                                                    var targetName;
                                                     if (blockingMap.hasOwnProperty(source)) {
-                                                        var blockedProjects = blockingMap[source];
-
-                                                        if (projectNameIdMap.hasOwnProperty(target)) {
-                                                            var targetName = projectNameIdMap[target];
-
-                                                            if (blockedProjects.indexOf(targetName) != -1) {
-                                                                width = 12;
-                                                                color = "rgba(000,178,238,1)";
-                                                            }
-                                                        }                                                        
+                                                        blockedProjects = blockingMap[source];
                                                     }
+
+                                                    if (conditionalMap.hasOwnProperty(source)) {
+                                                        conditionalProjects = conditionalMap[source];
+                                                    }
+
+                                                    if (projectNameIdMap.hasOwnProperty(target)) {
+                                                        var targetName = projectNameIdMap[target];
+
+                                                        if (blockedProjects.indexOf(targetName) != -1 && conditionalProjects.indexOf(targetName) != -1) {
+                                                             // Orange
+                                                            color = "rgba(253,132,11,1)";
+                                                        } else if (blockedProjects.indexOf(targetName) != -1) {
+                                                            // Blue
+                                                            color = "rgba(000,178,238,1)";
+                                                        } else if (conditionalProjects.indexOf(targetName) != -1) {
+                                                            // Green
+                                                            color = "rgba(122,244,0,1)";
+                                                        }                                    
+                                                    }
+
+
                                                     jsplumb.connect({
                                                         source: source,
                                                         target: target,
                                                         anchors: anchors, // allow boxes to increase in height but keep anchor lines on the top
                                                         overlays: [
                                                             //[ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12}]
-                                                            // [ "Arrow", { location: 1, foldback: 0.9, width: 1, length: 12}]
-                                                            [ "Arrow", { location: 1, foldback: 0.9, width: width, length: 12}]
+                                                            [ "Arrow", { location: 1, foldback: 0.9, width: 1, length: 12}]
                                                         ],
                                                         cssClass: "relation",
                                                         connector: connector,
@@ -1047,12 +1079,14 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
     var projectNameIdMap = {};
     var updateString = "";
     var retVal = "";
+    var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+    var previousDisplayArgConfig = JSON.parse(sessionStorage.previousDisplayArgConfig);
 
-     // Get a mapping of project names to project build ids
-     for (var j = 0; j < pipeline.stages.length; j++) {
+    // Get a mapping of project names to project build ids
+    for (var j = 0; j < pipeline.stages.length; j++) {
         stage = pipeline.stages[j];
         projectNameIdMap[stage.name] = stage.tasks[0].buildId;
-     }
+    }
 
     for (var mainProject in displayArgsJson) {
         if (mainProject == pipelineName) {
@@ -1060,8 +1094,8 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
 
             for (var displayKey in mainProjectDisplayConfig) {
                 var displayKeyConfig = mainProjectDisplayConfig[displayKey];
-                var projectName, filePath, artifactName, envName, paramName, grepPattern;
-                projectName = filePath = artifactName = envName = paramName = grepPattern = "";
+                var projectName, filePath, artifactName, envName, paramName, fromConsole, grepPattern;
+                projectName = filePath = artifactName = envName = paramName = fromConsole = grepPattern = "";
 
                 if (displayKeyConfig.hasOwnProperty("projectName")) {
                     projectName = displayKeyConfig.projectName;
@@ -1086,8 +1120,12 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
                         paramName = displayKeyConfig.paramName;
                     }
 
+                    if (displayKeyConfig.hasOwnProperty("fromConsole")) {
+                        fromConsole = displayKeyConfig.fromConsole;
+                    }
+
                     // We expect one of the following to be populated so we know where to look
-                    if (filePath == "" && artifactName == "" && envName == "" && paramName == "") {
+                    if (filePath == "" && artifactName == "" && envName == "" && paramName == "" && fromConsole == "") {
                         continue;
                     }
 
@@ -1104,23 +1142,49 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
                         url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/injectedEnvVars/api/json";
                     }
 
+                    if (fromConsole == "true") {
+                        url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/consoleText";
+                    }
+
                     // In the event that somehow we fail to create a URL
                     if (url == "") {
                         continue;
                     }
 
-                    Q.ajax({
-                        url: rootURL + "/" + url,
-                        type: "GET",
-                        async: true,
-                        cache: true,
-                        timeout: 20000,
-                        success: function(data) {
-                            updateDisplayValues(data, this.url, displayArgs, pipelineName, pipelineNum);
-                        },
-                        error: function (xhr, status, error) {
+                    var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
+
+
+                    // Upon a configuration change, reload all data
+                    if (previousDisplayArgConfig != displayArgsJson) {
+                        Q.ajax({
+                            url: rootURL + "/" + url,
+                            type: "GET",
+                            async: true,
+                            cache: true,
+                            timeout: 20000,
+                            success: function(data) {
+                                updateDisplayValues(data, this.url, displayArgs, pipelineName, pipelineNum);
+                            },
+                            error: function (xhr, status, error) {
+                            }
+                        })
+                    } else {
+                        // Do not attempt an AJAX call if we have already received a value
+                        if (!savedValues.hasOwnProperty(id)) {
+                            Q.ajax({
+                                url: rootURL + "/" + url,
+                                type: "GET",
+                                async: true,
+                                cache: true,
+                                timeout: 20000,
+                                success: function(data) {
+                                    updateDisplayValues(data, this.url, displayArgs, pipelineName, pipelineNum);
+                                },
+                                error: function (xhr, status, error) {
+                                }
+                            })
                         }
-                    })
+                    }                    
                 }
             }
         }
@@ -1128,6 +1192,10 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
             // We expect a project name for each display value -- otherwise we don't know where to look
             continue;
         }
+    }
+
+    if (JSON.parse(sessionStorage.previousDisplayArgConfig) != displayArgsJson) {
+        sessionStorage.previousDisplayArgConfig = JSON.stringify(displayArgsJson);
     }
 }
 
@@ -1138,7 +1206,7 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
     var projectName = (url.split("/job/")[1]).split("/")[0];
     var displayArgsJson = JSON.parse(displayArgs);
 
-    // Check if we are parsing for an environment variable / parameter
+    // Environment Variable / Parameter
     if (url.indexOf("/injectedEnvVars/") != -1) {
         for (var mainProject in displayArgsJson) {
             if (mainProject == pipelineName) {
@@ -1148,16 +1216,9 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                     var displayKeyConfig = mainProjectDisplayConfig[displayKey];
                     var envName = "";
 
-                    if (displayKeyConfig.hasOwnProperty("projectName")) {
-                        if (displayKeyConfig.projectName != projectName) {
-                            continue;
-                        }
+                    if (displayKeyConfig.hasOwnProperty("projectName") && displayKeyConfig.projectName == projectName) {
                         if (displayKeyConfig.hasOwnProperty("envName") || displayKeyConfig.hasOwnProperty("paramName")) {
-                            if (displayKeyConfig.hasOwnProperty("envName")) {
-                                envName = displayKeyConfig.envName;
-                            } else {
-                                envName = displayKeyConfig.paramName;
-                            }
+                            envName = displayKeyConfig.hasOwnProperty("envName") ? displayKeyConfig.envName : displayKeyConfig.paramName;
                             
                             if (data.hasOwnProperty("envMap")) {
                                 var envMap = data.envMap;
@@ -1177,10 +1238,48 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                 }
             }
         }
+    // Console Log
+    } else if (url.indexOf("/consoleText") != -1) {
+        for (var mainProject in displayArgsJson) {
+            if (mainProject == pipelineName) {
+                var mainProjectDisplayConfig = displayArgsJson[mainProject];
+
+                for (var displayKey in mainProjectDisplayConfig) {
+                    var displayKeyConfig = mainProjectDisplayConfig[displayKey];
+
+                    if (displayKeyConfig.hasOwnProperty("projectName") && displayKeyConfig.projectName == projectName) {
+                        if (displayKeyConfig.hasOwnProperty("fromConsole") && displayKeyConfig.fromConsole == "true") {
+                            var toolTipData = data.replace(/-/g, '&#x2011;');
+
+                            if (displayKeyConfig.hasOwnProperty("grepPattern")) {
+                                var grepPattern = displayKeyConfig.grepPattern;
+                                var grepFlag = displayKeyConfig.hasOwnProperty("grepFlag") ? displayKeyConfig.grepFlag : 'g';
+                                toolTipData = grepRegexp(grepPattern, grepFlag, toolTipData);
+                            }
+
+                            var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
+                            var ele = document.getElementById(id);
+
+                            if (displayKeyConfig.hasOwnProperty("flattenValue") && displayKeyConfig.flattenValue == "true") {
+                                ele.innerHTML = toolTipData;
+                                redrawConnections();
+                            } else {
+                                ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";    
+                            }
+
+                            var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+                            savedValues[id] = ele.innerHTML;
+                            sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
+                        }
+                    }
+                }
+            }
+        }
+    // File Path or Artifact Name
     } else {
         var file;
         var propertyType;
-        // Check if we are parsing for a filePath or an artifact
+
         if (url.indexOf("/ws/") != -1) {
             file = url.split("/ws/")[1];
             propertyType = "filePath";
@@ -1196,60 +1295,52 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                 for (var displayKey in mainProjectDisplayConfig) {
                     var displayKeyConfig = mainProjectDisplayConfig[displayKey];
 
-                    if (displayKeyConfig.hasOwnProperty("projectName")) {
-                        if (displayKeyConfig.projectName != projectName) {
-                            continue;
-                        }
-                        if (displayKeyConfig.hasOwnProperty(propertyType)) {
-                            if (displayKeyConfig[propertyType] == file) {
-                                var toolTipData = data.replace(/-/g, '&#x2011;');
+                    if (displayKeyConfig.hasOwnProperty("projectName") && displayKeyConfig.projectName == projectName) {
+                        if (displayKeyConfig.hasOwnProperty(propertyType) && displayKeyConfig[propertyType] == file) {
+                            var toolTipData = data.replace(/-/g, '&#x2011;');
 
-                                if (displayKeyConfig.hasOwnProperty("grepPattern")) {
-                                    var expression = displayKeyConfig.grepPattern;
-                                    var grepFlag = 'g';
-
-                                    if (displayKeyConfig.hasOwnProperty("grepFlag")) {
-                                        grepFlag = displayKeyConfig.grepFlag;
-                                    }
-
-                                    if (expression.charAt(0) == "/" && expression.charAt(expression.length - 1) == "/") {
-                                        expression = expression.substring(1, expression.length - 1);
-                                    }
-
-                                    var regex = new RegExp(expression, grepFlag);
-                                    var match;
-                                    var results = [];
-
-                                    while (match = regex.exec(toolTipData)) {
-                                        results.push(match[0]);
-                                    }
-                                    toolTipData = results.join("\n");
-                                }
-
-                                toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
-                                var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
-                                var ele = document.getElementById(id);
-
-                                if (displayKeyConfig.hasOwnProperty("flattenValue")) {
-                                    if (displayKeyConfig.flattenValue == "true") {
-                                        ele.innerHTML = toolTipData;
-                                        // In the event of multi-line values, redraw the connections to line them up correctly
-                                        redrawConnections();
-                                    }
-                                } else {
-                                    ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";    
-                                }
-
-                                var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
-                                savedValues[id] = ele.innerHTML;
-                                sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
+                            if (displayKeyConfig.hasOwnProperty("grepPattern")) {
+                                var grepPattern = displayKeyConfig.grepPattern;
+                                var grepFlag = displayKeyConfig.hasOwnProperty("grepFlag") ? displayKeyConfig.grepFlag : 'g';
+                                toolTipData = grepRegexp(grepPattern, grepFlag, toolTipData);
                             }
+
+                            var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
+                            var ele = document.getElementById(id);
+
+                            if (displayKeyConfig.hasOwnProperty("flattenValue") && displayKeyConfig.flattenValue == "true") {
+                                ele.innerHTML = toolTipData;
+                                redrawConnections();
+                            } else {
+                                ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";    
+                            }
+
+                            var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+                            savedValues[id] = ele.innerHTML;
+                            sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
                         }
                     }
                 }
             }
         }
     }
+}
+
+function grepRegexp(grepPattern, grepFlag, data) {
+    var expression = grepPattern;
+
+    if (expression.charAt(0) == "/" && expression.charAt(expression.length - 1) == "/") {
+        expression = expression.substring(1, expression.length - 1);
+    }
+
+    var regex = new RegExp(expression, grepFlag);
+    var match;
+    var results = [];
+
+    while (match = regex.exec(data)) {
+        results.push(match[0]);
+    }
+    return results.join("\n").replace(/(?:\r\n|\r|\n)/g, '<br>');
 }
 
 function getToggleState(toggleId, toggleType, defaultToggleOn) {

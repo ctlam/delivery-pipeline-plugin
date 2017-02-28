@@ -34,8 +34,13 @@ import hudson.model.ItemGroup;
 import hudson.model.Result;
 import hudson.plugins.parameterizedtrigger.BlockableBuildTriggerConfig;
 import hudson.plugins.parameterizedtrigger.SubProjectsAction;
+import hudson.plugins.parameterizedtrigger.TriggerBuilder;
+import hudson.tasks.BuildStep;
 import hudson.util.RunList;
 import jenkins.model.Jenkins;
+import org.jenkinsci.plugins.conditionalbuildstep.ConditionalBuildStepHelper;
+import org.jenkinsci.plugins.conditionalbuildstep.ConditionalBuilder;
+import org.jenkinsci.plugins.conditionalbuildstep.singlestep.SingleConditionalBuilder;
 import org.jgrapht.DirectedGraph;
 import org.jgrapht.alg.CycleDetector;
 import org.jgrapht.graph.SimpleDirectedGraph;
@@ -71,7 +76,8 @@ public class Stage extends AbstractItem {
     private List<Long> downstreamStageIds;
     private final long id;
     private Set<Change> changes = new HashSet<Change>();
-    private String blockingConfig;
+    private String blockingJobs;
+    private String conditionalJobs;
 
     public Stage(String name, List<Task> tasks) {
         super(name);
@@ -79,21 +85,23 @@ public class Stage extends AbstractItem {
         this.id = PipelineUtils.getRandom();
     }
 
-    public Stage(String name, List<Task> tasks, String blockingConfig) {
+    public Stage(String name, List<Task> tasks, String blockingJobs, String conditionalJobs) {
         super(name);
         this.tasks = ImmutableList.copyOf(tasks);
         this.id = PipelineUtils.getRandom();
-        this.blockingConfig = blockingConfig;
+        this.blockingJobs = blockingJobs;
+        this.conditionalJobs = conditionalJobs;
     }
 
     private Stage(Stage stage, List<Task> tasks, String version, long id) {
         this(stage.getName(), tasks, stage.getDownstreamStages(), stage.getDownstreamStageIds(),
-                stage.getTaskConnections(), version, stage.getRow(), stage.getColumn(), id, stage.getBlockingConfig());
+             stage.getTaskConnections(), version, stage.getRow(), stage.getColumn(), id, stage.getBlockingJobs(),
+             stage.getConditionalJobs());
     }
 
     private Stage(String name, List<Task> tasks, List<String> downstreamStages, List<Long> downstreamStageIds,
                   Map<String, List<String>> taskConnections, String version, int row, int column, long id,
-                  String blockingConfig) {
+                  String blockingJobs, String conditionalJobs) {
         super(name);
         this.tasks = tasks;
         this.version = version;
@@ -103,7 +111,8 @@ public class Stage extends AbstractItem {
         this.taskConnections = taskConnections;
         this.downstreamStageIds = downstreamStageIds;
         this.id = id;
-        this.blockingConfig = blockingConfig;
+        this.blockingJobs = blockingJobs;
+        this.conditionalJobs = conditionalJobs;
     }
 
     @Exported
@@ -172,12 +181,21 @@ public class Stage extends AbstractItem {
     }
 
     @Exported
-    public String getBlockingConfig() {
-        return blockingConfig;
+    public String getBlockingJobs() {
+        return blockingJobs;
     }
 
-    public void setBlockingConfig(String blockingConfig) {
-        this.blockingConfig = blockingConfig;
+    public void setBlockingJobs(String blockingJobs) {
+        this.blockingJobs = blockingJobs;
+    }
+
+    @Exported
+    public String getConditionalJobs() {
+        return conditionalJobs;
+    }
+
+    public void setConditionalJobs(String conditionalJobs) {
+        this.conditionalJobs = conditionalJobs;
     }
 
     public void setTaskConnections(Map<String, List<String>> taskConnections) {
@@ -188,8 +206,8 @@ public class Stage extends AbstractItem {
         return new Stage(name, tasks);
     }
 
-    public static Stage getPrototypeStage(String name, List<Task> tasks, String blockingConfig) {
-        return new Stage(name, tasks, blockingConfig);
+    public static Stage getPrototypeStage(String name, List<Task> tasks, String blockingJobs, String conditionalJobs) {
+        return new Stage(name, tasks, blockingJobs, conditionalJobs);
     }
 
     public static List<Stage> extractStages(AbstractProject firstProject, AbstractProject lastProject)
@@ -202,7 +220,8 @@ public class Stage extends AbstractItem {
                 task.getDownstreamTasks().clear();
             }
 
-            String blockingConfig = retrieveBlockingConfig(project);
+            String blockingJobs = getBlockingJobsForStage(project);
+            String conditionalJobs = getConditionalJobsForStage(project);
 
             PipelineProperty property = (PipelineProperty) project.getProperty(PipelineProperty.class);
             if (property == null && project.getParent() instanceof AbstractProject) {
@@ -213,11 +232,12 @@ public class Stage extends AbstractItem {
                     ? property.getStageName() : project.getDisplayName();
             Stage stage = stages.get(stageName);
             if (stage == null) {
-                stage = Stage.getPrototypeStage(stageName, Collections.<Task>emptyList(), blockingConfig);
+                stage = Stage.getPrototypeStage(stageName, Collections.<Task>emptyList(), blockingJobs, 
+                                                conditionalJobs);
             }
             stages.put(stageName,
                     Stage.getPrototypeStage(stage.getName(), newArrayList(concat(stage.getTasks(), singleton(task))),
-                                            blockingConfig));
+                                            blockingJobs, conditionalJobs));
         }
         Collection<Stage> stagesResult = stages.values();
 
@@ -406,19 +426,37 @@ public class Stage extends AbstractItem {
         return result;
     }
 
-    private static String retrieveBlockingConfig(AbstractProject project) {
-        String retVal = "";
+    private static String getBlockingJobsForStage(AbstractProject project) {
+        String jobNames = "";
         for (SubProjectsAction action : Util.filter(project.getActions(), SubProjectsAction.class)) {
             for (BlockableBuildTriggerConfig config : action.getConfigs()) {
                 if (config.getBlock() != null) {
-                    retVal += config.getProjects() + ", ";
+                    jobNames += config.getProjects() + ", ";
                 }
             }
         }
-        if (retVal != "") {
-            return retVal.substring(0, retVal.length() - 2);    
+        if (jobNames != "") {
+            return jobNames.substring(0, jobNames.length() - 2);    
         }
-        return retVal;
+        return jobNames;
+    }
+
+    private static String getConditionalJobsForStage(AbstractProject project) {
+        String jobNames = "";
+
+        for (TriggerBuilder trigger : ConditionalBuildStepHelper.getContainedBuilders(project, TriggerBuilder.class)) {
+            for (BlockableBuildTriggerConfig config : trigger.getConfigs()) {
+                jobNames += config.getProjects() + ", ";
+            }
+        }
+
+        if (jobNames != "") {
+            return jobNames.substring(0, jobNames.length() - 2);    
+        }
+        return jobNames;
+
+        // return ConditionalBuildStepHelper.getContainedBuilders(project, TriggerBuilder.class).toString();
+        // return jobNames;
     }
 
     @CheckForNull
