@@ -311,10 +311,29 @@ public class Stage extends AbstractItem {
         //     }
         // });
 
+        Set<String> blockingJobs = new HashSet<String>();
+        Set<String> completedBlockingJobs = new HashSet<String>();
+
+        for (int row = 0; row < allPaths.size(); row++) {
+            List<Stage> path = allPaths.get(row);
+            for (int column = 0; column < path.size(); column++) {
+                Stage stage = path.get(column);
+
+                if (stage.getBlockingJobs() != "") {
+                    String[] jobs = stage.getBlockingJobs().split(", ");
+                    for (String job : jobs) {
+                        blockingJobs.add(job);    
+                    }
+                }
+            }
+        }
+
         //for keeping track of which row has an available column
         final Map<Integer,Integer> columnRowMap = Maps.newHashMap();
         final List<Stage> processedStages = Lists.newArrayList();
         int lastRowDiscovered = 0;
+        int lastColumnDiscovered = 0;
+        int nextBlockingColumn = -1;
 
         for (int row = 0; row < allPaths.size(); row++) {
             List<Stage> path = allPaths.get(row);
@@ -323,7 +342,7 @@ public class Stage extends AbstractItem {
 
                 //skip processed stage since the row/column has already been set
                 if (!processedStages.contains(stage)) {
-                    stage.setColumn(Math.max(stage.getColumn(), column));
+                    stage.setColumn(Math.max(Math.max(stage.getColumn(), column), nextBlockingColumn));
 
                     final int effectiveColumn = stage.getColumn();
                     final Integer previousRowForThisColumn = columnRowMap.get(effectiveColumn);
@@ -334,7 +353,7 @@ public class Stage extends AbstractItem {
                     if (lastRowDiscovered > currentRowForThisColumn) {
                         //update/set row number in the columnRowMap for this effective column
                         columnRowMap.put(effectiveColumn, lastRowDiscovered);
-
+                        
                         stage.setRow(lastRowDiscovered);
 
                         processedStages.add(stage);
@@ -347,6 +366,11 @@ public class Stage extends AbstractItem {
 
                         processedStages.add(stage);
                     }
+                }
+                // Mark each blocking job as completed
+                if (blockingJobs.contains(stage.getName()) && !completedBlockingJobs.contains(stage.getName())) {
+                    nextBlockingColumn = stage.getColumn() + 1;
+                    completedBlockingJobs.add(stage.getName());
                 }
             }
             lastRowDiscovered = row + 1;
@@ -454,9 +478,6 @@ public class Stage extends AbstractItem {
             return jobNames.substring(0, jobNames.length() - 2);    
         }
         return jobNames;
-
-        // return ConditionalBuildStepHelper.getContainedBuilders(project, TriggerBuilder.class).toString();
-        // return jobNames;
     }
 
     @CheckForNull

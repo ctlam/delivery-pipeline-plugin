@@ -201,9 +201,9 @@ function pipelineUtils() {
                                         for (var j = 0; j < pipeline.stages.length; j++) {
                                             stage = pipeline.stages[j];
 
-                                            console.info("#" + stage.tasks[0].buildId + " " + stage.name);
-                                            console.info(stage.blockingJobs);
-                                            console.info(stage.conditionalJobs);
+                                            // console.info("#" + stage.tasks[0].buildId + " " + stage.name);
+                                            // console.info(stage.blockingJobs);
+                                            // console.info(stage.conditionalJobs);
 
                                             if (stage.blockingJobs != "") {
                                                 blockingMap[getStageId(stage.id + "", i)] = stage.blockingJobs.split(', ');
@@ -379,7 +379,7 @@ function pipelineUtils() {
 
                                                 if (data.viewMode == "Minimalist") {
                                                     anchors = [[1, 0, 1, 0, 0, 12], [0, 0, -1, 0, 0, 12]];
-                                                    connector = ["Flowchart", { stub: 50, gap: 0, midpoint: 0, alwaysRespectStubs: true } ];
+                                                    connector = ["Flowchart", { stub: 50, gap: 0, midpoint: 0.00001, alwaysRespectStubs: true, cornerRadius: 0 } ];
                                                 } else {
                                                     anchors = [[1, 0, 1, 0, 0, 37], [0, 0, -1, 0, 0, 37]];
                                                     connector = ["Flowchart", { stub: 25, gap: 2, midpoint: 1, alwaysRespectStubs: true } ];
@@ -428,7 +428,7 @@ function pipelineUtils() {
                                                         ],
                                                         cssClass: "relation",
                                                         connector: connector,
-                                                        paintStyle: { lineWidth: 2, strokeStyle: color },
+                                                        paintStyle: { lineWidth: 3, strokeStyle: color },
                                                         endpoint: ["Blank"]
                                                     });
                                                 });
