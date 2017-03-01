@@ -38,6 +38,18 @@ function pipelineUtils() {
                                contributors,
                                tasks = [];
 
+                            window.addEventListener("scroll", storePagePosition);
+                            var currentPageY;
+                            try {
+                              currentPageY = sessionStorage.getItem("page_y");
+
+                              if (currentPageY === undefined) {
+                                sessionStorage.setItem("page_y") = 0;
+                              }
+                            } catch (e) {
+                                // no sessionStorage available
+                            }
+
                             // Need this for manifest - CL tracking
                             var clManifestMap = {};
 
@@ -82,7 +94,7 @@ function pipelineUtils() {
                                     html = [];
                                     component = data.pipelines[c];
                                     html.push("<section class='pipeline-component'>");
-                                    html.push("<h1>" + htmlEncode(component.name));
+                                    html.push("<h1 style=\"display: block; background-color: #4A90E2; height: 70px; color: white; text-align: left;\">" + component.name);
                                     if (data.allowPipelineStart) {
                                         if (component.firstJobParameterized) {
                                             html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" onclick="triggerParameterizedBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
@@ -128,11 +140,6 @@ function pipelineUtils() {
                                             pipelineDuration = formatDuration(pipeline.stages[0].tasks[0].status.duration);
                                         }
 
-                                        // Only expand the latest pipeline
-                                        if (isLatestPipeline) {
-                                            isLatestPipeline = false;
-                                        }
-
                                         if (pipeline.triggeredBy && pipeline.triggeredBy.length > 0) {
                                             triggered = "";
                                             for (var y = 0; y < pipeline.triggeredBy.length; y++) {
@@ -160,33 +167,31 @@ function pipelineUtils() {
                                         var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
                                         var toggleRowId = "toggle-row-" + jobName + "-" + buildNum;
                                         var togglePipelineId = "toggle-pipeline-" + jobName + "-" + buildNum;
+                                        var shouldToggle = isLatestPipeline || (getToggleState(toggleBuildId, "block", isLatestPipeline) != "none");
+                                        var initStyle = shouldToggle ? "background-color: #f5f5f5;" : "background-color: transparent;";
+                                        initStyle += shouldToggle ? " border: 1px solid #ddd;" : "";
+                                        var initPipelineStyle = shouldToggle ? "border: 1px solid #ddd;" : "border-bottom: 1px solid #ddd;"
 
-                                        html.push("<tr id=\"" + toggleRowId + "\">");
+                                        html.push("<tr id=\"" + toggleRowId + "\" style=\"" + initStyle + "\">");    
                                         html.push("<td style=\"border-top: 1px solid #ddd; text-align:center;\"><p class=\"build_" + statusString + "\">&nbsp;</p></td>");
                                         html.push("<td style=\"border-top: 1px solid #ddd;\"><p class=\"build_header\">");
                                         html.push("<a id=\"" + displayBuildId + "\" href=\"javascript:toggle('" + toggleBuildId + "','" + toggleRowId + "','" + togglePipelineId + "');\">" + "#" + buildNum + " " + jobName + "</a></p></td>");
                                         html.push("<td style=\"border-top: 1px solid #ddd; text-align:left;\"><p class=\"build_header\">" + pipelineDuration + "</p></td>");
                                         html.push("<td style=\"border-top: 1px solid #ddd; text-align:left;\"><p class=\"build_header\">" + pipelineTimestamp + "</p></td>");
                                         html.push("<td style=\"border-top: 1px solid #ddd; text-align:left;\"><p class=\"build_header\">" + triggered + "</p></td>");
-                                        html.push("</a></tr><tr><th id=\"" + togglePipelineId + "\" colspan=\"5\" style=\"border-bottom: 1px solid #ddd;\"><div>");
-                                        html.push("<div id=\"" + toggleBuildId + "\" style=\"display:" + getToggleState(toggleBuildId, "block", isLatestPipeline) + "\">");
+                                        html.push("</a></tr><tr><th id=\"" + togglePipelineId + "\" colspan=\"5\" style=\"" + initPipelineStyle + "\"><div>");
+                                        html.push("<div id=\"" + toggleBuildId + "\" style=\"display:" + getToggleState(toggleBuildId, "block", isLatestPipeline) + ";\">");
+
+                                        // Only expand the latest pipeline
+                                        if (isLatestPipeline) {
+                                            isLatestPipeline = false;
+                                        }
 
                                         if (pipeline.aggregated) {
                                             if (component.pipelines.length > 1) {
                                                 html.push('<h3>Aggregated view</h3>');
                                             }
                                         } else {                                            
-                                            html.push("<table style=\"min-width:500px; text-align:left; padding: 5px; border: 1px solid #ddd; border-collapse: collapse;\">");
-                                            html.push("<tr><th style=\"border: 1px solid #ddd;\">Started on: </th><td style=\"border: 1px solid #ddd;\">" + pipelineTimestamp + "</td></tr>");
-                                            html.push("<tr><th style=\"border: 1px solid #ddd;\">Duration (Dd HH:MM:SS): </th><td style=\"border: 1px solid #ddd;\">" + pipelineDuration + "</td></tr>");
-                                            html.push("<tr><th style=\"border: 1px solid #ddd;\">Triggered by: </th><td style=\"border: 1px solid #ddd;\">" + triggered + "</td></tr>");
-
-                                            if (data.showArtifacts) {
-                                                html.push("<tr><th style=\"border: 1px solid #ddd;\">Artifacts: </th><td style=\"border: 1px solid #ddd;\">" + getBuildArtifactLinks(jobName, buildNum) + "</td></tr>");
-                                            }
-                                            
-                                            html.push("</table><h3><br></h3>");
-
                                             if (data.showTotalBuildTime) {
                                                 html.push('<h3>Total build time: ' + formatDuration(pipeline.totalBuildTime) + '</h3>');
                                             }
@@ -199,29 +204,67 @@ function pipelineUtils() {
                                                 var toggleTableId = "toggle-table-" + jobName + "-" + buildNum;
                                                 var displayTableId = "display-table-" + jobName + "-" + buildNum;
 
-                                                html.push('<h3><a id="' + displayTableId + '" href="javascript:toggleTable(\'' + toggleTableId + '\');">Additional Display Values</a></h3>');
-                                                html.push("<table id=\"" + toggleTableId + "\" style=\"display:" +  getToggleState(toggleTableId, "table", true) + "; min-width:500px; text-align:left; padding: 5px; border: 1px solid ddd; border-collapse: collapse;\">");
+                                                html.push("<br>");
+                                                html.push("<table style=\"display:" +  getToggleState(toggleTableId, "table-row-group", true) + ";\" class=\"displayTable\">");
+                                                html.push("<thead><tr><th colspan=\"2\" style=\"text-align: left;\">");
+                                                html.push("<a id=\"" + displayTableId + "\" href=\"javascript:toggleTable('" + toggleTableId + "');\">Show Additional Display Values</a></th></tr></thead>");
+                                                html.push("<tbody id=\"" + toggleTableId + "\" style=\"display: table-row-group;\">");
+                                                if (data.showArtifacts) {
+                                                    html.push("<tr class=\"displayTableTr\">");
+                                                    html.push("<th class=\"displayTableTh\">Artifacts </th>");
+                                                    html.push("<td class=\"displayTableTd\">" + getBuildArtifactLinks(jobName, buildNum) + "</td></tr>");
+                                                }
                                                 if (JSON.stringify(savedPipelineDisplayValues) == JSON.stringify({})) {
                                                     html.push(generateDisplayValueTable(data.displayArguments, jobName, buildNum));
                                                 } else {
                                                     html.push(loadDisplayValues(data.displayArguments, jobName, buildNum, savedPipelineDisplayValues));
                                                 }
-                                                html.push("</table>");
+                                                html.push("</tbody></table>");
                                             }
 
                                             html.push('<h3><br></h3>');
                                         }
 
-                                        var row = 0, column = 0, stage;
-                                        html.push('<section class="pipeline">');
+                                        var maxWidth = document.getElementById("main-panel").offsetWidth;
+                                        var scale = 1;
+                                        var numColumns = 0;
+                                        for (var j = 0; j < pipeline.stages.length; j++) {
+                                            stage = pipeline.stages[j];
+                                            if (stage.column > numColumns) {
+                                                numColumns = stage.column + 1;
+                                            }
+                                        }
+                                        console.info(numColumns);
+                                        console.info(maxWidth);
+
+                                        if (numColumns * 140 > maxWidth) {
+                                            var nearestPercent = (1 / ((numColumns * 140) / maxWidth) * 100);
+                                            console.info(nearestPercent);
+                                            console.info(Math.floor(nearestPercent / 10) * 10 );
+                                            scale = (Math.floor(nearestPercent / 10) * 10) / 100;
+                                            console.info(scale);
+                                        }
+
+                                        // 20px for margin-right
+                                        var widthPerCell = (maxWidth * scale / numColumns) - 20;
+                                        console.info(widthPerCell);
+
+                                        var scaleStyle = "";
+                                        if (scale != 1) {
+                                            // scaleStyle = "style=\"transform: scale(" + scale + "); transform-origin: top left;\"";
+                                            // scaleStyle = "style=\"zoom: " + (scale * 100) + "%;\"";
+                                            html.push("<section class=\"pipeline\" " + scaleStyle + ">");
+                                        }
+                                        else {
+                                            html.push("<section class=\"pipeline\">");
+                                        }
+
+                                        var row = 0, column = 0, stage;                                   
+                                        // html.push("<section class=\"pipeline\" " + scaleStyle + ">");
                                         html.push('<div class="pipeline-row">');
  
                                         for (var j = 0; j < pipeline.stages.length; j++) {
                                             stage = pipeline.stages[j];
-
-                                            // console.info("#" + stage.tasks[0].buildId + " " + stage.name);
-                                            // console.info(stage.blockingJobs);
-                                            // console.info(stage.conditionalJobs);
 
                                             if (stage.blockingJobs != "") {
                                                 blockingMap[getStageId(stage.id + "", i)] = stage.blockingJobs.split(', ');
@@ -482,6 +525,7 @@ function pipelineUtils() {
                                 }
                             }
                          jsplumb.repaintEverything();
+                         window.scrollTo( 0, currentPageY );
                         }
 }
 
@@ -1036,7 +1080,8 @@ function generateDisplayValueTable(displayArgs, pipelineName, pipelineNum) {
                 }
 
                 var id = mainProject + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
-                retVal += "<tr><th style=\"border: 1px solid #ddd;\">" + displayKey + "</th><td id=\"" + id + "\" style=\"border: 1px solid #ddd;\">Value not found across pipeline</td></tr>";    
+                retVal += "<tr class=\"displayTableTr\"><th class=\"displayTableTh\">" + displayKey + "</th>";
+                retVal += "<td id=\"" + id + "\" class=\"displayTableTd\">Value not found across pipeline</td></tr>";    
             }    
         }
     }
@@ -1072,9 +1117,11 @@ function loadDisplayValues(displayArgs, pipelineName, pipelineNum, savedPipeline
                 var id = mainProject + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
 
                 if (savedPipelineDisplayValues.hasOwnProperty(id)) {
-                    retVal += "<tr><th style=\"border: 1px solid #ddd;\">" + displayKey + "</th><td id=\"" + id + "\" style=\"border: 1px solid #ddd;\">" + savedPipelineDisplayValues[id] + "</td></tr>";
+                    retVal += "<tr class=\"displayTableTr\"><th class=\"displayTableTh\">" + displayKey + "</th>";
+                    retVal += "<td id=\"" + id + "\" class=\"displayTableTd\">" + savedPipelineDisplayValues[id] + "</td></tr>";
                 } else {
-                    retVal += "<tr><th style=\"border: 1px solid #ddd;\">" + displayKey + "</th><td id=\"" + id + "\" style=\"border: 1px solid #ddd;\">Value not found across pipeline</td></tr>";
+                    retVal += "<tr class=\"displayTableTr\"><th class=\"displayTableTh\">" + displayKey + "</th>";
+                    retVal += "<td id=\"" + id + "\" class=\"displayTableTd\">Value not found across pipeline</td></tr>";
                 }
             }
         }
@@ -1246,7 +1293,14 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                                 if (envMap.hasOwnProperty(envName)) {
                                     var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
                                     var ele = document.getElementById(id);
-                                    ele.innerHTML = envMap[envName];
+
+                                    if (displayKeyConfig.hasOwnProperty("grepPattern")) {
+                                        var grepPattern = displayKeyConfig.grepPattern;
+                                        var grepFlag = displayKeyConfig.hasOwnProperty("grepFlag") ? displayKeyConfig.grepFlag : 'g';
+                                        ele.innerHTML = grepRegexp(grepPattern, grepFlag, envMap[envName]);
+                                    } else {
+                                        ele.innerHTML = envMap[envName];    
+                                    }
 
                                     var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
                                     savedValues[id] = ele.innerHTML;
@@ -1363,6 +1417,7 @@ function grepRegexp(grepPattern, grepFlag, data) {
     return results.join("\n").replace(/(?:\r\n|\r|\n)/g, '<br>');
 }
 
+// Get the session state for build toggles
 function getToggleState(toggleId, toggleType, defaultToggleOn) {
     var toggleStates = JSON.parse(sessionStorage.toggleStates);
 
@@ -1376,12 +1431,12 @@ function getToggleState(toggleId, toggleType, defaultToggleOn) {
         }
     }
 
-    if (toggleType == "table") {
+    if (toggleType == "table-row-group") {
         if (toggleStates.hasOwnProperty(toggleId)) {
             return toggleStates[toggleId];
         } else {
             if (defaultToggleOn) {
-                return "table";
+                return "table-row-group";
             }
         }
     }
@@ -1389,6 +1444,7 @@ function getToggleState(toggleId, toggleType, defaultToggleOn) {
     return "none";
 }
 
+// Toggle method
 function toggle(toggleBuildId, toggleRowId, togglePipelineId) {
     var toggleStates = JSON.parse(sessionStorage.toggleStates);
     var ele = document.getElementById(toggleBuildId);
@@ -1397,16 +1453,14 @@ function toggle(toggleBuildId, toggleRowId, togglePipelineId) {
 
     if (ele.style.display == "block") {
         ele.style.display = "none";
-        rowEle.style.borderLeft = "none";
-        rowEle.style.borderRight = "none";
-        rowEle.style.backgroundColor = "white";
+        rowEle.style.border = "none";
+        rowEle.style.backgroundColor = "transparent";
         pipelineEle.style.border = "none";
         toggleStates[toggleBuildId] = "none";
     } else {
         ele.style.display = "block";
-        rowEle.style.borderLeft = "1px solid #ddd";
-        rowEle.style.borderRight = "1px solid #ddd";
-        rowEle.style.backgroundColor = "yellow";
+        rowEle.style.border = "1px solid #ddd";
+        rowEle.style.backgroundColor = "#f5f5f5";
         pipelineEle.style.border = "1px solid #ddd";
         toggleStates[toggleBuildId] = "block";
     }
@@ -1415,18 +1469,24 @@ function toggle(toggleBuildId, toggleRowId, togglePipelineId) {
     redrawConnections();
 }
 
+// For showing and hiding the display values table
 function toggleTable(toggleTableId) {
     var toggleStates = JSON.parse(sessionStorage.toggleStates);
     var ele = document.getElementById(toggleTableId);
 
-    if (ele.style.display == "table") {
+    if (ele.style.display == "table-row-group") {
         ele.style.display = "none";
         toggleStates[toggleTableId] = "none";
     } else {
-        ele.style.display = "table";
-        toggleStates[toggleTableId] = "table";
+        ele.style.display = "table-row-group";
+        toggleStates[toggleTableId] = "table-row-group";
     }
 
     sessionStorage.toggleStates = JSON.stringify(toggleStates);
     redrawConnections();
+}
+
+function storePagePosition() {
+  var page_y = window.pageYOffset;
+  sessionStorage.setItem("page_y", page_y);
 }

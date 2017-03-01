@@ -144,14 +144,15 @@ section.pipeline-component h1 {
     font-size: 20px;
     font-weight: bold;
     font-stretch: expanded;
-    margin-top: 0;
+    margin: 0;
+    padding: 20px;
 }
 
 section.pipeline-component h2 {
     font-size: 16px;
     font-weight: bold;
     font-stretch: expanded;
-    margin-top: 0;
+    margin: 0;
 }
 
 section.pipeline-component h3 {
@@ -164,6 +165,8 @@ section.pipeline-component h3 {
 section.pipeline {
     display: table;
     border-collapse: separate;
+    width: 100%;
+    overflow: auto;
 }
 
 div.changes {
@@ -249,7 +252,7 @@ div.stage-task {
 }
 /* ------------------------------- */
 div.stage-minimalist {
-    margin-right: 40px;
+    margin-right: 20px;
     width: 120px;
     border: none;
 }
@@ -619,6 +622,40 @@ div.aggregatedChangesPanelInner > ul {
 	background-color:#F5F5F5;
 	color:#D7D7D7;
 	cursor:default;
+}
+
+.showDisplayValues {
+    background-color: #87CEFA;
+    color: black;
+    display: inline-block;
+    width: 500px;
+    text-align: center;
+    font-size: 14px;
+    padding: 10px;
+}
+
+/**
+ * Use these classes to prevent borders from showing on default Jenkin tables
+ */
+.displayTable {
+    text-align:left;
+    padding: 10px;
+    border-collapse: collapse;
+}
+
+.displayTableTr:hover {
+    background-color:#f5f5f5
+}
+
+.displayTableTh {
+    border-bottom: 1px solid #ddd;
+    padding-right: 50px;
+}
+
+.displayTableTd {
+    border-bottom: 1px solid #ddd;
+    font-weight: normal;
+    padding-right: 50px;
 }
 
 a span {
