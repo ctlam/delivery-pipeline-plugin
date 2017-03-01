@@ -102,8 +102,14 @@ function pipelineUtils() {
                                         html.push("No builds done yet.");
                                     }
 
-                                    // html.push("<table style=\"width:100%; text-align:left; padding: 5px; border-bottom: 1px solid ddd;\">");
-                                    // html.push("<tr><th>Status</th><th>Build Number</th><th>Triggered By</th><th>Duration</th><th>Date</th></tr>");
+                                    html.push("<table style=\"width:100%; text-align:left; vertical-align: middle; border-collapse: collapse;\">");
+                                    html.push("<tr>");
+                                    html.push("<th style=\"width:5%; border-bottom: 1px solid #ddd;\">Status</th>");
+                                    html.push("<th style=\"width:45%; border-bottom: 1px solid #ddd;\">Build Number</th>");
+                                    html.push("<th style=\"width:10%; border-bottom: 1px solid #ddd;\">Duration</th>");
+                                    html.push("<th style=\"width:20%; border-bottom: 1px solid #ddd;\">Date</th>");
+                                    html.push("<th style=\"width:15%; border-bottom: 1px solid #ddd;\">Started by</th>");
+                                    html.push("</tr>");
 
                                     var isLatestPipeline = true;
 
@@ -114,12 +120,13 @@ function pipelineUtils() {
                                         var buildNum = pipeline.version.substring(1);
                                         var statusString = pipeline.stages[0].tasks[0].status.type;
 
-                                        var dataString = jobName + " " + pipeline.version;
-                                        var displayBuildId = "display-build-" + jobName + "-" + buildNum;
-                                        var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
-
-                                        html.push('<br><a id="' + displayBuildId + '" class="build_header build_' + statusString + '" href="javascript:toggle(\'' + toggleBuildId + '\');">' + dataString + " " + statusString + '</a> ');
-                                        html.push('<div id="' + toggleBuildId + '" style="display:' + getToggleState(toggleBuildId, "block", isLatestPipeline) +'">');
+                                        var pipelineTimestamp = formatLongDate(pipeline.timestamp);
+                                        var pipelineDuration = formatLongDuration(pipeline.stages[0].tasks[0].status.duration);
+                                            
+                                        if (!data.useFullLocaleTimeStrings) {
+                                            pipelineTimestamp = formatDate(pipeline.timestamp);
+                                            pipelineDuration = formatDuration(pipeline.stages[0].tasks[0].status.duration);
+                                        }
 
                                         // Only expand the latest pipeline
                                         if (isLatestPipeline) {
@@ -148,20 +155,28 @@ function pipelineUtils() {
                                             triggered = triggered + " changes by " + contributors.join(", ");
                                         }
 
+                                        var dataString = jobName + " " + pipeline.version;
+                                        var displayBuildId = "display-build-" + jobName + "-" + buildNum;
+                                        var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
+                                        var toggleRowId = "toggle-row-" + jobName + "-" + buildNum;
+                                        var togglePipelineId = "toggle-pipeline-" + jobName + "-" + buildNum;
+
+                                        html.push("<tr id=\"" + toggleRowId + "\">");
+                                        html.push("<td style=\"border-top: 1px solid #ddd; text-align:center;\"><p class=\"build_" + statusString + "\">&nbsp;</p></td>");
+                                        html.push("<td style=\"border-top: 1px solid #ddd;\"><p class=\"build_header\">");
+                                        html.push("<a id=\"" + displayBuildId + "\" href=\"javascript:toggle('" + toggleBuildId + "','" + toggleRowId + "','" + togglePipelineId + "');\">" + "#" + buildNum + " " + jobName + "</a></p></td>");
+                                        html.push("<td style=\"border-top: 1px solid #ddd; text-align:left;\"><p class=\"build_header\">" + pipelineDuration + "</p></td>");
+                                        html.push("<td style=\"border-top: 1px solid #ddd; text-align:left;\"><p class=\"build_header\">" + pipelineTimestamp + "</p></td>");
+                                        html.push("<td style=\"border-top: 1px solid #ddd; text-align:left;\"><p class=\"build_header\">" + triggered + "</p></td>");
+                                        html.push("</a></tr><tr><th id=\"" + togglePipelineId + "\" colspan=\"5\" style=\"border-bottom: 1px solid #ddd;\"><div>");
+                                        html.push("<div id=\"" + toggleBuildId + "\" style=\"display:" + getToggleState(toggleBuildId, "block", isLatestPipeline) + "\">");
+
                                         if (pipeline.aggregated) {
                                             if (component.pipelines.length > 1) {
                                                 html.push('<h3>Aggregated view</h3>');
                                             }
-                                        } else {
-                                            var pipelineTimestamp = formatLongDate(pipeline.timestamp);
-                                            var pipelineDuration = formatLongDuration(pipeline.stages[0].tasks[0].status.duration);
-                                            
-                                            if (!data.useFullLocaleTimeStrings) {
-                                                pipelineTimestamp = formatDate(pipeline.timestamp);
-                                                pipelineDuration = formatDuration(pipeline.stages[0].tasks[0].status.duration);
-                                            }
-                                            
-                                            html.push("<table style=\"min-width:500px; text-align:left; padding: 5px; border: 1px solid ddd; border-collapse: collapse;\">");
+                                        } else {                                            
+                                            html.push("<table style=\"min-width:500px; text-align:left; padding: 5px; border: 1px solid #ddd; border-collapse: collapse;\">");
                                             html.push("<tr><th style=\"border: 1px solid #ddd;\">Started on: </th><td style=\"border: 1px solid #ddd;\">" + pipelineTimestamp + "</td></tr>");
                                             html.push("<tr><th style=\"border: 1px solid #ddd;\">Duration (Dd HH:MM:SS): </th><td style=\"border: 1px solid #ddd;\">" + pipelineDuration + "</td></tr>");
                                             html.push("<tr><th style=\"border: 1px solid #ddd;\">Triggered by: </th><td style=\"border: 1px solid #ddd;\">" + triggered + "</td></tr>");
@@ -357,8 +372,10 @@ function pipelineUtils() {
                                         html.push("</section>");
 
                                         html.push('</div>');
+                                        html.push('</div></th></tr>')
                                     }
 
+                                    html.push("</table>")
                                     html.push("</section>");
                                     Q("#" + divNames[c % divNames.length]).append(html.join(""));
                                     Q("#pipeline-message-" + pipelineid).html('');
@@ -1372,15 +1389,25 @@ function getToggleState(toggleId, toggleType, defaultToggleOn) {
     return "none";
 }
 
-function toggle(toggleBuildId) {
+function toggle(toggleBuildId, toggleRowId, togglePipelineId) {
     var toggleStates = JSON.parse(sessionStorage.toggleStates);
     var ele = document.getElementById(toggleBuildId);
+    var rowEle =  document.getElementById(toggleRowId);
+    var pipelineEle = document.getElementById(togglePipelineId);
 
     if (ele.style.display == "block") {
         ele.style.display = "none";
+        rowEle.style.borderLeft = "none";
+        rowEle.style.borderRight = "none";
+        rowEle.style.backgroundColor = "white";
+        pipelineEle.style.border = "none";
         toggleStates[toggleBuildId] = "none";
     } else {
         ele.style.display = "block";
+        rowEle.style.borderLeft = "1px solid #ddd";
+        rowEle.style.borderRight = "1px solid #ddd";
+        rowEle.style.backgroundColor = "yellow";
+        pipelineEle.style.border = "1px solid #ddd";
         toggleStates[toggleBuildId] = "block";
     }
 

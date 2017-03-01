@@ -3,44 +3,53 @@ div.hide {
 }
 
 .build_header {
-    background: white;
-    color: black;
-    display: block;
-    padding: 8px;
-    font-size: 16px;
-    border-style: solid;
-    border-width: 1px;
-    border-color: #EEEEEE;
+    vertical-align: middle;
+    height: 26px;
 }
 
 .build_SUCCESS {
-    padding: 8px 8px 8px 40px;
-    vertical-align: top;
-    background: url("success.png") no-repeat;
+    float: left;
+    background: url("successCircle.png") no-repeat;
+    background-size: 26px 26px;
+    background-position: center;
+    min-width: 26px;
+    min-height: 26px;
 }
 
 .build_FAILED {
-    padding: 8px 8px 8px 40px;
-    vertical-align: top;
-    background: url("failed.png") no-repeat;
+    float: left;
+    background: url("failedCircle.png") no-repeat;
+    background-size: 26px 26px;
+    background-position: center;
+    min-width: 26px;
+    min-height: 26px;
 }
 
 .build_CANCELLED {
-    padding: 8px 8px 8px 40px;
-    vertical-align: top;
-    background: url("cancelled.png") no-repeat;
+    float: left;
+    background: url("cancelledCircle.png") no-repeat;
+    background-size: 26px 26px;
+    background-position: center;
+    min-width: 26px;
+    min-height: 26px;
 }
 
 .build_NOT_BUILT  {
-    padding: 8px 8px 8px 40px;
-    vertical-align: top;
-    background: url("not_built.png") no-repeat;
+    float: left;
+    background: url("notBuiltCircle.png") no-repeat;
+    background-size: 26px 26px;
+    background-position: center;
+    min-width: 26px;
+    min-height: 26px;
 }
 
 .build_IDLE  {
-    padding: 8px 8px 8px 40px;
-    vertical-align: top;
-    background: url("not_built.png") no-repeat;
+    float: left;
+    background: url("notBuiltCircle.png") no-repeat;
+    background-size: 26px 26px;
+    background-position: center;
+    min-width: 26px;
+    min-height: 26px;
 }
 
 .circle_SUCCESS {
