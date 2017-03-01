@@ -47,6 +47,7 @@ div.hide {
     float: left;
     left: 37.5%;
     background: url("successCircle.png") no-repeat;
+    background-size: 26px 26px;
     height: 26px;
     width: 26px;
 }
@@ -55,6 +56,7 @@ div.hide {
     float: left;
     left: 37.5%;
     background: url("failedCircle.png") no-repeat;
+    background-size: 26px 26px;
     height: 26px;
     width: 26px;
 }
@@ -63,6 +65,7 @@ div.hide {
     float: left;
     left: 37.5%;
     background: url("cancelledCircle.png") no-repeat;
+    background-size: 26px 26px;
     height: 26px;
     width: 26px;
 }
@@ -71,6 +74,7 @@ div.hide {
     float: left;
     left: 37.5%;
     background: url("notBuiltCircle.png") no-repeat;
+    background-size: 26px 26px;
     height: 26px;
     width: 26px;
 }
@@ -79,6 +83,7 @@ div.hide {
     float: left;
     left: 37.5%;
     background: url("notBuiltCircle.png") no-repeat;
+    background-size: 26px 26px;
     height: 26px;
     width: 26px;
 }
@@ -87,6 +92,7 @@ div.hide {
     float: left;
     left: 37.5%;
     background: url("runningCircle.gif") no-repeat;
+    background-size: 26px 26px;
     height: 26px;
     width: 26px;
 }
@@ -95,6 +101,7 @@ div.hide {
     float: left;
     left: 37.5%;
     background: url("runningCircle.gif") no-repeat;
+    background-size: 26px 26px;
     height: 26px;
     width: 26px;
 }
@@ -103,6 +110,7 @@ div.hide {
     float: left;
     left: 37.5%;
     background: url("runningCircle.gif") no-repeat;
+    background-size: 26px 26px;
     height: 26px;
     width: 26px;
 }
@@ -111,6 +119,7 @@ div.hide {
     float: left;
     left: 37.5%;
     background: url("runningCircle.gif") no-repeat;
+    background-size: 26px 26px;
     height: 26px;
     width: 26px;
 }

@@ -102,6 +102,9 @@ function pipelineUtils() {
                                         html.push("No builds done yet.");
                                     }
 
+                                    // html.push("<table style=\"width:100%; text-align:left; padding: 5px; border-bottom: 1px solid ddd;\">");
+                                    // html.push("<tr><th>Status</th><th>Build Number</th><th>Triggered By</th><th>Duration</th><th>Date</th></tr>");
+
                                     var isLatestPipeline = true;
 
                                     for (var i = 0; i < component.pipelines.length; i++) {
@@ -378,8 +381,8 @@ function pipelineUtils() {
                                             if (stage.downstreamStages) {
 
                                                 if (data.viewMode == "Minimalist") {
-                                                    anchors = [[1, 0, 1, 0, 0, 12], [0, 0, -1, 0, 0, 12]];
-                                                    connector = ["Flowchart", { stub: 50, gap: 0, midpoint: 0.00001, alwaysRespectStubs: true, cornerRadius: 0 } ];
+                                                    anchors = [[0, 0, 1, 0, 0, 13], [0, 0, -1, 0, 0, 13]];
+                                                    connector = ["Flowchart", { stub: 50, gap: 1, midpoint: 0.00001, alwaysRespectStubs: true, cornerRadius: 50 } ];
                                                 } else {
                                                     anchors = [[1, 0, 1, 0, 0, 37], [0, 0, -1, 0, 0, 37]];
                                                     connector = ["Flowchart", { stub: 25, gap: 2, midpoint: 1, alwaysRespectStubs: true } ];
@@ -428,7 +431,7 @@ function pipelineUtils() {
                                                         ],
                                                         cssClass: "relation",
                                                         connector: connector,
-                                                        paintStyle: { lineWidth: 3, strokeStyle: color },
+                                                        paintStyle: { lineWidth: 4, strokeStyle: color },
                                                         endpoint: ["Blank"]
                                                     });
                                                 });
