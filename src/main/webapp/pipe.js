@@ -56,6 +56,7 @@ function pipelineUtils() {
                             // Need this to keep track of blocking projects
                             var blockingMap = {};
                             var conditionalMap = {};
+                            var downstreamMap = {};
                             var projectNameIdMap = {};
 
                             if (sessionStorage.savedPipelineDisplayValues == null) {
@@ -205,10 +206,10 @@ function pipelineUtils() {
                                                 var displayTableId = "display-table-" + jobName + "-" + buildNum;
 
                                                 html.push("<br>");
-                                                html.push("<table style=\"display:" +  getToggleState(toggleTableId, "table-row-group", true) + ";\" class=\"displayTable\">");
+                                                html.push("<table class=\"displayTable\">");
                                                 html.push("<thead><tr><th colspan=\"2\" style=\"text-align: left;\">");
                                                 html.push("<a id=\"" + displayTableId + "\" href=\"javascript:toggleTable('" + toggleTableId + "');\">Show Additional Display Values</a></th></tr></thead>");
-                                                html.push("<tbody id=\"" + toggleTableId + "\" style=\"display: table-row-group;\">");
+                                                html.push("<tbody id=\"" + toggleTableId + "\" style=\"display: " + getToggleState(toggleTableId, "table-row-group", true) + ";\">");
                                                 if (data.showArtifacts) {
                                                     html.push("<tr class=\"displayTableTr\">");
                                                     html.push("<th class=\"displayTableTh\">Artifacts </th>");
@@ -225,7 +226,7 @@ function pipelineUtils() {
                                             html.push('<h3><br></h3>');
                                         }
 
-                                        var maxWidth = document.getElementById("main-panel").offsetWidth;
+                                        var maxWidth = (document.getElementById("main-panel") != null) ? document.getElementById("main-panel").offsetWidth : 140;
                                         var scale = 1;
                                         var numColumns = 0;
                                         for (var j = 0; j < pipeline.stages.length; j++) {
@@ -246,7 +247,7 @@ function pipelineUtils() {
                                         }
 
                                         // 20px for margin-right
-                                        var widthPerCell = (maxWidth * scale / numColumns) - 20;
+                                        var widthPerCell = (scale == 1) ? 140 : (maxWidth * scale / numColumns) - 20;
                                         console.info(widthPerCell);
 
                                         var scaleStyle = "";
@@ -274,6 +275,10 @@ function pipelineUtils() {
                                                 conditionalMap[getStageId(stage.id + "", i)] = stage.conditionalJobs.split(', ');
                                             }
 
+                                            if (stage.downstreamJobs != "") {
+                                                downstreamMap[getStageId(stage.id + "", i)] = stage.downstreamJobs.split(', ');
+                                            }
+
                                             projectNameIdMap[getStageId(stage.id + "", i)] = stage.name;
 
                                             if (stage.row > row) {
@@ -285,7 +290,7 @@ function pipelineUtils() {
                                             if (stage.column > column) {
                                                 for (var as = column; as < stage.column; as++) {
                                                     if (data.viewMode == "Minimalist") {
-                                                        html.push('<div class="pipeline-cell"><div class="stage-minimalist hide"></div></div>');
+                                                        html.push('<div class="pipeline-cell"><div class="stage-minimalist hide" style="width: ' + widthPerCell + 'px;"></div></div>');
                                                     } else {
                                                         html.push('<div class="pipeline-cell"><div class="stage hide"></div></div>');
                                                     }
@@ -304,7 +309,7 @@ function pipelineUtils() {
                                             }
 
                                             if (data.viewMode == "Minimalist") {
-                                                html.push('<div class="stage-minimalist ' + getStageClassName(stage.name) + '">');
+                                                html.push('<div class="stage-minimalist ' + getStageClassName(stage.name) + '" style="width: ' + widthPerCell + 'px;">');
                                                 html.push('<div class="stage-minimalist-header"><div class="stage-minimalist-name"><a href="' + link + '">' + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + '</a></div>');
                                             } else {
                                                 html.push('<div id="' + getStageId(stage.id + "", i) + '" class="stage ' + getStageClassName(stage.name) + '">');
@@ -430,24 +435,25 @@ function pipelineUtils() {
                                 }
 
                                 var index = 0, source, target;
-                                var anchors, connector = [];
+                                var anchors = [[0, 0, 1, 0, 0, 13], [0, 0, -1, 0, 0, 13]];
+                                var connector = ["Flowchart", { stub: 50, gap: 0, midpoint: 0.00001, alwaysRespectStubs: true, cornerRadius: 50 } ];
+
+                                var downstreamAnchors = [[0.5, 1, 0, 1, 0, 0], [0, 0, -1, 0, 0, 13]];
+                                var downStreamConnector = ["Flowchart", { stub: 0, gap: 0, midpoint: 0.00001, alwaysRespectStubs: true, cornerRadius: 50 } ];
+
                                 lastResponse = data;
                                 equalheight(".pipeline-row .stage");
+
+                                if (data.viewMode != "Minimalist") {
+                                    anchors = [[1, 0, 1, 0, 0, 37], [0, 0, -1, 0, 0, 37]];
+                                    connector = ["Flowchart", { stub: 25, gap: 2, midpoint: 1, alwaysRespectStubs: true } ];
+                                }
 
                                 Q.each(data.pipelines, function (i, component) {
                                     Q.each(component.pipelines, function (j, pipeline) {
                                         index = j;
                                         Q.each(pipeline.stages, function (k, stage) {
                                             if (stage.downstreamStages) {
-
-                                                if (data.viewMode == "Minimalist") {
-                                                    anchors = [[0, 0, 1, 0, 0, 13], [0, 0, -1, 0, 0, 13]];
-                                                    connector = ["Flowchart", { stub: 50, gap: 1, midpoint: 0.00001, alwaysRespectStubs: true, cornerRadius: 50 } ];
-                                                } else {
-                                                    anchors = [[1, 0, 1, 0, 0, 37], [0, 0, -1, 0, 0, 37]];
-                                                    connector = ["Flowchart", { stub: 25, gap: 2, midpoint: 1, alwaysRespectStubs: true } ];
-                                                }
-                                                
                                                 Q.each(stage.downstreamStageIds, function (l, value) {
                                                     source = getStageId(stage.id + "", index);
                                                     target = getStageId(value + "", index);
@@ -455,7 +461,7 @@ function pipelineUtils() {
                                                     // black
                                                     var color = "rgba(118,118,118,1)";
 
-                                                    var blockedProjects = conditionalProjects = [];
+                                                    var blockedProjects = conditionalProjects = downstreamProjects = [];
                                                     var targetName;
                                                     if (blockingMap.hasOwnProperty(source)) {
                                                         blockedProjects = blockingMap[source];
@@ -463,6 +469,10 @@ function pipelineUtils() {
 
                                                     if (conditionalMap.hasOwnProperty(source)) {
                                                         conditionalProjects = conditionalMap[source];
+                                                    }
+
+                                                    if (downstreamMap.hasOwnProperty(source)) {
+                                                        downstreamProjects = downstreamMap[source];
                                                     }
 
                                                     if (projectNameIdMap.hasOwnProperty(target)) {
@@ -475,22 +485,25 @@ function pipelineUtils() {
                                                             // Blue
                                                             color = "rgba(000,178,238,1)";
                                                         } else if (conditionalProjects.indexOf(targetName) != -1) {
-                                                            // Green
-                                                            color = "rgba(122,244,0,1)";
-                                                        }                                    
-                                                    }
+                                                            // Yellow
+                                                            color = "rgba(225,232,21,1)";
+                                                        }
 
+                                                        if (downstreamProjects.indexOf(targetName) != -1) {
+                                                            // Purple
+                                                            color = "rgba(146,41,205,1)";
+                                                        }
+                                                    }
 
                                                     jsplumb.connect({
                                                         source: source,
                                                         target: target,
-                                                        anchors: anchors, // allow boxes to increase in height but keep anchor lines on the top
+                                                        anchors: (downstreamProjects.indexOf(targetName) != -1) ? downstreamAnchors : anchors, // allow boxes to increase in height but keep anchor lines on the top
                                                         overlays: [
-                                                            //[ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12}]
-                                                            [ "Arrow", { location: 1, foldback: 0.9, width: 1, length: 12}]
+                                                            [ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12}]
                                                         ],
                                                         cssClass: "relation",
-                                                        connector: connector,
+                                                        connector: (downstreamProjects.indexOf(targetName) != -1) ? downStreamConnector : connector,
                                                         paintStyle: { lineWidth: 4, strokeStyle: color },
                                                         endpoint: ["Blank"]
                                                     });

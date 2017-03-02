@@ -253,7 +253,7 @@ div.stage-task {
 /* ------------------------------- */
 div.stage-minimalist {
     margin-right: 20px;
-    width: 120px;
+    /*width: 120px;*/
     border: none;
 }
 
@@ -284,7 +284,8 @@ div.taskname-minimalist {
     vertical-align: middle;
     white-space: normal;
     word-wrap: break-word;
-    width: 120px;
+    /*width: 120px;*/
+    width: 100%;
 }
 
 div.minimalist-task-progress {

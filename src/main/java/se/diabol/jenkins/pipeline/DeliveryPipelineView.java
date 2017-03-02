@@ -83,9 +83,9 @@ public class DeliveryPipelineView extends View {
 
     private static final Logger LOG = Logger.getLogger(DeliveryPipelineView.class.getName());
 
-    private static final int DEFAULT_INTERVAL = 2;
+    private static final int DEFAULT_INTERVAL = 15;
 
-    private static final int DEFAULT_NO_OF_PIPELINES = 3;
+    private static final int DEFAULT_NO_OF_PIPELINES = 5;
     private static final int MAX_NO_OF_PIPELINES = 50;
 
     private static final String OLD_NONE_SORTER = "se.diabol.jenkins.pipeline.sort.NoOpComparator";
@@ -710,7 +710,7 @@ public class DeliveryPipelineView extends View {
         public ListBoxModel doFillViewModeItems() {
             ListBoxModel options = new ListBoxModel();
             options.add(ViewMode.MINIMALIST);
-            options.add(ViewMode.DETAILED);
+            // options.add(ViewMode.DETAILED);
             return options;
         }
 

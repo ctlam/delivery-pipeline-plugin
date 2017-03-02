@@ -78,6 +78,7 @@ public class Stage extends AbstractItem {
     private Set<Change> changes = new HashSet<Change>();
     private String blockingJobs;
     private String conditionalJobs;
+    private String downstreamJobs;
 
     public Stage(String name, List<Task> tasks) {
         super(name);
@@ -85,23 +86,24 @@ public class Stage extends AbstractItem {
         this.id = PipelineUtils.getRandom();
     }
 
-    public Stage(String name, List<Task> tasks, String blockingJobs, String conditionalJobs) {
+    public Stage(String name, List<Task> tasks, String blockingJobs, String conditionalJobs, String downstreamJobs) {
         super(name);
         this.tasks = ImmutableList.copyOf(tasks);
         this.id = PipelineUtils.getRandom();
         this.blockingJobs = blockingJobs;
         this.conditionalJobs = conditionalJobs;
+        this.downstreamJobs = downstreamJobs;
     }
 
     private Stage(Stage stage, List<Task> tasks, String version, long id) {
         this(stage.getName(), tasks, stage.getDownstreamStages(), stage.getDownstreamStageIds(),
              stage.getTaskConnections(), version, stage.getRow(), stage.getColumn(), id, stage.getBlockingJobs(),
-             stage.getConditionalJobs());
+             stage.getConditionalJobs(), stage.getDownstreamJobs());
     }
 
     private Stage(String name, List<Task> tasks, List<String> downstreamStages, List<Long> downstreamStageIds,
                   Map<String, List<String>> taskConnections, String version, int row, int column, long id,
-                  String blockingJobs, String conditionalJobs) {
+                  String blockingJobs, String conditionalJobs, String downstreamJobs) {
         super(name);
         this.tasks = tasks;
         this.version = version;
@@ -113,6 +115,7 @@ public class Stage extends AbstractItem {
         this.id = id;
         this.blockingJobs = blockingJobs;
         this.conditionalJobs = conditionalJobs;
+        this.downstreamJobs = downstreamJobs;
     }
 
     @Exported
@@ -198,6 +201,15 @@ public class Stage extends AbstractItem {
         this.conditionalJobs = conditionalJobs;
     }
 
+    @Exported
+    public String getDownstreamJobs() {
+        return downstreamJobs;
+    }
+
+    public void setDownstreamJobs(String downstreamJobs) {
+        this.downstreamJobs = downstreamJobs;
+    }
+
     public void setTaskConnections(Map<String, List<String>> taskConnections) {
         this.taskConnections = taskConnections;
     }
@@ -206,8 +218,9 @@ public class Stage extends AbstractItem {
         return new Stage(name, tasks);
     }
 
-    public static Stage getPrototypeStage(String name, List<Task> tasks, String blockingJobs, String conditionalJobs) {
-        return new Stage(name, tasks, blockingJobs, conditionalJobs);
+    public static Stage getPrototypeStage(String name, List<Task> tasks, String blockingJobs, String conditionalJobs,
+                                          String downstreamJobs) {
+        return new Stage(name, tasks, blockingJobs, conditionalJobs, downstreamJobs);
     }
 
     public static List<Stage> extractStages(AbstractProject firstProject, AbstractProject lastProject)
@@ -222,6 +235,7 @@ public class Stage extends AbstractItem {
 
             String blockingJobs = getBlockingJobsForStage(project);
             String conditionalJobs = getConditionalJobsForStage(project);
+            String downstreamJobs = getDownstreamJobsForStage(project);
 
             PipelineProperty property = (PipelineProperty) project.getProperty(PipelineProperty.class);
             if (property == null && project.getParent() instanceof AbstractProject) {
@@ -233,11 +247,11 @@ public class Stage extends AbstractItem {
             Stage stage = stages.get(stageName);
             if (stage == null) {
                 stage = Stage.getPrototypeStage(stageName, Collections.<Task>emptyList(), blockingJobs, 
-                                                conditionalJobs);
+                                                conditionalJobs, downstreamJobs);
             }
             stages.put(stageName,
                     Stage.getPrototypeStage(stage.getName(), newArrayList(concat(stage.getTasks(), singleton(task))),
-                                            blockingJobs, conditionalJobs));
+                                            blockingJobs, conditionalJobs, downstreamJobs));
         }
         Collection<Stage> stagesResult = stages.values();
 
@@ -353,7 +367,7 @@ public class Stage extends AbstractItem {
                     if (lastRowDiscovered > currentRowForThisColumn) {
                         //update/set row number in the columnRowMap for this effective column
                         columnRowMap.put(effectiveColumn, lastRowDiscovered);
-                        
+
                         stage.setRow(lastRowDiscovered);
 
                         processedStages.add(stage);
@@ -467,13 +481,23 @@ public class Stage extends AbstractItem {
 
     private static String getConditionalJobsForStage(AbstractProject project) {
         String jobNames = "";
-
         for (TriggerBuilder trigger : ConditionalBuildStepHelper.getContainedBuilders(project, TriggerBuilder.class)) {
             for (BlockableBuildTriggerConfig config : trigger.getConfigs()) {
                 jobNames += config.getProjects() + ", ";
             }
         }
+        if (jobNames != "") {
+            return jobNames.substring(0, jobNames.length() - 2);    
+        }
+        return jobNames;
+    }
 
+    private static String getDownstreamJobsForStage(AbstractProject project) {
+        String jobNames = "";
+        List<AbstractProject> downstreamProjects = project.getDownstreamProjects();
+        for (AbstractProject downstreamProject : downstreamProjects) {
+            jobNames += downstreamProject.getDisplayName() + ", ";
+        }
         if (jobNames != "") {
             return jobNames.substring(0, jobNames.length() - 2);    
         }
