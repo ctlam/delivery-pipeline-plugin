@@ -52,85 +52,44 @@ div.hide {
     min-height: 26px;
 }
 
-.circle_SUCCESS {
+.circle {
     float: left;
-    left: 37.5%;
+}
+
+.circle_SUCCESS {
     background: url("successCircle.png") no-repeat;
-    background-size: 26px 26px;
-    height: 26px;
-    width: 26px;
 }
 
 .circle_FAILED {
-    float: left;
-    left: 37.5%;
     background: url("failedCircle.png") no-repeat;
-    background-size: 26px 26px;
-    height: 26px;
-    width: 26px;
 }
 
 .circle_CANCELLED {
-    float: left;
-    left: 37.5%;
     background: url("cancelledCircle.png") no-repeat;
-    background-size: 26px 26px;
-    height: 26px;
-    width: 26px;
 }
 
 .circle_NOT_BUILT {
-    float: left;
-    left: 37.5%;
     background: url("notBuiltCircle.png") no-repeat;
-    background-size: 26px 26px;
-    height: 26px;
-    width: 26px;
 }
 
 .circle_IDLE {
-    float: left;
-    left: 37.5%;
     background: url("notBuiltCircle.png") no-repeat;
-    background-size: 26px 26px;
-    height: 26px;
-    width: 26px;
 }
 
 .circle_RUNNING {
-    float: left;
-    left: 37.5%;
     background: url("runningCircle.gif") no-repeat;
-    background-size: 26px 26px;
-    height: 26px;
-    width: 26px;
 }
 
 .circle_QUEUED {
-    float: left;
-    left: 37.5%;
     background: url("runningCircle.gif") no-repeat;
-    background-size: 26px 26px;
-    height: 26px;
-    width: 26px;
 }
 
 .circle_UNSTABLE {
-    float: left;
-    left: 37.5%;
     background: url("runningCircle.gif") no-repeat;
-    background-size: 26px 26px;
-    height: 26px;
-    width: 26px;
 }
 
 .circle_DISABLED {
-    float: left;
-    left: 37.5%;
     background: url("runningCircle.gif") no-repeat;
-    background-size: 26px 26px;
-    height: 26px;
-    width: 26px;
 }
 
 div.pipeline-loading-icon {
@@ -227,7 +186,7 @@ div.pipeline-row {
 
 div.pipeline-cell {
     display: table-cell;
-    padding-bottom: 30px;
+    padding-bottom: 20px;
 }
 
 div.stage {
@@ -252,7 +211,7 @@ div.stage-task {
 }
 /* ------------------------------- */
 div.stage-minimalist {
-    margin-right: 20px;
+    margin-right: 10px;
     /*width: 120px;*/
     border: none;
 }
@@ -294,7 +253,7 @@ div.minimalist-task-progress {
 
 div.stage-minimalist-header {
     background-color: transparent;
-    font-size: 13px;
+    /*font-size: 13px;*/
     font-weight: normal;;
     display: table;
     width: 100%;
@@ -302,7 +261,7 @@ div.stage-minimalist-header {
     text-align: center;
 }
 
-div.task-content {
+div.task-content-minimalist {
     padding: 0;
     width: 100%;
 }
@@ -639,6 +598,7 @@ div.aggregatedChangesPanelInner > ul {
  * Use these classes to prevent borders from showing on default Jenkin tables
  */
 .displayTable {
+    margin-left: 15px;
     text-align:left;
     padding: 10px;
     border-collapse: collapse;

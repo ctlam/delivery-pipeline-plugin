@@ -1,7 +1,7 @@
 body {
     font-family: sans-serif;
-    background: #000000;
-    color: #fefefe;
+    background: white;
+    color: black;
     font-size: 14px;
 }
 
@@ -16,6 +16,7 @@ section.pipeline-component {
 section.pipeline-component h1 {
     font-size: 38px;
     font-weight: bold;
+    vertical-align: middle;
 }
 
 section.pipeline-component h2 {
@@ -125,10 +126,10 @@ div.task-progress {
     border-left: 6px solid #0092ef;
 }
 
-svg.relation path {
+/*svg.relation path {
     stroke: #fefefe;
     stroke-width: 3;
-}
+}*/
 
 div.infoPanel {
     border: none;
@@ -145,4 +146,27 @@ div.aggregatedChangesPanelOuter {
     margin: 8px;
     border: 1px solid lightgray;
     background-color: #646060;
+}
+
+a span {
+    display: none;
+    position: absolute;
+    color: #fff;
+    background-color: green;
+    padding: 5px;
+    font-size: 14px;
+    font-weight: normal;
+    min-height: 50px;
+    min-width: 350px;
+    text-align: left;
+    z-index: 1;
+}
+
+a {
+    position: relative;
+}
+
+a:hover span {
+    display: block;
+    text-align: left;
 }

@@ -95,7 +95,7 @@ function pipelineUtils() {
                                     html = [];
                                     component = data.pipelines[c];
                                     html.push("<section class='pipeline-component'>");
-                                    html.push("<h1 style=\"display: block; background-color: #4A90E2; height: 70px; color: white; text-align: left;\">" + component.name);
+                                    html.push("<h1 style=\"display: block; background-color: #4A90E2; height: 70px; color: white; text-align: left; vertical-align: middle;\">" + component.name);
                                     if (data.allowPipelineStart) {
                                         if (component.firstJobParameterized) {
                                             html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" onclick="triggerParameterizedBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
@@ -106,6 +106,9 @@ function pipelineUtils() {
                                         html.push("</a>");
                                     }
                                     html.push("</h1>");
+                                    if (document.getElementById("main-panel") == null) {
+                                        html.push("<br><br>");
+                                    }
                                     if (!showAvatars) {
                                         html.push("<div class='pagination'>");
                                         html.push(component.pagingData);
@@ -226,42 +229,41 @@ function pipelineUtils() {
                                             html.push('<h3><br></h3>');
                                         }
 
-                                        var maxWidth = (document.getElementById("main-panel") != null) ? document.getElementById("main-panel").offsetWidth : 140;
-                                        var scale = 1;
+                                        // Jenkins default view has a "main-panel" whereas full screen mode does not
+                                        var isFullScreen = (document.getElementById("main-panel") == null);
+
+                                        // 15px padding around main-panel
+                                        // 10px padding around pipeline-main
+                                        // 1px border left/right around pipeline main
+                                        // 1px border left/right around table
+                                        // 20px extra space
+                                        // 2 * (15 + 10 + 1 + 1) + 20 = 74
+                                        var maxWidth =  isFullScreen ? window.innerWidth - 94 : document.getElementById("main-panel").offsetWidth - 74;
                                         var numColumns = 0;
                                         for (var j = 0; j < pipeline.stages.length; j++) {
                                             stage = pipeline.stages[j];
-                                            if (stage.column > numColumns) {
+                                            if (stage.column >= numColumns) {
                                                 numColumns = stage.column + 1;
                                             }
                                         }
-                                        console.info(numColumns);
-                                        console.info(maxWidth);
 
-                                        if (numColumns * 140 > maxWidth) {
-                                            var nearestPercent = (1 / ((numColumns * 140) / maxWidth) * 100);
-                                            console.info(nearestPercent);
-                                            console.info(Math.floor(nearestPercent / 10) * 10 );
-                                            scale = (Math.floor(nearestPercent / 10) * 10) / 100;
-                                            console.info(scale);
-                                        }
+                                        var scaleCondition = (numColumns * 140 > maxWidth);
 
-                                        // 20px for margin-right
-                                        var widthPerCell = (scale == 1) ? 140 : (maxWidth * scale / numColumns) - 20;
-                                        console.info(widthPerCell);
+                                        // Default Values
+                                        var widthPerCell = 130; // 10px for margin-right
+                                        var circleSizePerCell = "26px";
+                                        var leftPercentPerCell = "37.5%";
+                                        var fontSizePerCell = 12;
 
-                                        var scaleStyle = "";
-                                        if (scale != 1) {
-                                            // scaleStyle = "style=\"transform: scale(" + scale + "); transform-origin: top left;\"";
-                                            // scaleStyle = "style=\"zoom: " + (scale * 100) + "%;\"";
-                                            html.push("<section class=\"pipeline\" " + scaleStyle + ">");
-                                        }
-                                        else {
-                                            html.push("<section class=\"pipeline\">");
+                                        if (scaleCondition) {
+                                            widthPerCell = Math.floor(maxWidth / numColumns) - 10;
+                                            circleSizePerCell = (maxWidth >= 26) ? "26px" : maxWidth + "px";
+                                            leftPercentPerCell = Math.floor(((widthPerCell - 26) / 2) / widthPerCell * 100) + "%";
+                                            fontSizePerCell = 10; // Set a minimum font-size rather than scaling it down to something unreadable
                                         }
 
                                         var row = 0, column = 0, stage;                                   
-                                        // html.push("<section class=\"pipeline\" " + scaleStyle + ">");
+                                        html.push("<section class=\"pipeline\">");
                                         html.push('<div class="pipeline-row">');
  
                                         for (var j = 0; j < pipeline.stages.length; j++) {
@@ -290,7 +292,8 @@ function pipelineUtils() {
                                             if (stage.column > column) {
                                                 for (var as = column; as < stage.column; as++) {
                                                     if (data.viewMode == "Minimalist") {
-                                                        html.push('<div class="pipeline-cell"><div class="stage-minimalist hide" style="width: ' + widthPerCell + 'px;"></div></div>');
+                                                        html.push("<div class=\"pipeline-cell\">");
+                                                        html.push("<div class=\"stage-minimalist hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
                                                     } else {
                                                         html.push('<div class="pipeline-cell"><div class="stage hide"></div></div>');
                                                     }
@@ -309,11 +312,14 @@ function pipelineUtils() {
                                             }
 
                                             if (data.viewMode == "Minimalist") {
-                                                html.push('<div class="stage-minimalist ' + getStageClassName(stage.name) + '" style="width: ' + widthPerCell + 'px;">');
-                                                html.push('<div class="stage-minimalist-header"><div class="stage-minimalist-name"><a href="' + link + '">' + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + '</a></div>');
+                                                html.push("<div class=\"stage-minimalist " + getStageClassName(stage.name) + "\" style=\"width: " + widthPerCell + "px;\">");
+                                                html.push("<div class=\"stage-minimalist-header\" style=\"font-size: " + fontSizePerCell + "px;\">");
+                                                html.push("<div class=\"stage-minimalist-name\">");
+                                                html.push("<a href=\"" + link + "\">" + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</a></div>");
                                             } else {
-                                                html.push('<div id="' + getStageId(stage.id + "", i) + '" class="stage ' + getStageClassName(stage.name) + '">');
-                                                html.push('<div class="stage-header"><div class="stage-name build_' + buildStatus.type +'">' + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + '</div>');
+                                                html.push("<div id=\"" + getStageId(stage.id + "", i) + "\" class=\"stage " + getStageClassName(stage.name) + "\">");
+                                                html.push("<div class=\"stage-header\">");
+                                                html.push("<div class=\"stage-name build_" + buildStatus.type + "\">" + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</div>");
                                             }
 
                                             if (!pipeline.aggregated) {
@@ -332,13 +338,8 @@ function pipelineUtils() {
                                                 task = stage.tasks[k];
 
                                                 id = getTaskId(task.id, i);
-
-                                                if (data.useFullLocaleTimeStrings) {
-                                                  timestamp = formatLongDate(task.status.timestamp);
-                                                } else {
-                                                  timestamp = formatDate(task.status.timestamp, lastUpdate);
-                                                }
-
+                                                timestamp = data.useFullLocaleTimeStrings ? formatLongDate(task.status.timestamp) : formatDate(task.status.timestamp, lastUpdate);
+                                                
                                                 tasks.push({id: id, taskId: task.id, buildId: task.buildId});
 
                                                 progress = 100;
@@ -360,15 +361,26 @@ function pipelineUtils() {
 
                                                 if (data.viewMode == "Minimalist") {
                                                     var hoverString = "Timestamp: " + timestamp + "<br>Duration: " + formatLongDuration(task.status.duration);
-                                                    var hoverTable = "<table><tr><th>Timestamp:</th><td>" + timestamp + "</td></tr><tr><th>Duration: </th><td>" + formatLongDuration(task.status.duration) + "</td></tr></table>";
-                                                    html.push("<div id=\"" + id + "\" class=\"status stage-minimalist-task " +
-                                                        "\"><div class=\"task-content-minimalist\">" +
-                                                        "<div class=\"task-header\"><div class=\"taskname-minimalist\"><a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle_" + task.status.type + "\"><br><span class=\"tooltip\">" + hoverTable + "</span></a></div>");
-                                                    html.push("</div></div></div>");
+                                                    var hoverTable = "<table>";
+                                                    hoverTable += "<tr><th style=\"text-align: left\">Timestamp:</th><td style=\"text-align: left\">" + timestamp + "</td></tr>";
+                                                    hoverTable += "<tr><th style=\"text-align: left\">Duration: </th><td style=\"text-align: left\">" + formatLongDuration(task.status.duration) + "</td></tr>";
+                                                    hoverTable += "</table>";
+
+                                                    html.push("<div id=\"" + id + "\" class=\"stage-minimalist-task\">");
+                                                    html.push("<div class=\"task-content-minimalist\">");
+                                                    html.push("<div class=\"task-header\">");
+                                                    html.push("<div class=\"taskname-minimalist\">");
+                                                    html.push("<a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle circle_" + task.status.type + "\" ");
+                                                    html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
+                                                    html.push("<br><span class=\"tooltip\">" + hoverTable + "</span></a>");
+                                                    html.push("</div></div></div></div>");
                                                 } else {
-                                                    html.push("<div id=\"" + id + "\" class=\"status stage-task " + // task.status.type +
-                                                        "\"><div class=\"task-progress " + progressClass + "\" style=\"width: " + progress + "%;\"><div class=\"task-content\">" +
-                                                        "<div class=\"task-header\"><div class=\"taskname\"></div>");
+                                                    html.push("<div id=\"" + id + "\" class=\"status stage-task\">");
+                                                    html.push("<div class=\"task-progress " + progressClass + "\" style=\"width: " + progress + "%;\">");
+                                                    html.push("<div class=\"task-content\">");
+                                                    html.push("<div class=\"task-header\">");
+                                                    html.push("<div class=\"taskname\"></div>");
+
                                                     if (data.allowManualTriggers && task.manual && task.manualStep.enabled && task.manualStep.permission) {
                                                         html.push('<div class="task-manual" id="manual-' + id + '" title="Trigger manual build" onclick="triggerManual(\'' + id + '\', \'' + task.id + '\', \'' + task.manualStep.upstreamProject + '\', \'' + task.manualStep.upstreamId + '\', \'' + view.viewUrl + '\');">');
                                                         html.push("</div>");
@@ -435,8 +447,9 @@ function pipelineUtils() {
                                 }
 
                                 var index = 0, source, target;
-                                var anchors = [[0, 0, 1, 0, 0, 13], [0, 0, -1, 0, 0, 13]];
-                                var connector = ["Flowchart", { stub: 50, gap: 0, midpoint: 0.00001, alwaysRespectStubs: true, cornerRadius: 50 } ];
+                                var stub = scaleCondition ? 30 : 80;
+                                var anchors = [[0.5, 0, 1, 0, 0, 13], [0, 0, -1, 0, 0, 13]];
+                                var connector = ["Flowchart", { stub: stub, gap: 0, midpoint: 0.00001, alwaysRespectStubs: true, cornerRadius: 50 } ];
 
                                 var downstreamAnchors = [[0.5, 1, 0, 1, 0, 0], [0, 0, -1, 0, 0, 13]];
                                 var downStreamConnector = ["Flowchart", { stub: 0, gap: 0, midpoint: 0.00001, alwaysRespectStubs: true, cornerRadius: 50 } ];
@@ -1212,6 +1225,9 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
                     var url = "";
                     if (artifactName != "") {
                         url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/artifact/" + artifactName;
+                        if (projectNameIdMap[projectName] == null) {
+                            return;
+                        }
                     }
 
                     if (filePath != "") {
@@ -1220,10 +1236,16 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
 
                     if (envName != "" || paramName != "") {
                         url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/injectedEnvVars/api/json";
+                        if (projectNameIdMap[projectName] == null) {
+                            return;
+                        }
                     }
 
                     if (fromConsole == "true") {
                         url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/consoleText";
+                        if (projectNameIdMap[projectName] == null) {
+                            return;
+                        }
                     }
 
                     // In the event that somehow we fail to create a URL
