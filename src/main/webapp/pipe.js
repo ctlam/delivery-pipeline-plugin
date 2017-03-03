@@ -107,7 +107,7 @@ function pipelineUtils() {
                                     }
                                     html.push("</h1>");
                                     if (document.getElementById("main-panel") == null) {
-                                        html.push("<br><br>");
+                                        html.push("<h3><br/><br/></h3>");
                                     }
                                     if (!showAvatars) {
                                         html.push("<div class='pagination'>");
@@ -180,7 +180,8 @@ function pipelineUtils() {
                                         html.push("<td class=\"build_column\"><p class=\"build_entry circle_" + statusString + "\" ");
                                         html.push("style=\"min-height: 26px; min-width: 26px; background-size: 26px 26px;\">&nbsp;</p></td>");
                                         html.push("<td class=\"build_column\"><p class=\"build_entry\">");
-                                        html.push("<a id=\"" + displayBuildId + "\" href=\"javascript:toggle('" + toggleBuildId + "','" + toggleRowId + "','" + togglePipelineId + "');\">" + "#" + buildNum + " " + jobName + "</a></p></td>");
+                                        html.push("<a id=\"" + displayBuildId + "\" href=\"javascript:toggle('" + toggleBuildId + "','" + toggleRowId + "','" + togglePipelineId + "');\" ");
+                                        html.push("style=\"color: black;\">" + "#" + buildNum + " " + jobName + "</a></p></td>");
                                         html.push("<td class=\"build_column\"><p class=\"build_entry\">" + pipelineDuration + "</p></td>");
                                         html.push("<td class=\"build_column\"><p class=\"build_entry\">" + pipelineTimestamp + "</p></td>");
                                         html.push("<td class=\"build_column\"><p class=\"build_entry\">" + triggered + "</p></td>");
@@ -209,10 +210,11 @@ function pipelineUtils() {
                                                 var toggleTableId = "toggle-table-" + jobName + "-" + buildNum;
                                                 var displayTableId = "display-table-" + jobName + "-" + buildNum;
 
-                                                html.push("<br>");
+                                                html.push("<h3><br/></h3>");
                                                 html.push("<table class=\"displayTable\">");
                                                 html.push("<thead><tr><th colspan=\"2\" style=\"text-align: left;\">");
-                                                html.push("<a id=\"" + displayTableId + "\" href=\"javascript:toggleTable('" + toggleTableId + "');\">Show Additional Display Values</a></th></tr></thead>");
+                                                html.push("<a id=\"" + displayTableId + "\" href=\"javascript:toggleTable('" + toggleTableId + "');\" style=\"color: black;\">Show Additional Display Values</a>");
+                                                html.push("</th></tr></thead>");
                                                 html.push("<tbody id=\"" + toggleTableId + "\" style=\"display: " + getToggleState(toggleTableId, "table-row-group", true) + ";\">");
                                                 if (data.showArtifacts) {
                                                     html.push("<tr class=\"displayTableTr\">");
@@ -227,7 +229,7 @@ function pipelineUtils() {
                                                 html.push("</tbody></table>");
                                             }
 
-                                            html.push('<h3><br></h3>');
+                                            html.push('<h3><br/></h3>');
                                         }
 
                                         // Jenkins default view has a "main-panel" whereas full screen mode does not
@@ -362,6 +364,8 @@ function pipelineUtils() {
                                                 if (data.viewMode == "Minimalist") {
                                                     var toolTipStyle = Math.round(column / numColumns) < 0.5 ? "left: 0%;" : "right: 0%;"
                                                     var hoverTable = "<table><tr>";
+                                                    hoverTable += "<th style=\"text-align: left; color: black; margin-right: 10px;\">Status:</th>";
+                                                    hoverTable += "<td style=\"text-align: left; color: black; margin-right: 10px;\">" + task.status.type + "</td></tr><tr>"
                                                     hoverTable += "<th style=\"text-align: left; color: black; margin-right: 10px;\">Timestamp:</th>";
                                                     hoverTable += "<td style=\"text-align: left; color: black; margin-right: 10px;\">" + timestamp + "</td></tr><tr>";
                                                     hoverTable += "<th style=\"text-align: left; color: black; margin-right: 10px;\">Duration:</th>";
@@ -375,7 +379,7 @@ function pipelineUtils() {
                                                     html.push("<a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle circle_" + task.status.type + "\" ");
                                                     html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; ");
                                                     html.push("background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
-                                                    html.push("<br><span class=\"tooltip\" style=\"" + toolTipStyle + "\">" + hoverTable + "</span></a>");
+                                                    html.push("<br/><span class=\"tooltip\" style=\"" + toolTipStyle + "\">" + hoverTable + "</span></a>");
                                                     html.push("</div></div></div></div>");
                                                 } else {
                                                     html.push("<div id=\"" + id + "\" class=\"status stage-task\">");
@@ -450,12 +454,14 @@ function pipelineUtils() {
                                 }
 
                                 var index = 0, source, target;
+                                var sourceOffset = isFullScreen ? 0 : -1;
+                                var targetOffset = isFullScreen ? -1 : -2;
                                 var stub = scaleCondition ? 30 : 80;
-                                var anchors = [[0.5, 0, 1, 0, 0, 13], [0, 0, -1, 0, 0, 13]];
-                                var connector = ["Flowchart", { stub: stub, gap: 0, midpoint: 0.00001, alwaysRespectStubs: true, cornerRadius: 50 } ];
+                                var anchors = [[1, 0, 1, 0, sourceOffset, 13], [0, 0, -1, 0, targetOffset, 13]];
+                                var connector = ["Flowchart", { stub: stub, gap: 0, midpoint: 0.00001, alwaysRespectStubs: true } ];
 
-                                var downstreamAnchors = [[0.5, 1, 0, 1, 0, 0], [0, 0, -1, 0, 0, 13]];
-                                var downStreamConnector = ["Flowchart", { stub: 0, gap: 0, midpoint: 0.00001, alwaysRespectStubs: true, cornerRadius: 50 } ];
+                                var downstreamAnchors = [[0.5, 1, 0, 1, sourceOffset, 0], [0, 0, -1, 0, targetOffset, 13]];
+                                var downStreamConnector = ["Flowchart", { stub: 0, gap: 0, midpoint: 0.00001, alwaysRespectStubs: true } ];
 
                                 lastResponse = data;
                                 equalheight(".pipeline-row .stage");
@@ -476,6 +482,7 @@ function pipelineUtils() {
 
                                                     // black
                                                     var color = "rgba(118,118,118,1)";
+                                                    var label = "Non-blocking";
 
                                                     var blockedProjects = conditionalProjects = downstreamProjects = [];
                                                     var targetName;
@@ -497,31 +504,45 @@ function pipelineUtils() {
                                                         if (blockedProjects.indexOf(targetName) != -1 && conditionalProjects.indexOf(targetName) != -1) {
                                                              // Orange
                                                             color = "rgba(253,132,11,1)";
+                                                            label = "Blocking Conditional";
                                                         } else if (blockedProjects.indexOf(targetName) != -1) {
                                                             // Blue
                                                             color = "rgba(000,178,238,1)";
+                                                            label = "Blocking";
                                                         } else if (conditionalProjects.indexOf(targetName) != -1) {
                                                             // Yellow
                                                             color = "rgba(225,232,21,1)";
+                                                            label = "Conditional";
                                                         }
 
                                                         if (downstreamProjects.indexOf(targetName) != -1) {
                                                             // Purple
                                                             color = "rgba(146,41,205,1)";
+                                                            label = "Downstream";
                                                         }
                                                     }
 
-                                                    jsplumb.connect({
+                                                    var connection = jsplumb.connect({
                                                         source: source,
                                                         target: target,
                                                         anchors: (downstreamProjects.indexOf(targetName) != -1) ? downstreamAnchors : anchors, // allow boxes to increase in height but keep anchor lines on the top
                                                         overlays: [
-                                                            [ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12}]
+                                                            [ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12, paintStyle: { lineWidth: 3 } }]
                                                         ],
-                                                        cssClass: "relation",
                                                         connector: (downstreamProjects.indexOf(targetName) != -1) ? downStreamConnector : connector,
-                                                        paintStyle: { lineWidth: 4, strokeStyle: color },
+                                                        paintStyle: { lineWidth: 3, strokeStyle: color, joinstyle: "round" },
+                                                        hoverPaintStyle: { lineWidth: 6 },
                                                         endpoint: ["Blank"]
+                                                    });
+
+                                                    connection.bind("mouseenter", function(conn) {
+                                                        conn.addOverlay([ "Label", { label: label, id: (target + "-arrow"), location: 0.6, cssClass:"label" }]);
+                                                        conn.addOverlay([ "Arrow", { id: "arrow", location: 1, foldback: 0.9, width: 18, length: 18 }]);
+                                                    }); 
+
+                                                    connection.bind("mouseexit", function(conn) {
+                                                        conn.removeOverlay((target + "-arrow"));
+                                                        conn.removeOverlay("arrow");
                                                     });
                                                 });
                                             }
@@ -1368,13 +1389,13 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                                 var grepFlag = displayKeyConfig.hasOwnProperty("grepFlag") ? displayKeyConfig.grepFlag : 'g';
                                 toolTipData = grepRegexp(grepPattern, grepFlag, toolTipData);
                             }
-                            toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
+                            toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br/>');
 
                             var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
                             var ele = document.getElementById(id);
 
                             if (displayKeyConfig.hasOwnProperty("useLink") && displayKeyConfig.useLink == "true") {
-                                ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
+                                ele.innerHTML = "<a style=\"color: black;\" href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
                             } else {
                                 ele.innerHTML = toolTipData;
                                 redrawConnections();
@@ -1417,13 +1438,13 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                                 var grepFlag = displayKeyConfig.hasOwnProperty("grepFlag") ? displayKeyConfig.grepFlag : 'g';
                                 toolTipData = grepRegexp(grepPattern, grepFlag, toolTipData);
                             }
-                            toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
+                            toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br/>');
 
                             var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
                             var ele = document.getElementById(id);
 
                             if (displayKeyConfig.hasOwnProperty("useLink") && displayKeyConfig.useLink == "true") {
-                                ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";    
+                                ele.innerHTML = "<a style=\"color: black;\" href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";    
                             } else {
                                 ele.innerHTML = toolTipData;
                                 redrawConnections();

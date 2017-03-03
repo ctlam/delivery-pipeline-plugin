@@ -17,6 +17,8 @@ div.hide {
 
 .circle {
     float: left;
+    margin: 0px;
+    padding: 0px;
 }
 
 .circle_SUCCESS {
@@ -591,8 +593,8 @@ a span {
     font-weight: normal;
     min-height: 50px;
     min-width: 100px;
-    z-index: 1;
     top: 100%;
+    z-index: 5;
 }
 
 a {
@@ -602,4 +604,31 @@ a {
 a:hover span {
     display: block;
     text-align: left;
+}
+
+.label {
+    border: 1px solid black;
+    padding: 2px;
+    font-size: 10px;
+    /*opacity: 0.8; 
+    filter: alpha(opacity=80);*/
+    background-color: white;
+    color: black;
+    z-index: 4;
+}
+
+/*svg.relation path {
+    stroke-width: 3;
+}*/
+
+._jsPlumb_connector {
+    z-index: 1;
+}
+
+._jsPlumb_endpoint {
+    z-index: 2;
+}
+
+._jsPlumb_overlay {
+    z-index: 3;
 }
