@@ -2,54 +2,17 @@ div.hide {
     visibility: hidden;
 }
 
-.build_header {
+.build_column {
+    border-top: 1px solid #ddd;
+    text-align:left;
+}
+
+.build_entry {
     vertical-align: middle;
     height: 26px;
-}
-
-.build_SUCCESS {
-    float: left;
-    background: url("successCircle.png") no-repeat;
-    background-size: 26px 26px;
-    background-position: center;
-    min-width: 26px;
-    min-height: 26px;
-}
-
-.build_FAILED {
-    float: left;
-    background: url("failedCircle.png") no-repeat;
-    background-size: 26px 26px;
-    background-position: center;
-    min-width: 26px;
-    min-height: 26px;
-}
-
-.build_CANCELLED {
-    float: left;
-    background: url("cancelledCircle.png") no-repeat;
-    background-size: 26px 26px;
-    background-position: center;
-    min-width: 26px;
-    min-height: 26px;
-}
-
-.build_NOT_BUILT  {
-    float: left;
-    background: url("notBuiltCircle.png") no-repeat;
-    background-size: 26px 26px;
-    background-position: center;
-    min-width: 26px;
-    min-height: 26px;
-}
-
-.build_IDLE  {
-    float: left;
-    background: url("notBuiltCircle.png") no-repeat;
-    background-size: 26px 26px;
-    background-position: center;
-    min-width: 26px;
-    min-height: 26px;
+    padding: 0px;
+    margin-top: 15px;
+    margin-bottom: 15px;
 }
 
 .circle {
@@ -81,15 +44,15 @@ div.hide {
 }
 
 .circle_QUEUED {
-    background: url("runningCircle.gif") no-repeat;
+    background: url("queuedCircle.png") no-repeat;
 }
 
 .circle_UNSTABLE {
-    background: url("runningCircle.gif") no-repeat;
+    background: url("unstableCircle.png") no-repeat;
 }
 
 .circle_DISABLED {
-    background: url("runningCircle.gif") no-repeat;
+    background: url("disabledCircle.png") no-repeat;
 }
 
 div.pipeline-loading-icon {
@@ -622,14 +585,14 @@ div.aggregatedChangesPanelInner > ul {
 a span {
     display: none;
     position: absolute;
-    color: #fff;
-    background-color: green;
-    padding: 5px;
-    font-size: 14px;
+    background-color: #ddd;
+    border: 1px solid black;
+    font-size: 13px;
     font-weight: normal;
     min-height: 50px;
     min-width: 100px;
     z-index: 1;
+    top: 100%;
 }
 
 a {

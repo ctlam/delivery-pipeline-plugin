@@ -177,12 +177,13 @@ function pipelineUtils() {
                                         var initPipelineStyle = shouldToggle ? "border: 1px solid #ddd;" : "border-bottom: 1px solid #ddd;"
 
                                         html.push("<tr id=\"" + toggleRowId + "\" style=\"" + initStyle + "\">");    
-                                        html.push("<td style=\"border-top: 1px solid #ddd; text-align:center;\"><p class=\"build_" + statusString + "\">&nbsp;</p></td>");
-                                        html.push("<td style=\"border-top: 1px solid #ddd;\"><p class=\"build_header\">");
+                                        html.push("<td class=\"build_column\"><p class=\"build_entry circle_" + statusString + "\" ");
+                                        html.push("style=\"min-height: 26px; min-width: 26px; background-size: 26px 26px;\">&nbsp;</p></td>");
+                                        html.push("<td class=\"build_column\"><p class=\"build_entry\">");
                                         html.push("<a id=\"" + displayBuildId + "\" href=\"javascript:toggle('" + toggleBuildId + "','" + toggleRowId + "','" + togglePipelineId + "');\">" + "#" + buildNum + " " + jobName + "</a></p></td>");
-                                        html.push("<td style=\"border-top: 1px solid #ddd; text-align:left;\"><p class=\"build_header\">" + pipelineDuration + "</p></td>");
-                                        html.push("<td style=\"border-top: 1px solid #ddd; text-align:left;\"><p class=\"build_header\">" + pipelineTimestamp + "</p></td>");
-                                        html.push("<td style=\"border-top: 1px solid #ddd; text-align:left;\"><p class=\"build_header\">" + triggered + "</p></td>");
+                                        html.push("<td class=\"build_column\"><p class=\"build_entry\">" + pipelineDuration + "</p></td>");
+                                        html.push("<td class=\"build_column\"><p class=\"build_entry\">" + pipelineTimestamp + "</p></td>");
+                                        html.push("<td class=\"build_column\"><p class=\"build_entry\">" + triggered + "</p></td>");
                                         html.push("</a></tr><tr><th id=\"" + togglePipelineId + "\" colspan=\"5\" style=\"" + initPipelineStyle + "\"><div>");
                                         html.push("<div id=\"" + toggleBuildId + "\" style=\"display:" + getToggleState(toggleBuildId, "block", isLatestPipeline) + ";\">");
 
@@ -236,9 +237,8 @@ function pipelineUtils() {
                                         // 10px padding around pipeline-main
                                         // 1px border left/right around pipeline main
                                         // 1px border left/right around table
-                                        // 20px extra space
-                                        // 2 * (15 + 10 + 1 + 1) + 20 = 74
-                                        var maxWidth =  isFullScreen ? window.innerWidth - 94 : document.getElementById("main-panel").offsetWidth - 74;
+                                        // There is also some additional padding elsewhere, so assume 100px in padding to ensure enough room
+                                        var maxWidth =  isFullScreen ? window.innerWidth - 100 : document.getElementById("main-panel").offsetWidth - 100;
                                         var numColumns = 0;
                                         for (var j = 0; j < pipeline.stages.length; j++) {
                                             stage = pipeline.stages[j];
@@ -360,10 +360,12 @@ function pipelineUtils() {
                                                 }
 
                                                 if (data.viewMode == "Minimalist") {
-                                                    var hoverString = "Timestamp: " + timestamp + "<br>Duration: " + formatLongDuration(task.status.duration);
-                                                    var hoverTable = "<table>";
-                                                    hoverTable += "<tr><th style=\"text-align: left\">Timestamp:</th><td style=\"text-align: left\">" + timestamp + "</td></tr>";
-                                                    hoverTable += "<tr><th style=\"text-align: left\">Duration: </th><td style=\"text-align: left\">" + formatLongDuration(task.status.duration) + "</td></tr>";
+                                                    var toolTipStyle = Math.round(column / numColumns) < 0.5 ? "left: 0%;" : "right: 0%;"
+                                                    var hoverTable = "<table><tr>";
+                                                    hoverTable += "<th style=\"text-align: left; color: black; margin-right: 10px;\">Timestamp:</th>";
+                                                    hoverTable += "<td style=\"text-align: left; color: black; margin-right: 10px;\">" + timestamp + "</td></tr><tr>";
+                                                    hoverTable += "<th style=\"text-align: left; color: black; margin-right: 10px;\">Duration:</th>";
+                                                    hoverTable += "<td style=\"text-align: left; color: black; margin-right: 10px;\">" + formatLongDuration(task.status.duration) + "</td></tr>";
                                                     hoverTable += "</table>";
 
                                                     html.push("<div id=\"" + id + "\" class=\"stage-minimalist-task\">");
@@ -371,8 +373,9 @@ function pipelineUtils() {
                                                     html.push("<div class=\"task-header\">");
                                                     html.push("<div class=\"taskname-minimalist\">");
                                                     html.push("<a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle circle_" + task.status.type + "\" ");
-                                                    html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
-                                                    html.push("<br><span class=\"tooltip\">" + hoverTable + "</span></a>");
+                                                    html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; ");
+                                                    html.push("background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
+                                                    html.push("<br><span class=\"tooltip\" style=\"" + toolTipStyle + "\">" + hoverTable + "</span></a>");
                                                     html.push("</div></div></div></div>");
                                                 } else {
                                                     html.push("<div id=\"" + id + "\" class=\"status stage-task\">");
@@ -826,14 +829,14 @@ function formatLongDate(date) {
     dateString = moment(date, "YYYY-MM-DDTHH:mm:ss").toString().split(' ').slice(0, 4).join(' ') + " " + hourString + " " + timeOfDayString + " " + timezoneString;
     return dateString;
   }
-  return "";
+  return "Never started";
 }
 
 function formatCardLongDate(date) {
   if (date != null) {
     return moment(date, "YYYY-MM-DDTHH:mm:ss").toString().split(' ').slice(1, 5).join(' ');
   }
-  return "";
+  return "Never started";
 }
 
 /**
@@ -867,7 +870,7 @@ function formatLongDuration(ts) {
 
         return days + 'd ' + hours + ':' + minutes + ':' + seconds;
     }
-    return "never started";
+    return "Never started";
 }
 
 function formatDuration(millis) {
@@ -1365,15 +1368,16 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                                 var grepFlag = displayKeyConfig.hasOwnProperty("grepFlag") ? displayKeyConfig.grepFlag : 'g';
                                 toolTipData = grepRegexp(grepPattern, grepFlag, toolTipData);
                             }
+                            toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
 
                             var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
                             var ele = document.getElementById(id);
 
-                            if (displayKeyConfig.hasOwnProperty("flattenValue") && displayKeyConfig.flattenValue == "true") {
+                            if (displayKeyConfig.hasOwnProperty("useLink") && displayKeyConfig.useLink == "true") {
+                                ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
+                            } else {
                                 ele.innerHTML = toolTipData;
                                 redrawConnections();
-                            } else {
-                                ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";    
                             }
 
                             var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
@@ -1413,15 +1417,16 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                                 var grepFlag = displayKeyConfig.hasOwnProperty("grepFlag") ? displayKeyConfig.grepFlag : 'g';
                                 toolTipData = grepRegexp(grepPattern, grepFlag, toolTipData);
                             }
+                            toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
 
                             var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
                             var ele = document.getElementById(id);
 
-                            if (displayKeyConfig.hasOwnProperty("flattenValue") && displayKeyConfig.flattenValue == "true") {
+                            if (displayKeyConfig.hasOwnProperty("useLink") && displayKeyConfig.useLink == "true") {
+                                ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";    
+                            } else {
                                 ele.innerHTML = toolTipData;
                                 redrawConnections();
-                            } else {
-                                ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";    
                             }
 
                             var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
@@ -1449,7 +1454,7 @@ function grepRegexp(grepPattern, grepFlag, data) {
     while (match = regex.exec(data)) {
         results.push(match[0]);
     }
-    return results.join("\n").replace(/(?:\r\n|\r|\n)/g, '<br>');
+    return results.join("\n");
 }
 
 // Get the session state for build toggles

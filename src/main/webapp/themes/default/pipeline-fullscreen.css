@@ -151,13 +151,12 @@ div.aggregatedChangesPanelOuter {
 a span {
     display: none;
     position: absolute;
-    color: #fff;
-    background-color: green;
-    padding: 5px;
-    font-size: 14px;
+    background-color: #ddd;
+    border: 1px solid black;
+    font-size: 13px;
     font-weight: normal;
     min-height: 50px;
-    min-width: 350px;
+    min-width: 375px;
     text-align: left;
     z-index: 1;
 }
