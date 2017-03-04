@@ -158,7 +158,7 @@ a span {
     min-height: 50px;
     min-width: 375px;
     text-align: left;
-    z-index: 1;
+    z-index: 5;
 }
 
 a {

@@ -57,6 +57,10 @@ div.hide {
     background: url("disabledCircle.png") no-repeat;
 }
 
+.circle_FAILED_ON_BLOCK {
+    background: url("failedOnBlock.png") no-repeat;
+}
+
 div.pipeline-loading-icon {
     content: url("white-load.gif");
     display: block;
