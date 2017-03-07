@@ -123,6 +123,7 @@ public class DeliveryPipelineView extends View {
     private String viewMode = ViewMode.MINIMALIST;
     private boolean useFullLocaleTimeStrings = true;
     private boolean showArtifacts = true;
+    private boolean useYamlParser = true;
     private String displayArguments = "";
     private String displayArgumentProject = "";
 
@@ -462,6 +463,15 @@ public class DeliveryPipelineView extends View {
 
     public void setShowArtifacts(boolean showArtifacts) {
         this.showArtifacts = showArtifacts;
+    }
+
+    @Exported
+    public boolean isUseYamlParser() {
+        return useYamlParser;
+    }
+
+    public void setUseYamlParser(boolean useYamlParser) {
+        this.useYamlParser = useYamlParser;
     }
 
     @Exported

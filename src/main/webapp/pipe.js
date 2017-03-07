@@ -87,6 +87,19 @@ function pipelineUtils() {
                                 cErrorDiv.hide().html('');
                             }
 
+                            var displayArguments = data.displayArguments;
+                            // Attempt to parse the YAML contents
+                            try {
+                                if (data.useYamlParser) {
+                                    displayArguments = jsyaml.safeLoad(data.displayArguments);
+                                } else {
+                                    displayArguments = JSON.parse(data.displayArguments);
+                                }
+                            } catch (e) {
+                                console.log(e);
+                            }
+                            
+
                             if (lastResponse === null || JSON.stringify(data.pipelines) !== JSON.stringify(lastResponse.pipelines)) {
 
                                 for (var z = 0; z < divNames.length; z++) {
@@ -216,7 +229,7 @@ function pipelineUtils() {
                                                 html.push(generateChangeLog(pipeline.changes));
                                             }
 
-                                            if (data.displayArguments != "") {
+                                            if (displayArguments != "") {
                                                 var toggleTableId = "toggle-table-" + jobName + "-" + buildNum;
                                                 var displayTableId = "display-table-" + jobName + "-" + buildNum;
                                                 var artifactId = "artifacts-" + jobName + "-" + buildNum;
@@ -233,9 +246,9 @@ function pipelineUtils() {
                                                     html.push("<td id=\"" + artifactId + "\" class=\"displayTableTd\">" + loadBuildArtifacts(artifactId) + "</td></tr>");
                                                 }
                                                 if (JSON.stringify(savedPipelineDisplayValues) == JSON.stringify({})) {
-                                                    html.push(generateDisplayValueTable(data.displayArguments, jobName, buildNum));
+                                                    html.push(generateDisplayValueTable(displayArguments, jobName, buildNum));
                                                 } else {
-                                                    html.push(loadDisplayValues(data.displayArguments, jobName, buildNum, savedPipelineDisplayValues));
+                                                    html.push(loadDisplayValues(displayArguments, jobName, buildNum, savedPipelineDisplayValues));
                                                 }
                                                 html.push("</tbody></table>");
                                             }
@@ -454,7 +467,7 @@ function pipelineUtils() {
                                                 }
                                             }
 
-                                            getDisplayValues(data.displayArguments, pipeline, jobName, buildNum);
+                                            getDisplayValues(displayArguments, pipeline, jobName, buildNum);
                                         }
 
                                         html.push('</div>');
@@ -1164,20 +1177,11 @@ function getBuildArtifactLinks(url, json, buildId) {
  * Generate an table of specified display values
  */
 function generateDisplayValueTable(displayArgs, pipelineName, pipelineNum) {
-    var displayArgsJson;
-
-    try {
-        displayArgsJson = JSON.parse(displayArgs);
-    }
-    catch (err) {
-        return "INVALID JSON";
-    }
-
     var retVal = "";
 
-    for (var mainProject in displayArgsJson) {
+    for (var mainProject in displayArgs) {
         if (mainProject == pipelineName) {
-            var mainProjectDisplayConfig = displayArgsJson[mainProject];
+            var mainProjectDisplayConfig = displayArgs[mainProject];
 
             for (var displayKey in mainProjectDisplayConfig) {
                 var displayKeyConfig = mainProjectDisplayConfig[displayKey];
@@ -1199,20 +1203,11 @@ function generateDisplayValueTable(displayArgs, pipelineName, pipelineNum) {
  * Load the displayed values
  */
 function loadDisplayValues(displayArgs, pipelineName, pipelineNum, savedPipelineDisplayValues) {
-    var displayArgsJson;
-
-    try {
-        displayArgsJson = JSON.parse(displayArgs);
-    }
-    catch (err) {
-        return "INVALID JSON"
-    }
-
     var retVal = "";
 
-    for (var mainProject in displayArgsJson) {
+    for (var mainProject in displayArgs) {
         if (mainProject == pipelineName) {
-            var mainProjectDisplayConfig = displayArgsJson[mainProject];
+            var mainProjectDisplayConfig = displayArgs[mainProject];
 
             for (var displayKey in mainProjectDisplayConfig) {
                 var displayKeyConfig = mainProjectDisplayConfig[displayKey];
@@ -1240,15 +1235,6 @@ function loadDisplayValues(displayArgs, pipelineName, pipelineNum, savedPipeline
  * Retrieve desired values from any projects along a pipeline
  */
 function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
-    var displayArgsJson;
-
-    try {
-        displayArgsJson = JSON.parse(displayArgs);
-    }
-    catch (err) {
-        return;
-    }
-
     var stage;
     var projectNameIdMap = {};
     var updateString = "";
@@ -1262,9 +1248,9 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
         projectNameIdMap[stage.name] = stage.tasks[0].buildId;
     }
 
-    for (var mainProject in displayArgsJson) {
+    for (var mainProject in displayArgs) {
         if (mainProject == pipelineName) {
-            var mainProjectDisplayConfig = displayArgsJson[mainProject];
+            var mainProjectDisplayConfig = displayArgs[mainProject];
 
             for (var displayKey in mainProjectDisplayConfig) {
                 var displayKeyConfig = mainProjectDisplayConfig[displayKey];
@@ -1341,7 +1327,7 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
                     }
 
                     // Upon a configuration change, reload all data
-                    if (previousDisplayArgConfig != displayArgsJson) {
+                    if (previousDisplayArgConfig != displayArgs) {
                         Q.ajax({
                             url: rootURL + "/" + url,
                             type: "GET",
@@ -1364,8 +1350,8 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
         }
     }
 
-    if (JSON.parse(sessionStorage.previousDisplayArgConfig) != displayArgsJson) {
-        sessionStorage.previousDisplayArgConfig = JSON.stringify(displayArgsJson);
+    if (JSON.parse(sessionStorage.previousDisplayArgConfig) != displayArgs) {
+        sessionStorage.previousDisplayArgConfig = JSON.stringify(displayArgs);
     }
 }
 
@@ -1374,13 +1360,12 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
   */
 function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) {
     var projectName = (url.split("/job/")[1]).split("/")[0];
-    var displayArgsJson = JSON.parse(displayArgs);
 
     // Environment Variable / Parameter
     if (url.indexOf("/injectedEnvVars/") != -1) {
-        for (var mainProject in displayArgsJson) {
+        for (var mainProject in displayArgs) {
             if (mainProject == pipelineName) {
-                var mainProjectDisplayConfig = displayArgsJson[mainProject];
+                var mainProjectDisplayConfig = displayArgs[mainProject];
 
                 for (var displayKey in mainProjectDisplayConfig) {
                     var displayKeyConfig = mainProjectDisplayConfig[displayKey];
@@ -1417,15 +1402,15 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
         }
     // Console Log
     } else if (url.indexOf("/consoleText") != -1) {
-        for (var mainProject in displayArgsJson) {
+        for (var mainProject in displayArgs) {
             if (mainProject == pipelineName) {
-                var mainProjectDisplayConfig = displayArgsJson[mainProject];
+                var mainProjectDisplayConfig = displayArgs[mainProject];
 
                 for (var displayKey in mainProjectDisplayConfig) {
                     var displayKeyConfig = mainProjectDisplayConfig[displayKey];
 
                     if (displayKeyConfig.hasOwnProperty("projectName") && displayKeyConfig.projectName == projectName) {
-                        if (displayKeyConfig.hasOwnProperty("fromConsole") && displayKeyConfig.fromConsole == "true") {
+                        if (displayKeyConfig.hasOwnProperty("fromConsole") && (displayKeyConfig.fromConsole == "true" || displayKeyConfig.fromConsole == true)) {
                             var toolTipData = data.replace(/-/g, '&#x2011;');
 
                             if (displayKeyConfig.hasOwnProperty("grepPattern")) {
@@ -1438,7 +1423,7 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                             var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
                             var ele = document.getElementById(id);
 
-                            if (displayKeyConfig.hasOwnProperty("useLink") && displayKeyConfig.useLink == "true") {
+                            if (displayKeyConfig.hasOwnProperty("useLink") && (displayKeyConfig.useLink == "true" || displayKeyConfig.useLink == true)) {
                                 ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
                             } else {
                                 ele.innerHTML = toolTipData;
@@ -1466,9 +1451,9 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
             propertyType = "artifactName";
         }
 
-        for (var mainProject in displayArgsJson) {
+        for (var mainProject in displayArgs) {
             if (mainProject == pipelineName) {
-                var mainProjectDisplayConfig = displayArgsJson[mainProject];
+                var mainProjectDisplayConfig = displayArgs[mainProject];
 
                 for (var displayKey in mainProjectDisplayConfig) {
                     var displayKeyConfig = mainProjectDisplayConfig[displayKey];
@@ -1487,7 +1472,7 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                             var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
                             var ele = document.getElementById(id);
 
-                            if (displayKeyConfig.hasOwnProperty("useLink") && displayKeyConfig.useLink == "true") {
+                            if (displayKeyConfig.hasOwnProperty("useLink") && (displayKeyConfig.useLink == "true" || displayKeyConfig.useLink == true)) {
                                 ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";    
                             } else {
                                 ele.innerHTML = toolTipData;
@@ -1538,7 +1523,7 @@ function loadFailedOnBlockStages(pipeline, i) {
         if (failedOnBlockingJobs.hasOwnProperty(stage.name)) {
             var ele = document.getElementById(getStageId(stage.id + "", i));
             if (ele != null) {
-               ele.className = "circle circle_FAILED_ON_BLOCK";    
+               ele.className = "circle circle_FAILED_ON_BLOCK";
             }
         }
     }
@@ -1572,7 +1557,7 @@ function updateFailedOnBlockStages(pipeline, i) {
                             failedOnBlockingJobs[stage.name] = "true";
                         }
                     }
-                }                
+                }
             }
         }
 

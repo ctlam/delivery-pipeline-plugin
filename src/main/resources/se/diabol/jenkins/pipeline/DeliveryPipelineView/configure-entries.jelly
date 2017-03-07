@@ -141,6 +141,10 @@
             <f:checkbox/>
         </f:entry>
 
+        <f:entry title="Use YAML Parser for Display Arguments" field="useYamlParser">
+            <f:checkbox/>
+        </f:entry>
+
         <f:entry title="Display Argument JSON Project Name" field="displayArgumentProject">
             <f:textbox/>
         </f:entry>
