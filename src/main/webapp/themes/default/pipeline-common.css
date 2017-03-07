@@ -41,7 +41,7 @@
 }
 
 .circle_FAILED_ON_BLOCK {
-    background: url("failedOnBlock.png") no-repeat;
+    background: url("failedOnBlockCircle.png") no-repeat;
 }
 
 .pipelineHeader {

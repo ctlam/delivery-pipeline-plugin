@@ -77,9 +77,9 @@ function pipelineUtils() {
                                 sessionStorage.toggleStates = JSON.stringify({});
                             }
 
-                            // if (sessionStorage.blockedOnFailedMap == null) {
-                            //     sessionStorage.blockedOnFailedMap = JSON.stringify({});
-                            // }
+                            if (sessionStorage.blockedOnFailedMap == null) {
+                                sessionStorage.blockedOnFailedMap = JSON.stringify({});
+                            }
 
                             if (data.error) {
                                 cErrorDiv.html('Error: ' + data.error).show();
@@ -470,15 +470,16 @@ function pipelineUtils() {
                                     Q("#pipeline-message-" + pipelineid).html('');
                                 }
 
-                                // for (var i = 0; i < component.pipelines.length; i++) {
-                                //     pipeline = component.pipelines[i];
+                                for (var i = 0; i < component.pipelines.length; i++) {
+                                    pipeline = component.pipelines[i];
+                                    var pipelineNum = pipeline.version.substring(1);
 
-                                //     if (JSON.parse(sessionStorage.blockedOnFailedMap).hasOwnProperty(pipeline.stages[0].name + "-" + i)) {
-                                //         loadFailedOnBlockStages(pipeline, i);
-                                //     } else {
-                                //         updateFailedOnBlockStages(pipeline, i);    
-                                //     }
-                                // }
+                                    if (!JSON.parse(sessionStorage.blockedOnFailedMap).hasOwnProperty(pipeline.stages[0].name + "-" + pipelineNum)) {
+                                        updateFailedOnBlockStages(pipeline, i);    
+                                    } else {
+                                        loadFailedOnBlockStages(pipeline, i);
+                                    }
+                                }
 
                                 // Update all the manifest information at the end to minimize number of calls required
                                 if (data.showManifestInfo && (data.manifestJobName != "")) {
@@ -1521,56 +1522,64 @@ function grepRegexp(grepPattern, grepFlag, data) {
     return results.join("\n");
 }
 
-// function loadFailedOnBlockStages(pipeline, pipelineNum) {
-//     var blockedOnFailedMap = JSON.parse(sessionStorage.blockedOnFailedMap);
-//     var failedOnBlockingJobs = blockedOnFailedMap[pipeline.stages[0].name + "-" + pipelineNum];
+function loadFailedOnBlockStages(pipeline, i) {
+    var pipelineNum = pipeline.version.substring(1);
+    var blockedOnFailedMap = JSON.parse(sessionStorage.blockedOnFailedMap);
+    var failedOnBlockingJobs = blockedOnFailedMap[pipeline.stages[0].name + "-" + pipelineNum];
 
-//     for (var id in failedOnBlockingJobs) {
-//         var ele = document.getElementById(id.toString());
+    // No point iterating through the pipeline if there is no stage that failed on a blocking call
+    if (JSON.stringify(failedOnBlockingJobs) == JSON.stringify({})) {
+        return;
+    }
 
-//         if (ele != null) {
-//             ele.className = "circle circle_FAILED_ON_BLOCK";    
-//         }
-//     }
-// }
+    for (var j = 0; j < pipeline.stages.length - 1; j++) {
+        var stage = pipeline.stages[j];
 
-// function updateFailedOnBlockStages(pipeline, pipelineNum) {
-//     var blockedOnFailedMap = JSON.parse(sessionStorage.blockedOnFailedMap);
+        if (failedOnBlockingJobs.hasOwnProperty(stage.name)) {
+            var ele = document.getElementById(getStageId(stage.id + "", i));
+            if (ele != null) {
+               ele.className = "circle circle_FAILED_ON_BLOCK";    
+            }
+        }
+    }
+}
 
-//     var failedOnBlockingJobs = {};
-//     var blockingJobs;
-//     var downstreamStages;
-//     var downstreamStageIds;
-//     var ele;
-//     for (var j = 0; j < pipeline.stages.length - 1; j++) {
-//         stage = pipeline.stages[j];
-//         ele = document.getElementById(getStageId(stage.id + "", pipelineNum));
-//         downstreamStages = stage.downstreamStages;
-//         downstreamStageIds = stage.downstreamStageIds;
-//         blockingJobs = stage.blockingJobs;
+function updateFailedOnBlockStages(pipeline, i) {
+    var blockedOnFailedMap = JSON.parse(sessionStorage.blockedOnFailedMap);
+    var pipelineNum = pipeline.version.substring(1);
+    var failedOnBlockingJobs = {};
 
-//         if (downstreamStages.size() == 0) {
-//             continue;
-//         }
+    for (var j = 0; j < pipeline.stages.length - 1; j++) {
+        var stage = pipeline.stages[j];
+        var ele = document.getElementById(getStageId(stage.id + "", i));
+        var downstreamStages = stage.downstreamStages;
+        var downstreamStageIds = stage.downstreamStageIds;
+        var blockingJobs = stage.blockingJobs;
 
-//         if (stage.tasks[0].status.type == "FAILED") {
-//             for (var k = 0; k < downstreamStages.size(); k++) {
-//                 if (blockingJobs.split(', ').indexOf(downstreamStages[k]) != -1) {
-//                     var downstreamEle = document.getElementById(getStageId(downstreamStageIds[k] + "", pipelineNum));
-//                     if (downstreamEle != null) {
-//                         if (downstreamEle.className == "circle circle_FAILED" || downstreamEle.className == "circle circle_CANCELLED") {
-//                             ele.className = "circle circle_FAILED_ON_BLOCK";
-//                             failedOnBlockingJobs[(getStageId(stage.id + "", pipelineNum).toString())] = "true";
-//                         }
-//                     }
-//                 }                
-//             }
-//         }
+        var stageNum = stage.tasks[0].buildId;
 
-//         blockedOnFailedMap[(pipeline.stages[0].name + "-" + pipelineNum).toString()] = failedOnBlockingJobs;
-//         sessionStorage.blockedOnFailedMap = JSON.stringify(blockedOnFailedMap);
-//     }
-// }
+        if (downstreamStages.size() == 0) {
+            continue;
+        }
+
+        if (stage.tasks[0].status.type == "FAILED") {
+            for (var k = 0; k < downstreamStages.size(); k++) {
+                if (blockingJobs.split(', ').indexOf(downstreamStages[k]) != -1) {
+                    var downstreamEle = document.getElementById(getStageId(downstreamStageIds[k] + "", i));
+                    if (downstreamEle != null) {
+                        if (downstreamEle.className == "circle circle_FAILED" || downstreamEle.className == "circle circle_CANCELLED") {
+                            ele.className = "circle circle_FAILED_ON_BLOCK";
+                            failedOnBlockingJobs[stage.name] = "true";
+                        }
+                    }
+                }                
+            }
+        }
+
+        blockedOnFailedMap[pipeline.stages[0].name + "-" + pipelineNum] = failedOnBlockingJobs;
+        sessionStorage.blockedOnFailedMap = JSON.stringify(blockedOnFailedMap);
+    }
+}
 
 // Get the session state for build toggles
 function getToggleState(toggleId, toggleType, defaultToggleOn) {

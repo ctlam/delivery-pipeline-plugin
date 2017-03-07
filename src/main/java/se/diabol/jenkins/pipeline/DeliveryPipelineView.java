@@ -118,7 +118,7 @@ public class DeliveryPipelineView extends View {
     private String theme = DEFAULT_THEME;
     private int maxNumberOfVisiblePipelines = -1;
     private List<RegExpSpec> regexpFirstJobs;
-    private boolean linkToConsoleLog = false;
+    private boolean linkToConsoleLog = true;
 
     private String viewMode = ViewMode.MINIMALIST;
     private boolean useFullLocaleTimeStrings = true;
