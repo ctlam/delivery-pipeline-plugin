@@ -83,7 +83,7 @@ public class DeliveryPipelineView extends View {
 
     private static final Logger LOG = Logger.getLogger(DeliveryPipelineView.class.getName());
 
-    private static final int DEFAULT_INTERVAL = 15;
+    private static final int DEFAULT_INTERVAL = 60;
 
     private static final int DEFAULT_NO_OF_PIPELINES = 5;
     private static final int MAX_NO_OF_PIPELINES = 50;
@@ -669,8 +669,8 @@ public class DeliveryPipelineView extends View {
         public ListBoxModel doFillNoOfColumnsItems(@AncestorInPath ItemGroup<?> context) {
             ListBoxModel options = new ListBoxModel();
             options.add("1", "1");
-            options.add("2", "2");
-            options.add("3", "3");
+            // options.add("2", "2");
+            // options.add("3", "3");
             return options;
         }
 

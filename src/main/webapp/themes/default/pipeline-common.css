@@ -1,23 +1,6 @@
-div.hide {
-    visibility: hidden;
-}
-
-.build_column {
-    border-top: 1px solid #ddd;
-    text-align:left;
-}
-
-.build_entry {
-    vertical-align: middle;
-    height: 26px;
-    padding: 0px;
-    margin-top: 15px;
-    margin-bottom: 15px;
-}
-
 .circle {
     float: left;
-    margin: 0px;
+    margin: 0px 0px 0px 3px;
     padding: 0px;
 }
 
@@ -61,11 +44,26 @@ div.hide {
     background: url("failedOnBlock.png") no-repeat;
 }
 
+.pipelineHeader {
+    display: block;
+    background-color: #4A90E2;
+    color: white;
+    text-align: left;
+}
+
+div.hide {
+    visibility: hidden;
+}
+
+div.pipeline-main {
+    background-color: rgba(37,44,49,1);
+}
+
 div.pipeline-loading-icon {
     content: url("white-load.gif");
     display: block;
     margin-left: auto;
-    margin-right: auto
+    margin-right: auto;
 }
 
 section.pipeline-component h1 {
@@ -73,7 +71,7 @@ section.pipeline-component h1 {
     font-weight: bold;
     font-stretch: expanded;
     margin: 0;
-    padding: 20px;
+    padding: 5px;
 }
 
 section.pipeline-component h2 {
@@ -81,6 +79,7 @@ section.pipeline-component h2 {
     font-weight: bold;
     font-stretch: expanded;
     margin: 0;
+    padding: 0;
 }
 
 section.pipeline-component h3 {
@@ -88,6 +87,7 @@ section.pipeline-component h3 {
     font-weight: normal;
     font-stretch: expanded;
     margin: 0;
+    padding: 0;
 }
 
 section.pipeline {
@@ -214,6 +214,7 @@ div.taskname-minimalist {
     word-wrap: break-word;
     /*width: 120px;*/
     width: 100%;
+    color: rgba(200,200,200,1);
 }
 
 div.minimalist-task-progress {
@@ -511,6 +512,7 @@ div.aggregatedChangesPanelInner > ul {
 	font-weight:normal;
 	margin-bottom:8px;
 	margin-left:10px;
+    margin-top:10px;
 }
 
 .pagination a, .pagination a:visited{
@@ -553,39 +555,104 @@ div.aggregatedChangesPanelInner > ul {
 	cursor:default;
 }
 
-.showDisplayValues {
-    background-color: #87CEFA;
-    color: black;
-    display: inline-block;
-    width: 500px;
-    text-align: center;
-    font-size: 14px;
-    padding: 10px;
+/**
+ * Main table entry
+ */
+
+.build_table {
+    width: 100%;
+    text-align: left;
+    vertical-align: middle;
+    border-collapse: collapse;
+    color: rgba(220,220,220,1);
+}
+
+.build_header {
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+    color: inherit;
+}
+
+.build_column {
+    border-top: 1px solid #ddd;
+    text-align:left;
+    color: inherit;
+}
+
+.build_entry {
+    vertical-align: middle;
+    height: 26px;
+    padding: 0px;
+    margin-top: 15px;
+    margin-bottom: 15px;
+    color: inherit;
+}
+
+.toggled_build_header {
+    background-color: rgba(80,88,92,1);
+    border: 1px solid #ddd
+}
+
+.untoggled_build_header {
+    background-color: transparent;
+    border: none;
+}
+
+.toggled_pipeline {
+    border: 1px solid #ddd;
+    background-color: rgba(31,35,41,1);
+}
+
+.untoggled_pipeline {
+    background-color: transparent;
+    border: none;
 }
 
 /**
  * Use these classes to prevent borders from showing on default Jenkin tables
  */
 .displayTable {
-    margin-left: 15px;
+    margin: 15px;
     text-align:left;
-    padding: 10px;
     border-collapse: collapse;
+    color: rgba(200,200,200,1);
 }
 
-.displayTableTr:hover {
-    background-color:#f5f5f5
+.displayTableLink {
+    color: rgba(220,220,220,1);
+}
+
+.displayTableTr {
+    color: inherit;
+}
+
+.displayTableTr:nth-child(odd) {
+    background-color: rgba(45,51,55,1);
 }
 
 .displayTableTh {
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid rgba(61,69,75,1);
     padding-right: 50px;
+    margin-top: 3px;
+    margin-bottom: 3px;
+    margin-left: 3px;
+    color: inherit;
 }
 
 .displayTableTd {
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid rgba(61,69,75,1);
     font-weight: normal;
     padding-right: 50px;
+    margin-top: 3px;
+    margin-bottom: 3px;
+    margin-left: 3px;
+    color: inherit;
+}
+
+.hoverTableEntry {
+    text-align: left;
+    color: black;
+    margin-right: 10px;
 }
 
 a span {
@@ -603,27 +670,23 @@ a span {
 
 a {
     position: relative;
+    color: inherit !important;
 }
 
 a:hover span {
     display: block;
     text-align: left;
+    color: black;
 }
 
 .label {
     border: 1px solid black;
     padding: 2px;
-    font-size: 10px;
-    /*opacity: 0.8; 
-    filter: alpha(opacity=80);*/
+    font-size: 12px;
     background-color: white;
     color: black;
     z-index: 4;
 }
-
-/*svg.relation path {
-    stroke-width: 3;
-}*/
 
 ._jsPlumb_connector {
     z-index: 1;

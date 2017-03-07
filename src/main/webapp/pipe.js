@@ -58,11 +58,16 @@ function pipelineUtils() {
                             var conditionalMap = {};
                             var downstreamMap = {};
                             var projectNameIdMap = {};
+                            // var blockedOnFailedMap = {};
 
                             if (sessionStorage.savedPipelineDisplayValues == null) {
                                 sessionStorage.savedPipelineDisplayValues = JSON.stringify({});
                             }
                             var savedPipelineDisplayValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+
+                            if (sessionStorage.savedPipelineArtifacts == null) {
+                                sessionStorage.savedPipelineArtifacts = JSON.stringify({});
+                            }
 
                             if (sessionStorage.previousDisplayArgConfig == null) {
                                 sessionStorage.previousDisplayArgConfig = JSON.stringify({});
@@ -71,6 +76,10 @@ function pipelineUtils() {
                             if (sessionStorage.toggleStates == null) {
                                 sessionStorage.toggleStates = JSON.stringify({});
                             }
+
+                            // if (sessionStorage.blockedOnFailedMap == null) {
+                            //     sessionStorage.blockedOnFailedMap = JSON.stringify({});
+                            // }
 
                             if (data.error) {
                                 cErrorDiv.html('Error: ' + data.error).show();
@@ -95,7 +104,7 @@ function pipelineUtils() {
                                     html = [];
                                     component = data.pipelines[c];
                                     html.push("<section class='pipeline-component'>");
-                                    html.push("<h1 style=\"display: block; background-color: #4A90E2; height: 70px; color: white; text-align: left; vertical-align: middle;\">" + component.name);
+                                    html.push("<h1 class=\"pipelineHeader\">" + component.name);
                                     if (data.allowPipelineStart) {
                                         if (component.firstJobParameterized) {
                                             html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" onclick="triggerParameterizedBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
@@ -118,13 +127,13 @@ function pipelineUtils() {
                                         html.push("No builds done yet.");
                                     }
 
-                                    html.push("<table style=\"width:100%; text-align:left; vertical-align: middle; border-collapse: collapse;\">");
+                                    html.push("<table class=\"build_table\">");
                                     html.push("<tr>");
-                                    html.push("<th style=\"width:5%; border-bottom: 1px solid #ddd;\">Status</th>");
-                                    html.push("<th style=\"width:45%; border-bottom: 1px solid #ddd;\">Build Number</th>");
-                                    html.push("<th style=\"width:10%; border-bottom: 1px solid #ddd;\">Duration</th>");
-                                    html.push("<th style=\"width:20%; border-bottom: 1px solid #ddd;\">Date</th>");
-                                    html.push("<th style=\"width:15%; border-bottom: 1px solid #ddd;\">Started by</th>");
+                                    html.push("<th class=\"build_header\" style=\"width:5%;\">Status</th>");
+                                    html.push("<th class=\"build_header\" style=\"width:45%;\">Build Number</th>");
+                                    html.push("<th class=\"build_header\" style=\"width:10%;\">Duration</th>");
+                                    html.push("<th class=\"build_header\" style=\"width:20%;\">Date</th>");
+                                    html.push("<th class=\"build_header\" style=\"width:15%;\">Started by</th>");
                                     html.push("</tr>");
 
                                     var isLatestPipeline = true;
@@ -172,20 +181,21 @@ function pipelineUtils() {
                                         var toggleRowId = "toggle-row-" + jobName + "-" + buildNum;
                                         var togglePipelineId = "toggle-pipeline-" + jobName + "-" + buildNum;
                                         var shouldToggle = isLatestPipeline || (getToggleState(toggleBuildId, "block", isLatestPipeline) != "none");
-                                        var initStyle = shouldToggle ? "background-color: #f5f5f5;" : "background-color: transparent;";
-                                        initStyle += shouldToggle ? " border: 1px solid #ddd;" : "";
-                                        var initPipelineStyle = shouldToggle ? "border: 1px solid #ddd;" : "border-bottom: 1px solid #ddd;"
 
-                                        html.push("<tr id=\"" + toggleRowId + "\" style=\"" + initStyle + "\">");    
-                                        html.push("<td class=\"build_column\"><p class=\"build_entry circle_" + statusString + "\" ");
+                                        // Initial CSS class to use
+                                        var initClass = shouldToggle ? "toggled_build_header" : "untoggled_build_header";
+                                        var initPipelineClass = shouldToggle ? "toggled_pipeline" : "untoggled_pipeline";
+
+                                        html.push("<tr id=\"" + toggleRowId + "\" class=\"" + initClass + "\">");    
+                                        html.push("<td class=\"build_column\"><p class=\"build_entry circle circle_" + statusString + "\" ");
                                         html.push("style=\"min-height: 26px; min-width: 26px; background-size: 26px 26px;\">&nbsp;</p></td>");
                                         html.push("<td class=\"build_column\"><p class=\"build_entry\">");
-                                        html.push("<a id=\"" + displayBuildId + "\" href=\"javascript:toggle('" + toggleBuildId + "','" + toggleRowId + "','" + togglePipelineId + "');\" ");
-                                        html.push("style=\"color: black;\">" + "#" + buildNum + " " + jobName + "</a></p></td>");
+                                        html.push("<a id=\"" + displayBuildId + "\" href=\"javascript:toggle('" + toggleBuildId + "','" + toggleRowId + "','" + togglePipelineId + "');\">");
+                                        html.push("#" + buildNum + " " + jobName + "</a></p></td>");
                                         html.push("<td class=\"build_column\"><p class=\"build_entry\">" + pipelineDuration + "</p></td>");
                                         html.push("<td class=\"build_column\"><p class=\"build_entry\">" + pipelineTimestamp + "</p></td>");
                                         html.push("<td class=\"build_column\"><p class=\"build_entry\">" + triggered + "</p></td>");
-                                        html.push("</a></tr><tr><th id=\"" + togglePipelineId + "\" colspan=\"5\" style=\"" + initPipelineStyle + "\"><div>");
+                                        html.push("</tr><tr><th id=\"" + togglePipelineId + "\" colspan=\"5\" class=\"" + initPipelineClass + "\"><div>");
                                         html.push("<div id=\"" + toggleBuildId + "\" style=\"display:" + getToggleState(toggleBuildId, "block", isLatestPipeline) + ";\">");
 
                                         // Only expand the latest pipeline
@@ -209,17 +219,18 @@ function pipelineUtils() {
                                             if (data.displayArguments != "") {
                                                 var toggleTableId = "toggle-table-" + jobName + "-" + buildNum;
                                                 var displayTableId = "display-table-" + jobName + "-" + buildNum;
+                                                var artifactId = "artifacts-" + jobName + "-" + buildNum;
 
                                                 html.push("<h3><br/></h3>");
                                                 html.push("<table class=\"displayTable\">");
-                                                html.push("<thead><tr><th colspan=\"2\" style=\"text-align: left;\">");
-                                                html.push("<a id=\"" + displayTableId + "\" href=\"javascript:toggleTable('" + toggleTableId + "');\" style=\"color: black;\">Show Additional Display Values</a>");
+                                                html.push("<thead><tr><th colspan=\"2\" style=\"text-align: left;\" class=\"displayTableLink\">");
+                                                html.push("<a id=\"" + displayTableId + "\" href=\"javascript:toggleTable('" + toggleTableId + "');\">Show Additional Display Values</a>");
                                                 html.push("</th></tr></thead>");
                                                 html.push("<tbody id=\"" + toggleTableId + "\" style=\"display: " + getToggleState(toggleTableId, "table-row-group", true) + ";\">");
                                                 if (data.showArtifacts) {
                                                     html.push("<tr class=\"displayTableTr\">");
                                                     html.push("<th class=\"displayTableTh\">Artifacts </th>");
-                                                    html.push("<td class=\"displayTableTd\">" + getBuildArtifactLinks(jobName, buildNum) + "</td></tr>");
+                                                    html.push("<td id=\"" + artifactId + "\" class=\"displayTableTd\">" + loadBuildArtifacts(artifactId) + "</td></tr>");
                                                 }
                                                 if (JSON.stringify(savedPipelineDisplayValues) == JSON.stringify({})) {
                                                     html.push(generateDisplayValueTable(data.displayArguments, jobName, buildNum));
@@ -317,7 +328,7 @@ function pipelineUtils() {
                                                 html.push("<div class=\"stage-minimalist " + getStageClassName(stage.name) + "\" style=\"width: " + widthPerCell + "px;\">");
                                                 html.push("<div class=\"stage-minimalist-header\" style=\"font-size: " + fontSizePerCell + "px;\">");
                                                 html.push("<div class=\"stage-minimalist-name\">");
-                                                html.push("<a href=\"" + link + "\">" + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</a></div>");
+                                                html.push("<a href=\"" + link + "\" target=\"_blank\">" + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</a></div>");
                                             } else {
                                                 html.push("<div id=\"" + getStageId(stage.id + "", i) + "\" class=\"stage " + getStageClassName(stage.name) + "\">");
                                                 html.push("<div class=\"stage-header\">");
@@ -364,12 +375,12 @@ function pipelineUtils() {
                                                 if (data.viewMode == "Minimalist") {
                                                     var toolTipStyle = Math.round(column / numColumns) < 0.5 ? "left: 0%;" : "right: 0%;"
                                                     var hoverTable = "<table><tr>";
-                                                    hoverTable += "<th style=\"text-align: left; color: black; margin-right: 10px;\">Status:</th>";
-                                                    hoverTable += "<td style=\"text-align: left; color: black; margin-right: 10px;\">" + task.status.type + "</td></tr><tr>"
-                                                    hoverTable += "<th style=\"text-align: left; color: black; margin-right: 10px;\">Timestamp:</th>";
-                                                    hoverTable += "<td style=\"text-align: left; color: black; margin-right: 10px;\">" + timestamp + "</td></tr><tr>";
-                                                    hoverTable += "<th style=\"text-align: left; color: black; margin-right: 10px;\">Duration:</th>";
-                                                    hoverTable += "<td style=\"text-align: left; color: black; margin-right: 10px;\">" + formatLongDuration(task.status.duration) + "</td></tr>";
+                                                    hoverTable += "<th class=\"hoverTableEntry\">Status:</th>";
+                                                    hoverTable += "<td class=\"hoverTableEntry\">" + task.status.type + "</td></tr><tr>"
+                                                    hoverTable += "<th class=\"hoverTableEntry\">Timestamp:</th>";
+                                                    hoverTable += "<td class=\"hoverTableEntry\">" + timestamp + "</td></tr><tr>";
+                                                    hoverTable += "<th class=\"hoverTableEntry\">Duration:</th>";
+                                                    hoverTable += "<td class=\"hoverTableEntry\">" + formatLongDuration(task.status.duration) + "</td></tr>";
                                                     hoverTable += "</table>";
 
                                                     html.push("<div id=\"" + id + "\" class=\"stage-minimalist-task\">");
@@ -432,7 +443,18 @@ function pipelineUtils() {
 
                                         if (!pipeline.aggregated) {
                                             var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                                            getDisplayValues(data.displayArguments, pipeline, jobName, pipeline.version.substring(1));
+                                            var buildNum = pipeline.version.substring(1);
+
+                                            if (data.showArtifacts) {
+                                                var artifactValues = JSON.parse(sessionStorage.savedPipelineArtifacts);
+                                                var artifactId = "artifacts-" + jobName + "-" + buildNum;
+
+                                                if (!artifactValues.hasOwnProperty(artifactId)) {
+                                                    getBuildArtifacts(jobName, buildNum, artifactId);    
+                                                }
+                                            }
+
+                                            getDisplayValues(data.displayArguments, pipeline, jobName, buildNum);
                                         }
 
                                         html.push('</div>');
@@ -447,6 +469,16 @@ function pipelineUtils() {
                                     Q("#" + divNames[c % divNames.length]).append(html.join(""));
                                     Q("#pipeline-message-" + pipelineid).html('');
                                 }
+
+                                // for (var i = 0; i < component.pipelines.length; i++) {
+                                //     pipeline = component.pipelines[i];
+
+                                //     if (JSON.parse(sessionStorage.blockedOnFailedMap).hasOwnProperty(pipeline.stages[0].name + "-" + i)) {
+                                //         loadFailedOnBlockStages(pipeline, i);
+                                //     } else {
+                                //         updateFailedOnBlockStages(pipeline, i);    
+                                //     }
+                                // }
 
                                 // Update all the manifest information at the end to minimize number of calls required
                                 if (data.showManifestInfo && (data.manifestJobName != "")) {
@@ -480,9 +512,10 @@ function pipelineUtils() {
                                                     source = getStageId(stage.id + "", index);
                                                     target = getStageId(value + "", index);
 
-                                                    // black
-                                                    var color = "rgba(118,118,118,1)";
+                                                    // Blue
+                                                    var color = "rgba(0,122,195,1)";
                                                     var label = "Non-blocking";
+                                                    var dashstyle = "2 2";
 
                                                     var blockedProjects = conditionalProjects = downstreamProjects = [];
                                                     var targetName;
@@ -502,23 +535,26 @@ function pipelineUtils() {
                                                         var targetName = projectNameIdMap[target];
 
                                                         if (blockedProjects.indexOf(targetName) != -1 && conditionalProjects.indexOf(targetName) != -1) {
-                                                             // Orange
-                                                            color = "rgba(253,132,11,1)";
+                                                            // Orange
+                                                            color = "rgba(255,121,52,1)";
                                                             label = "Blocking Conditional";
+                                                            dashstyle = "0 0";
                                                         } else if (blockedProjects.indexOf(targetName) != -1) {
                                                             // Blue
-                                                            color = "rgba(000,178,238,1)";
+                                                            color = "rgba(0,122,195,1)";
                                                             label = "Blocking";
+                                                            dashstyle = "0 0";
                                                         } else if (conditionalProjects.indexOf(targetName) != -1) {
-                                                            // Yellow
-                                                            color = "rgba(225,232,21,1)";
-                                                            label = "Conditional";
+                                                            // Orange
+                                                            color = "rgba(255,121,52,1)";
+                                                            label = "Non-blocking Conditional";
                                                         }
 
                                                         if (downstreamProjects.indexOf(targetName) != -1) {
                                                             // Purple
-                                                            color = "rgba(146,41,205,1)";
+                                                            color = "rgba(118,91,161,1)";
                                                             label = "Downstream";
+                                                            dashstyle = "0 0";
                                                         }
                                                     }
 
@@ -530,19 +566,19 @@ function pipelineUtils() {
                                                             [ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12, paintStyle: { lineWidth: 3 } }]
                                                         ],
                                                         connector: (downstreamProjects.indexOf(targetName) != -1) ? downStreamConnector : connector,
-                                                        paintStyle: { lineWidth: 3, strokeStyle: color, joinstyle: "round" },
+                                                        paintStyle: { lineWidth: 3, strokeStyle: color, joinstyle: "round", dashstyle: dashstyle },
                                                         hoverPaintStyle: { lineWidth: 6 },
                                                         endpoint: ["Blank"]
                                                     });
 
                                                     connection.bind("mouseenter", function(conn) {
-                                                        conn.addOverlay([ "Label", { label: label, id: (target + "-arrow"), location: 0.6, cssClass:"label" }]);
-                                                        conn.addOverlay([ "Arrow", { id: "arrow", location: 1, foldback: 0.9, width: 18, length: 18 }]);
+                                                        conn.addOverlay([ "Label", { label: label, id: (target + "-label"), location: 0.6, cssClass:"label" }]);
+                                                        conn.addOverlay([ "Arrow", { id: (target + "-arrow"), location: 1, foldback: 0.9, width: 18, length: 18 }]);
                                                     }); 
 
                                                     connection.bind("mouseexit", function(conn) {
+                                                        conn.removeOverlay((target + "-label"));
                                                         conn.removeOverlay((target + "-arrow"));
-                                                        conn.removeOverlay("arrow");
                                                     });
                                                 });
                                             }
@@ -574,8 +610,8 @@ function pipelineUtils() {
                                     }
                                 }
                             }
-                         jsplumb.repaintEverything();
-                         window.scrollTo( 0, currentPageY );
+                        jsplumb.repaintEverything();
+                        window.scrollTo( 0, currentPageY );
                         }
 }
 
@@ -1044,63 +1080,83 @@ function equalheight(container) {
 }
 
 /**
+ * Load all artifacts for a build.
+ */
+function loadBuildArtifacts(buildId) {
+    var savedValues = JSON.parse(sessionStorage.savedPipelineArtifacts);    
+
+    if (savedValues.hasOwnProperty(buildId)) {
+        return savedValues[buildId];
+    }
+
+    return "No artifacts found";
+}
+
+/**
  * Get all artifacts for a build.
  */
-function getBuildArtifacts(taskId, buildNum) {
-    var artifacts = [];
+function getBuildArtifacts(jobName, buildNum, buildId) {
     Q.ajax({
-        url: rootURL + "/job/" + taskId + "/" + buildNum + "/api/json?tree=artifacts[*]",
+        url: rootURL + "/job/" + jobName + "/" + buildNum + "/api/json?tree=artifacts[*]",
         type: "GET",
         dataType: 'json',
-        async: false,
+        async: true,
         cache: true,
         timeout: 20000,
         success: function (json) {
-            var data = json.artifacts;
-            if (data.length > 0) {
-                for (var i=0; i<data.length; i++) {
-                    artifacts.push(data[i].fileName);
-                }
-            }
+            getBuildArtifactData(jobName, buildNum, buildId, json.artifacts);
         },
         error: function (xhr, status, error) {
         }
     })
-    return artifacts;
 }
 
-function getBuildArtifactLinks(taskId, buildNum) {
-    var artifacts = getBuildArtifacts(taskId, buildNum);
+/**
+ * Callback function to get an artifacts data.
+ */
+function getBuildArtifactData(jobName, buildNum, buildId, data) {
+    var artifacts = [];
 
-    if (artifacts.length == 0) {
-      return "No artifacts found";
+    if (data.length > 0) {
+        for (var i=0; i<data.length; i++) {
+            artifacts.push(data[i].fileName);
+        }
     }
-
-    var retVal = "";
 
     if (artifacts.length > 0) {
         for (var i=0; i<artifacts.length; i++) {
-            var artifactInfo = "";
             Q.ajax({
-                url: rootURL + "/job/" + taskId + "/" + buildNum + "/artifact/" + artifacts[i],
+                url: rootURL + "/job/" + jobName + "/" + buildNum + "/artifact/" + artifacts[i],
                 type: "GET",
-                async: false,
+                async: true,
                 cache: true,
                 timeout: 20000,
                 success: function (json) {
-                    artifactInfo = json;
+                    getBuildArtifactLinks(this.url, json, buildId);
                 },
                 error: function (xhr, status, error) {
                 }
             })
-
-            retVal += "<a href=\"http://localhost:8080/job/" + taskId + "/" + buildNum + "/artifact/" + artifacts[i] + "\">" + htmlEncode(artifacts[i]) +
-            "<span class=\"tooltip\">" + artifactInfo + "</span></a>, "
         }
-        retVal = retVal.substring(0, retVal.length - 2);
+    }
+}
+
+/**
+ * Callback function to generate a link to a specific build artifact.
+ */
+function getBuildArtifactLinks(url, json, buildId) {
+    var savedValues = JSON.parse(sessionStorage.savedPipelineArtifacts);
+    var ele = document.getElementById(buildId);
+    var artifact = url.split("/artifact/")[1];
+
+    if (ele.innerHTML != "No artifacts found") {
+        ele.innerHTML += ", <a href=\"" + url + "\" style=\"color: inherit;\">" + artifact + "<span class=\"tooltip\">" + json + "</span></a>";
+    } else {
+        ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" + artifact + "<span class=\"tooltip\">" + json + "</span></a>";
     }
 
-    return retVal;
+    savedValues[buildId] = ele.innerHTML;
+    sessionStorage.savedPipelineArtifacts = JSON.stringify(savedValues);
 }
 
 /**
@@ -1113,7 +1169,7 @@ function generateDisplayValueTable(displayArgs, pipelineName, pipelineNum) {
         displayArgsJson = JSON.parse(displayArgs);
     }
     catch (err) {
-        return "INVALID JSON"
+        return "INVALID JSON";
     }
 
     var retVal = "";
@@ -1217,6 +1273,12 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
                 if (displayKeyConfig.hasOwnProperty("projectName")) {
                     projectName = displayKeyConfig.projectName;
 
+                    // Do not search for a previously found value
+                    var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
+                    if (savedValues.hasOwnProperty(id)) {
+                        continue;
+                    }
+
                     if (projectNameIdMap.hasOwnProperty(projectName) == false) {
                         continue;
                     }
@@ -1277,9 +1339,6 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
                         continue;
                     }
 
-                    var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
-
-
                     // Upon a configuration change, reload all data
                     if (previousDisplayArgConfig != displayArgsJson) {
                         Q.ajax({
@@ -1294,23 +1353,7 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
                             error: function (xhr, status, error) {
                             }
                         })
-                    } else {
-                        // Do not attempt an AJAX call if we have already received a value
-                        if (!savedValues.hasOwnProperty(id)) {
-                            Q.ajax({
-                                url: rootURL + "/" + url,
-                                type: "GET",
-                                async: true,
-                                cache: true,
-                                timeout: 20000,
-                                success: function(data) {
-                                    updateDisplayValues(data, this.url, displayArgs, pipelineName, pipelineNum);
-                                },
-                                error: function (xhr, status, error) {
-                                }
-                            })
-                        }
-                    }                    
+                    }
                 }
             }
         }
@@ -1395,7 +1438,7 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                             var ele = document.getElementById(id);
 
                             if (displayKeyConfig.hasOwnProperty("useLink") && displayKeyConfig.useLink == "true") {
-                                ele.innerHTML = "<a style=\"color: black;\" href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
+                                ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
                             } else {
                                 ele.innerHTML = toolTipData;
                                 redrawConnections();
@@ -1444,7 +1487,7 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                             var ele = document.getElementById(id);
 
                             if (displayKeyConfig.hasOwnProperty("useLink") && displayKeyConfig.useLink == "true") {
-                                ele.innerHTML = "<a style=\"color: black;\" href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";    
+                                ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";    
                             } else {
                                 ele.innerHTML = toolTipData;
                                 redrawConnections();
@@ -1477,6 +1520,57 @@ function grepRegexp(grepPattern, grepFlag, data) {
     }
     return results.join("\n");
 }
+
+// function loadFailedOnBlockStages(pipeline, pipelineNum) {
+//     var blockedOnFailedMap = JSON.parse(sessionStorage.blockedOnFailedMap);
+//     var failedOnBlockingJobs = blockedOnFailedMap[pipeline.stages[0].name + "-" + pipelineNum];
+
+//     for (var id in failedOnBlockingJobs) {
+//         var ele = document.getElementById(id.toString());
+
+//         if (ele != null) {
+//             ele.className = "circle circle_FAILED_ON_BLOCK";    
+//         }
+//     }
+// }
+
+// function updateFailedOnBlockStages(pipeline, pipelineNum) {
+//     var blockedOnFailedMap = JSON.parse(sessionStorage.blockedOnFailedMap);
+
+//     var failedOnBlockingJobs = {};
+//     var blockingJobs;
+//     var downstreamStages;
+//     var downstreamStageIds;
+//     var ele;
+//     for (var j = 0; j < pipeline.stages.length - 1; j++) {
+//         stage = pipeline.stages[j];
+//         ele = document.getElementById(getStageId(stage.id + "", pipelineNum));
+//         downstreamStages = stage.downstreamStages;
+//         downstreamStageIds = stage.downstreamStageIds;
+//         blockingJobs = stage.blockingJobs;
+
+//         if (downstreamStages.size() == 0) {
+//             continue;
+//         }
+
+//         if (stage.tasks[0].status.type == "FAILED") {
+//             for (var k = 0; k < downstreamStages.size(); k++) {
+//                 if (blockingJobs.split(', ').indexOf(downstreamStages[k]) != -1) {
+//                     var downstreamEle = document.getElementById(getStageId(downstreamStageIds[k] + "", pipelineNum));
+//                     if (downstreamEle != null) {
+//                         if (downstreamEle.className == "circle circle_FAILED" || downstreamEle.className == "circle circle_CANCELLED") {
+//                             ele.className = "circle circle_FAILED_ON_BLOCK";
+//                             failedOnBlockingJobs[(getStageId(stage.id + "", pipelineNum).toString())] = "true";
+//                         }
+//                     }
+//                 }                
+//             }
+//         }
+
+//         blockedOnFailedMap[(pipeline.stages[0].name + "-" + pipelineNum).toString()] = failedOnBlockingJobs;
+//         sessionStorage.blockedOnFailedMap = JSON.stringify(blockedOnFailedMap);
+//     }
+// }
 
 // Get the session state for build toggles
 function getToggleState(toggleId, toggleType, defaultToggleOn) {
@@ -1514,15 +1608,13 @@ function toggle(toggleBuildId, toggleRowId, togglePipelineId) {
 
     if (ele.style.display == "block") {
         ele.style.display = "none";
-        rowEle.style.border = "none";
-        rowEle.style.backgroundColor = "transparent";
-        pipelineEle.style.border = "none";
+        rowEle.className = "untoggled_build_header";
+        pipelineEle.className = "untoggled_pipeline";
         toggleStates[toggleBuildId] = "none";
     } else {
         ele.style.display = "block";
-        rowEle.style.border = "1px solid #ddd";
-        rowEle.style.backgroundColor = "#f5f5f5";
-        pipelineEle.style.border = "1px solid #ddd";
+        rowEle.className = "toggled_build_header";
+        pipelineEle.className = "toggled_pipeline";
         toggleStates[toggleBuildId] = "block";
     }
 

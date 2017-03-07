@@ -1,8 +1,8 @@
 body {
     font-family: sans-serif;
-    background: white;
-    color: black;
-    font-size: 14px;
+    background: rgba(37,44,49,1);
+    margin: 0;
+    padding: 0;
 }
 
 div.pipeline-loading-icon {
@@ -11,12 +11,15 @@ div.pipeline-loading-icon {
 
 section.pipeline-component {
     padding-left: 20px;
+    padding-right: 20px;
 }
 
 section.pipeline-component h1 {
     font-size: 38px;
     font-weight: bold;
     vertical-align: middle;
+    margin: 20px 0px 20px 0px;
+    padding: 10px;
 }
 
 section.pipeline-component h2 {
@@ -146,26 +149,4 @@ div.aggregatedChangesPanelOuter {
     margin: 8px;
     border: 1px solid lightgray;
     background-color: #646060;
-}
-
-a span {
-    display: none;
-    position: absolute;
-    background-color: #ddd;
-    border: 1px solid black;
-    font-size: 13px;
-    font-weight: normal;
-    min-height: 50px;
-    min-width: 375px;
-    text-align: left;
-    z-index: 5;
-}
-
-a {
-    position: relative;
-}
-
-a:hover span {
-    display: block;
-    text-align: left;
 }
