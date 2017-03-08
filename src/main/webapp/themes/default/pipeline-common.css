@@ -26,6 +26,7 @@
 
 .circle_RUNNING {
     background: url("runningCircle.gif") no-repeat;
+    background-color: transparent;
 }
 
 .circle_QUEUED {
