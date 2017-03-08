@@ -494,6 +494,25 @@ function pipelineUtils() {
                                     }
                                 }
 
+                                var pipelineStageIdMap = {};
+                                
+                                for (var i = 0; i < component.pipelines.length; i++) {
+
+                                    pipeline = component.pipelines[i];
+                                    var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                                    var buildNum = pipeline.version.substring(1);
+                                    var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
+                                    var stageIds = {};
+
+                                    for (var j = 0; j < pipeline.stages.length; j++) {
+                                        stage = pipeline.stages[j];
+                                        stageIds[getStageId(stage.id + "", i)] = "true";
+                                    }
+                                    pipelineStageIdMap[toggleBuildId] = stageIds;
+                                }
+
+                                sessionStorage.pipelineStageIdMap = JSON.stringify(pipelineStageIdMap);
+
                                 // Update all the manifest information at the end to minimize number of calls required
                                 if (data.showManifestInfo && (data.manifestJobName != "")) {
                                     getManifestInfo(data.manifestJobName, clManifestMap);
@@ -502,19 +521,16 @@ function pipelineUtils() {
                                 var index = 0, source, target;
                                 var sourceOffset = isFullScreen ? 0 : -1;
                                 var targetOffset = isFullScreen ? -1 : -2;
-                                var stub = scaleCondition ? 30 : 80;
-                                var anchors = [[1, 0, 1, 0, sourceOffset, 13], [0, 0, -1, 0, targetOffset, 13]];
-                                var connector = ["Flowchart", { stub: stub, gap: 0, midpoint: 0.00001, alwaysRespectStubs: true } ];
 
+                                var anchors = [[1, 0, 1, 0, 0, 13], [0, 0, -1, 0, 0, 13]];
                                 var downstreamAnchors = [[0.5, 1, 0, 1, sourceOffset, 0], [0, 0, -1, 0, targetOffset, 13]];
-                                var downStreamConnector = ["Flowchart", { stub: 0, gap: 0, midpoint: 0.00001, alwaysRespectStubs: true } ];
 
                                 lastResponse = data;
                                 equalheight(".pipeline-row .stage");
 
                                 if (data.viewMode != "Minimalist") {
                                     anchors = [[1, 0, 1, 0, 0, 37], [0, 0, -1, 0, 0, 37]];
-                                    connector = ["Flowchart", { stub: 25, gap: 2, midpoint: 1, alwaysRespectStubs: true } ];
+                                    // connector = ["Flowchart", { stub: 25, gap: 2, midpoint: 1, alwaysRespectStubs: true } ];
                                 }
 
                                 Q.each(data.pipelines, function (i, component) {
@@ -530,6 +546,7 @@ function pipelineUtils() {
                                                     var color = "rgba(0,122,195,1)";
                                                     var label = "Non-blocking";
                                                     var dashstyle = "2 2";
+                                                    var stub = scaleCondition ? 30 : 80;
 
                                                     var blockedProjects = conditionalProjects = downstreamProjects = [];
                                                     var targetName;
@@ -569,6 +586,7 @@ function pipelineUtils() {
                                                             color = "rgba(118,91,161,1)";
                                                             label = "Downstream";
                                                             dashstyle = "0 0";
+                                                            stub = 10;
                                                         }
                                                     }
 
@@ -577,20 +595,20 @@ function pipelineUtils() {
                                                         target: target,
                                                         anchors: (downstreamProjects.indexOf(targetName) != -1) ? downstreamAnchors : anchors, // allow boxes to increase in height but keep anchor lines on the top
                                                         overlays: [
-                                                            [ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12, paintStyle: { lineWidth: 3 } }]
+                                                            [ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12 }]
                                                         ],
-                                                        connector: (downstreamProjects.indexOf(targetName) != -1) ? downStreamConnector : connector,
-                                                        paintStyle: { lineWidth: 3, strokeStyle: color, joinstyle: "round", dashstyle: dashstyle },
-                                                        hoverPaintStyle: { lineWidth: 6 },
-                                                        endpoint: ["Blank"]
+                                                        connector: ["Flowchart", { stub: stub, gap: 0, midpoint: 0, alwaysRespectStubs: true, cornerRadius: 25 } ],
+                                                        paintStyle: { stroke: color, strokeWidth: 3, dashstyle: dashstyle },
+                                                        hoverPaintStyle: { strokeWidth: 6 },
+                                                        endpoint: "Blank"
                                                     });
 
-                                                    connection.bind("mouseenter", function(conn) {
-                                                        conn.addOverlay([ "Label", { label: label, id: (target + "-label"), location: 0.6, cssClass:"label" }]);
+                                                    connection.bind("mouseover", function(conn) {
+                                                        conn.addOverlay([ "Label", { label: label, id: (target + "-label"), location: 0.6, cssClass: "label" }]);
                                                         conn.addOverlay([ "Arrow", { id: (target + "-arrow"), location: 1, foldback: 0.9, width: 18, length: 18 }]);
                                                     }); 
 
-                                                    connection.bind("mouseexit", function(conn) {
+                                                    connection.bind("mouseout", function(conn) {
                                                         conn.removeOverlay((target + "-label"));
                                                         conn.removeOverlay((target + "-arrow"));
                                                     });
@@ -599,6 +617,32 @@ function pipelineUtils() {
                                         });
                                     });
                                 });
+
+                                var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
+                                // Hide all connectors in untoggled rows
+                                for (var a = 0; a < data.pipelines.length; a++) {
+                                    var isLatestPipeline = true;
+
+                                    for (var i = 0; i < component.pipelines.length; i++) {
+                                        pipeline = component.pipelines[i];
+
+                                        var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                                        var buildNum = pipeline.version.substring(1);
+                                        var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
+
+                                        if (getToggleState(toggleBuildId, "block", isLatestPipeline) == "none") {
+                                            var stageIds = pipelineStageIdMap[toggleBuildId];
+
+                                            for (var key in stageIds) {
+                                                jsplumb.hide(key);
+                                            }
+                                        }
+                                        if (isLatestPipeline) {
+                                            isLatestPipeline = false;
+                                        }
+                                    }
+                                }
+                                
                             } else {
                                 var comp, pipe, head, st, ta, time;
 
@@ -624,8 +668,8 @@ function pipelineUtils() {
                                     }
                                 }
                             }
-                        jsplumb.repaintEverything();
-                        window.scrollTo( 0, currentPageY );
+                            jsplumb.repaintEverything();
+                            window.scrollTo( 0, currentPageY );
                         }
 }
 
@@ -1596,6 +1640,9 @@ function getToggleState(toggleId, toggleType, defaultToggleOn) {
 // Toggle method
 function toggle(toggleBuildId, toggleRowId, togglePipelineId) {
     var toggleStates = JSON.parse(sessionStorage.toggleStates);
+    var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
+    var stageIds = pipelineStageIdMap[toggleBuildId];
+
     var ele = document.getElementById(toggleBuildId);
     var rowEle =  document.getElementById(toggleRowId);
     var pipelineEle = document.getElementById(togglePipelineId);
@@ -1605,11 +1652,28 @@ function toggle(toggleBuildId, toggleRowId, togglePipelineId) {
         rowEle.className = "untoggled_build_header";
         pipelineEle.className = "untoggled_pipeline";
         toggleStates[toggleBuildId] = "none";
+
+        // Hide all the connectors
+        for (var key in stageIds) {
+            instance.hide(key);
+        }
     } else {
         ele.style.display = "block";
         rowEle.className = "toggled_build_header";
         pipelineEle.className = "toggled_pipeline";
         toggleStates[toggleBuildId] = "block";
+
+        // Show all the connectors
+        for (var key in stageIds) {
+            instance.show(key);
+        }
+    }
+
+    // Recalculate offsets for every stage
+    for (var pipeline in pipelineStageIdMap) {
+        for (var stage in pipelineStageIdMap[pipeline]) {
+            instance.recalculateOffsets(stage);
+        }
     }
 
     sessionStorage.toggleStates = JSON.stringify(toggleStates);

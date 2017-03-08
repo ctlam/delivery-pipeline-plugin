@@ -681,10 +681,10 @@ a:hover span {
 }
 
 .label {
-    border: 1px solid black;
+    border: 1px solid #ddd;
     padding: 2px;
     font-size: 12px;
-    background-color: white;
+    background-color: #ddd;
     color: black;
     z-index: 4;
 }
