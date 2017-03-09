@@ -45,10 +45,10 @@ function pipelineUtils() {
                             try {
                                 currentPageY = sessionStorage.getItem("page_y");
                                 if (currentPageY === undefined) {
-                                    sessionStorage.setItem("page_y") = 0;
+                                    sessionStorage.page_y = 0;
                                 }
                             } catch (e) {
-                                // no sessionStorage available
+                                console.info(e);
                             }
 
                             var clManifestMap = {};     // Manifest - CL mapping
@@ -79,6 +79,24 @@ function pipelineUtils() {
                                 sessionStorage.blockedOnFailedMap = JSON.stringify({});
                             }
 
+                            // Clear the sessionStorage of values we set if and only if we are loading a different view page
+                            // This could break if someone loads a view with the same initial job.
+                            var lastViewedJob;
+                            try {
+                                lastViewedJob = sessionStorage.getItem("lastViewedJob");
+                                var currentJob = data.pipelines[0].name;
+
+                                if (lastViewedJob !== undefined && (currentJob != lastViewedJob)) {
+                                    sessionStorage.savedPipelineDisplayValues = JSON.stringify({});
+                                    sessionStorage.savedPipelineArtifacts = JSON.stringify({});
+                                    sessionStorage.toggleStates = JSON.stringify({});
+                                    sessionStorage.blockedOnFailedMap = JSON.stringify({});
+                                }
+                                sessionStorage.lastViewedJob = currentJob;
+                            } catch (e) {
+                                console.info(e);
+                            }
+
                             if (data.error) {
                                 cErrorDiv.html('Error: ' + data.error).show();
                             } else {
@@ -89,10 +107,16 @@ function pipelineUtils() {
                             var displayArguments = data.displayArguments;
                             // Attempt to parse the contents
                             try {
-                                if (data.useYamlParser) {
-                                    displayArguments = jsyaml.safeLoad(data.displayArguments);
-                                } else {
-                                    displayArguments = JSON.parse(data.displayArguments);
+                                if (displayArguments != "") {
+                                    if (data.useYamlParser) {
+                                        displayArguments = jsyaml.safeLoad(data.displayArguments);
+                                    } else {
+                                        displayArguments = JSON.parse(data.displayArguments);
+                                    }
+                                }
+
+                                if (displayArguments == null) {
+                                    displayArguments = "";
                                 }
                             } catch (e) {
                                 console.log(e);
@@ -231,7 +255,10 @@ function pipelineUtils() {
                                                 html.push(generateChangeLog(pipeline.changes));
                                             }
 
-                                            if (displayArguments != "") {
+                                            html.push("<section class=\"pipeline\">");
+                                            html.push("<div class=\"pipeline-row\">");
+
+                                            if (displayArguments != "" && displayArguments != null) {
                                                 var toggleTableId = "toggle-table-" + jobName + "-" + buildNum;
                                                 var displayTableId = "display-table-" + jobName + "-" + buildNum;
                                                 var artifactId = "artifacts-" + jobName + "-" + buildNum;
@@ -242,8 +269,9 @@ function pipelineUtils() {
                                                     toggleTableFunction = "javascript:toggleTableCompatibleFS('" + toggleTableId + "');";
                                                 }
 
-                                                html.push("<h3><br/></h3>");
-                                                html.push("<table class=\"displayTable\">");
+                                                html.push("<div class=\"pipeline-cell\" style=\"vertical-align: top\">");
+
+                                                html.push("<table class=\"displayTable\" align=\"left\">");
                                                 html.push("<thead><tr><th colspan=\"2\" style=\"text-align: left;\" class=\"displayTableLink\">");
                                                 html.push("<a id=\"" + displayTableId + "\" href=\"" + toggleTableFunction + "\">Show Additional Display Values</a>");
                                                 html.push("</th></tr></thead>");
@@ -258,10 +286,42 @@ function pipelineUtils() {
                                                 } else {
                                                     html.push(loadDisplayValues(displayArguments, jobName, buildNum, savedPipelineDisplayValues));
                                                 }
+
                                                 html.push("</tbody></table>");
+                                                html.push("</div>");
                                             }
 
-                                            html.push('<h3><br/></h3>');
+                                            html.push("<div class=\"pipeline-cell\">");
+
+                                            html.push("<table class=\"displayTable\" align=\"right\"><thead><tr>");
+                                            html.push("<th colspan=\"2\" style=\"text-align: left;\" class=\"displayTableLink\">Legend</th>");
+                                            html.push("</tr></thead>");
+                                            html.push("<tbody style=\"display: table-row-group;\">");
+
+                                            var idSuffix = jobName + "-" + buildNum;
+
+                                            html.push("<tr class=\"displayTableTr\">");
+                                            html.push("<th id=\"nb-" + idSuffix + "\" class=\"displayTableTh\"></th>");
+                                            html.push("<td id=\"nb-" + idSuffix + "-end\" class=\"displayTableTd\" style=\"padding-left: 5px;\">Non-blocking</td></tr>");
+
+                                            html.push("<tr class=\"displayTableTr\">");
+                                            html.push("<th id=\"b-" + idSuffix + "\" class=\"displayTableTh\"></th>");
+                                            html.push("<td id=\"b-" + idSuffix + "-end\" class=\"displayTableTd\" style=\"padding-left: 5px;\">Blocking</td></tr>");
+
+                                            html.push("<tr class=\"displayTableTr\">");
+                                            html.push("<th id=\"nbc-" + idSuffix + "\" class=\"displayTableTh\"></th>");
+                                            html.push("<td id=\"nbc-" + idSuffix + "-end\" class=\"displayTableTd\" style=\"padding-left: 5px;\">Non-blocking Conditional</td></tr>");
+
+                                            html.push("<tr class=\"displayTableTr\">");
+                                            html.push("<th id=\"bc-" + idSuffix + "\" class=\"displayTableTh\"></th>");
+                                            html.push("<td id=\"bc-" + idSuffix + "-end\" class=\"displayTableTd\" style=\"padding-left: 5px;\">Blocking Conditional</td></tr>");
+
+                                            html.push("<tr class=\"displayTableTr\">");
+                                            html.push("<th id=\"d-" + idSuffix + "\" class=\"displayTableTh\"></th>");
+                                            html.push("<td id=\"d-" + idSuffix + "-end\" class=\"displayTableTd\" style=\"padding-left: 5px;\">Downstream</td></tr>");
+
+                                            html.push("</tbody></table>");
+                                            html.push("</div></div></section>");
                                         }
 
                                         // 15px padding around main-panel
@@ -650,7 +710,37 @@ function pipelineUtils() {
                                         }
                                     }
                                 }
-                                
+
+                                for (var a = 0; a < data.pipelines.length; a++) {
+                                    var component = data.pipelines[a];
+                                    var isLatestPipeline = true;
+
+                                    for (var i = 0; i < component.pipelines.length; i++) {
+                                        pipeline = component.pipelines[i];
+
+                                        var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                                        var buildNum = pipeline.version.substring(1);
+
+                                        var legendMap = {};
+
+                                        legendMap["b-" + jobName + "-" + buildNum] = ["rgba(0,122,195,1)", "0 0"];
+                                        legendMap["nb-" + jobName + "-" + buildNum] = ["rgba(0,122,195,1)", "2 2"];
+                                        legendMap["nbc-" + jobName + "-" + buildNum] = ["rgba(255,121,52,1)", "2 2"];
+                                        legendMap["bc-" + jobName + "-" + buildNum] = ["rgba(255,121,52,1)", "0 0"];
+                                        legendMap["d-" + jobName + "-" + buildNum] = ["rgba(118,91,161,1)", "0 0"];
+
+                                        for (var key in legendMap) {
+                                            jsplumb.connect({
+                                                source: key,
+                                                target: key + "-end",
+                                                anchors: [[0, 0.5, 1, 0, 0, 0], [0, 0.5, -1, 0, 2, 0]],
+                                                connector: ["Flowchart", { stub: 0, gap: 0, midpoint: 0, alwaysRespectStubs: false, cornerRadius: 0 } ],
+                                                paintStyle: { stroke: legendMap[key][0], strokeWidth: 3, dashstyle: legendMap[key][1] },
+                                                endpoint: "Blank"
+                                            });
+                                        }
+                                    }
+                                }
                             } else {
                                 var comp, pipe, head, st, ta, time;
 

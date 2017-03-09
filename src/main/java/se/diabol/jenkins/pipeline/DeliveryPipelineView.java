@@ -112,7 +112,7 @@ public class DeliveryPipelineView extends View {
     private boolean showTestResults = false;
     private boolean showStaticAnalysisResults = false;
     private boolean linkRelative = false;
-    private boolean pagingEnabled = false;
+    private boolean pagingEnabled = true;
     private boolean showAggregatedChanges = false;
     private String aggregatedChangesGroupingPattern = null;
     private String theme = DEFAULT_THEME;
