@@ -1,4 +1,6 @@
 var instance;
+// Jenkins default view has a "main-panel" whereas full screen mode does not
+var isFullScreen = (document.getElementById("main-panel") == null);
 
 function pipelineUtils() {
      var self = this;
@@ -41,25 +43,21 @@ function pipelineUtils() {
                             window.addEventListener("scroll", storePagePosition);
                             var currentPageY;
                             try {
-                              currentPageY = sessionStorage.getItem("page_y");
-
-                              if (currentPageY === undefined) {
-                                sessionStorage.setItem("page_y") = 0;
-                              }
+                                currentPageY = sessionStorage.getItem("page_y");
+                                if (currentPageY === undefined) {
+                                    sessionStorage.setItem("page_y") = 0;
+                                }
                             } catch (e) {
                                 // no sessionStorage available
                             }
 
-                            // Need this for manifest - CL tracking
-                            var clManifestMap = {};
+                            var clManifestMap = {};     // Manifest - CL mapping
+                            var blockingMap = {};       // Blocking project mapping
+                            var conditionalMap = {};    // Conditional project mapping
+                            var downstreamMap = {};     // Downstream project mapping
+                            var projectNameIdMap = {};  // Project Name - Project Id mapping
 
-                            // Need this to keep track of blocking projects
-                            var blockingMap = {};
-                            var conditionalMap = {};
-                            var downstreamMap = {};
-                            var projectNameIdMap = {};
-                            // var blockedOnFailedMap = {};
-
+                            // Initialize sessionStorage variables if not previously set
                             if (sessionStorage.savedPipelineDisplayValues == null) {
                                 sessionStorage.savedPipelineDisplayValues = JSON.stringify({});
                             }
@@ -87,8 +85,9 @@ function pipelineUtils() {
                                 cErrorDiv.hide().html('');
                             }
 
+                            // Get the display arguments in either YAML/JSON format.
                             var displayArguments = data.displayArguments;
-                            // Attempt to parse the YAML contents
+                            // Attempt to parse the contents
                             try {
                                 if (data.useYamlParser) {
                                     displayArguments = jsyaml.safeLoad(data.displayArguments);
@@ -99,7 +98,6 @@ function pipelineUtils() {
                                 console.log(e);
                             }
                             
-
                             if (lastResponse === null || JSON.stringify(data.pipelines) !== JSON.stringify(lastResponse.pipelines)) {
 
                                 for (var z = 0; z < divNames.length; z++) {
@@ -111,6 +109,7 @@ function pipelineUtils() {
                                 }
 
                                 jsplumb.reset();
+                                // Keep track of the jsplumb instance so that we can repaint when necessary
                                 instance = jsplumb;
 
                                 for (var c = 0; c < data.pipelines.length; c++) {
@@ -128,9 +127,6 @@ function pipelineUtils() {
                                         html.push("</a>");
                                     }
                                     html.push("</h1>");
-                                    if (document.getElementById("main-panel") == null) {
-                                        html.push("<h3><br/><br/></h3>");
-                                    }
                                     if (!showAvatars) {
                                         html.push("<div class='pagination'>");
                                         html.push(component.pagingData);
@@ -193,17 +189,23 @@ function pipelineUtils() {
                                         var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
                                         var toggleRowId = "toggle-row-" + jobName + "-" + buildNum;
                                         var togglePipelineId = "toggle-pipeline-" + jobName + "-" + buildNum;
-                                        var shouldToggle = isLatestPipeline || (getToggleState(toggleBuildId, "block", isLatestPipeline) != "none");
+                                        var shouldToggle = (getToggleState(toggleBuildId, "block", isLatestPipeline) != "none");
 
                                         // Initial CSS class to use
                                         var initClass = shouldToggle ? "toggled_build_header" : "untoggled_build_header";
                                         var initPipelineClass = shouldToggle ? "toggled_pipeline" : "untoggled_pipeline";
 
+                                        var toggleFunction = "javascript:toggle('" + toggleBuildId + "','" + toggleRowId + "','" + togglePipelineId + "');";
+
+                                        // if (isFullScreen) {
+                                        //     toggleFunction = "javascript:toggleCompatibleFs('" + jobName + "','" + buildNum + "');";
+                                        // }
+
                                         html.push("<tr id=\"" + toggleRowId + "\" class=\"" + initClass + "\">");    
                                         html.push("<td class=\"build_column\"><p class=\"build_entry circle circle_" + statusString + "\" ");
                                         html.push("style=\"min-height: 26px; min-width: 26px; background-size: 26px 26px;\">&nbsp;</p></td>");
                                         html.push("<td class=\"build_column\"><p class=\"build_entry\">");
-                                        html.push("<a id=\"" + displayBuildId + "\" href=\"javascript:toggle('" + toggleBuildId + "','" + toggleRowId + "','" + togglePipelineId + "');\">");
+                                        html.push("<a id=\"" + displayBuildId + "\" href=\"" + toggleFunction + "\">");
                                         html.push("#" + buildNum + " " + jobName + "</a></p></td>");
                                         html.push("<td class=\"build_column\"><p class=\"build_entry\">" + pipelineDuration + "</p></td>");
                                         html.push("<td class=\"build_column\"><p class=\"build_entry\">" + pipelineTimestamp + "</p></td>");
@@ -234,10 +236,16 @@ function pipelineUtils() {
                                                 var displayTableId = "display-table-" + jobName + "-" + buildNum;
                                                 var artifactId = "artifacts-" + jobName + "-" + buildNum;
 
+                                                var toggleTableFunction = "javascript:toggleTable('" + toggleTableId + "');";
+
+                                                if (isFullScreen) {
+                                                    toggleTableFunction = "javascript:toggleTableCompatibleFS('" + toggleTableId + "');";
+                                                }
+
                                                 html.push("<h3><br/></h3>");
                                                 html.push("<table class=\"displayTable\">");
                                                 html.push("<thead><tr><th colspan=\"2\" style=\"text-align: left;\" class=\"displayTableLink\">");
-                                                html.push("<a id=\"" + displayTableId + "\" href=\"javascript:toggleTable('" + toggleTableId + "');\">Show Additional Display Values</a>");
+                                                html.push("<a id=\"" + displayTableId + "\" href=\"" + toggleTableFunction + "\">Show Additional Display Values</a>");
                                                 html.push("</th></tr></thead>");
                                                 html.push("<tbody id=\"" + toggleTableId + "\" style=\"display: " + getToggleState(toggleTableId, "table-row-group", true) + ";\">");
                                                 if (data.showArtifacts) {
@@ -255,9 +263,6 @@ function pipelineUtils() {
 
                                             html.push('<h3><br/></h3>');
                                         }
-
-                                        // Jenkins default view has a "main-panel" whereas full screen mode does not
-                                        var isFullScreen = (document.getElementById("main-panel") == null);
 
                                         // 15px padding around main-panel
                                         // 10px padding around pipeline-main
@@ -483,6 +488,7 @@ function pipelineUtils() {
                                     Q("#pipeline-message-" + pipelineid).html('');
                                 }
 
+                                // Mark the stages that failed on a blocking call
                                 for (var i = 0; i < component.pipelines.length; i++) {
                                     pipeline = component.pipelines[i];
                                     var pipelineNum = pipeline.version.substring(1);
@@ -496,8 +502,8 @@ function pipelineUtils() {
 
                                 var pipelineStageIdMap = {};
                                 
+                                // Create a pipeline - stage id mapping
                                 for (var i = 0; i < component.pipelines.length; i++) {
-
                                     pipeline = component.pipelines[i];
                                     var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
                                     var buildNum = pipeline.version.substring(1);
@@ -533,6 +539,7 @@ function pipelineUtils() {
                                     // connector = ["Flowchart", { stub: 25, gap: 2, midpoint: 1, alwaysRespectStubs: true } ];
                                 }
 
+                                // use jsPlumb to draw the connections between stages
                                 Q.each(data.pipelines, function (i, component) {
                                     Q.each(component.pipelines, function (j, pipeline) {
                                         index = j;
@@ -597,7 +604,7 @@ function pipelineUtils() {
                                                         overlays: [
                                                             [ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12 }]
                                                         ],
-                                                        connector: ["Flowchart", { stub: stub, gap: 0, midpoint: 0, alwaysRespectStubs: true, cornerRadius: 25 } ],
+                                                        connector: ["Flowchart", { stub: stub, gap: 0, midpoint: 0, alwaysRespectStubs: true, cornerRadius: 20 } ],
                                                         paintStyle: { stroke: color, strokeWidth: 3, dashstyle: dashstyle },
                                                         hoverPaintStyle: { strokeWidth: 6 },
                                                         endpoint: "Blank"
@@ -621,6 +628,7 @@ function pipelineUtils() {
                                 var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
                                 // Hide all connectors in untoggled rows
                                 for (var a = 0; a < data.pipelines.length; a++) {
+                                    var component = data.pipelines[a];
                                     var isLatestPipeline = true;
 
                                     for (var i = 0; i < component.pipelines.length; i++) {
@@ -1534,6 +1542,9 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
     }
 }
 
+/**
+ * Grep regexp method.
+ */
 function grepRegexp(grepPattern, grepFlag, data) {
     var expression = grepPattern;
 
@@ -1551,6 +1562,9 @@ function grepRegexp(grepPattern, grepFlag, data) {
     return results.join("\n");
 }
 
+/**
+ * Load the stages that failed on a blocking call.
+ */
 function loadFailedOnBlockStages(pipeline, i) {
     var pipelineNum = pipeline.version.substring(1);
     var blockedOnFailedMap = JSON.parse(sessionStorage.blockedOnFailedMap);
@@ -1573,6 +1587,9 @@ function loadFailedOnBlockStages(pipeline, i) {
     }
 }
 
+/**
+ * Mark the stages that failed on a blocking call.
+ */
 function updateFailedOnBlockStages(pipeline, i) {
     var blockedOnFailedMap = JSON.parse(sessionStorage.blockedOnFailedMap);
     var pipelineNum = pipeline.version.substring(1);
@@ -1610,16 +1627,47 @@ function updateFailedOnBlockStages(pipeline, i) {
     }
 }
 
-// Get the session state for build toggles
+/**
+ * Check if any row has been toggled. If no row is toggled, we'll toggle the first row.
+ * Could differ from a user's expectation, but in most cases users will only be interested
+ * in the latest run of the pipeline anyway.
+ */
+function checkIfAnyRowToggled(toggleStates) {
+    if (JSON.stringify(toggleStates) != JSON.stringify({})) {
+        for (var key in toggleStates) {
+            // Since all the toggle states are saved together, and the display table values
+            // are saved as "table-row-group" when toggled, we only need to check for "block" state
+            // Not a very elegant solution but the toggle states can be split under two different keys
+            if (toggleStates[key] == "block") {
+                return true;
+            }
+        }
+        return false;
+    } else {
+        return false;
+    }
+}
+
+/**
+ * Get the session state for any build toggles.
+ */
 function getToggleState(toggleId, toggleType, defaultToggleOn) {
     var toggleStates = JSON.parse(sessionStorage.toggleStates);
 
     if (toggleType == "block") {
-        if (toggleStates.hasOwnProperty(toggleId)) {
-            return toggleStates[toggleId];
+        if (defaultToggleOn) {
+            // If another row other than the first row is already toggled,
+            // do not toggle the first row by default
+            if (checkIfAnyRowToggled(toggleStates)) {
+                if (toggleStates.hasOwnProperty(toggleId)) {
+                    return toggleStates[toggleId];
+                }
+                return "none";
+            }
+            return "block";
         } else {
-            if (defaultToggleOn) {
-                return "block";
+            if (toggleStates.hasOwnProperty(toggleId)) {
+                return toggleStates[toggleId];
             }
         }
     }
@@ -1669,6 +1717,9 @@ function toggle(toggleBuildId, toggleRowId, togglePipelineId) {
         }
     }
 
+    window.scrollTo(0, 0);
+    instance.revalidate();
+
     // Recalculate offsets for every stage
     for (var pipeline in pipelineStageIdMap) {
         for (var stage in pipelineStageIdMap[pipeline]) {
@@ -1678,6 +1729,7 @@ function toggle(toggleBuildId, toggleRowId, togglePipelineId) {
 
     sessionStorage.toggleStates = JSON.stringify(toggleStates);
     redrawConnections();
+    window.scrollTo(0, sessionStorage.getItem("page_y"));
 }
 
 // For showing and hiding the display values table
@@ -1697,6 +1749,133 @@ function toggleTable(toggleTableId) {
     redrawConnections();
 }
 
+/**
+ * Toggle method for Full Screen. Used to toggle build rows.
+ * The toggle() method works fine in both normal view and fullscreen.
+ * However, we'll leave this method in case of any new visual bugs.
+ */
+function toggleCompatibleFs(jobName, buildNum) {
+    var toggleStates = JSON.parse(sessionStorage.toggleStates);
+    var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
+
+    var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
+
+    if (toggleStates.hasOwnProperty(toggleBuildId)) {
+        if (toggleStates[toggleBuildId] == "none") {
+            toggleStates[toggleBuildId] = "block";
+        } else {
+            toggleStates[toggleBuildId] = "none";
+        }
+    } else {
+        toggleStates[toggleBuildId] = "block";
+    }
+
+    for (var buildId in toggleStates) {
+        if (toggleStates.hasOwnProperty(buildId)) {
+            var rowId = "toggle-row-" + buildId.split("toggle-build-")[1];
+            var pipelineId = "toggle-pipeline-" + buildId.split("toggle-build-")[1];
+            
+            var ele = document.getElementById(buildId);
+            var rowEle = document.getElementById(rowId);
+            var pipelineEle = document.getElementById(pipelineId);
+
+            console.info("Hiding: " + buildId);
+
+            ele.style.display = "none";
+            rowEle.className = "untoggled_build_header";
+            pipelineEle.className = "untoggled_pipeline";
+
+            var stageIds = pipelineStageIdMap[buildId];
+            // Hide all the connectors
+            for (var key in stageIds) {
+                instance.hide(key);
+            }  
+        }
+    }
+
+    var sorted = [];
+    for (var buildId in toggleStates) {
+        sorted.push(buildId);
+    }
+
+    sorted.sort(function(a, b) {
+        var buildNumA = parseInt(a.split("-").slice(-1)[0]);
+        var buildNumB = parseInt(b.split("-").slice(-1)[0]);
+        return buildNumA - buildNumB;
+    });
+
+    var orderedString = sorted.join(",");
+
+    while(orderedString != "") {
+        var buildId = orderedString.split(",")[0];
+
+         if (toggleStates.hasOwnProperty(buildId) && toggleStates[buildId] == "block") {
+            var rowId = "toggle-row-" + buildId.split("toggle-build-")[1];
+            var pipelineId = "toggle-pipeline-" + buildId.split("toggle-build-")[1];
+            
+            var ele = document.getElementById(buildId);
+            var rowEle = document.getElementById(rowId);
+            var pipelineEle = document.getElementById(pipelineId);
+
+            ele.style.display = "block";
+            rowEle.className = "toggled_build_header";
+            pipelineEle.className = "toggled_pipeline";
+
+            var stageIds = pipelineStageIdMap[buildId];
+            // Show all the connectors
+            for (var key in stageIds) {
+                instance.show(key);
+            }  
+        }
+
+        orderedString = orderedString.split(",").slice(1).join(",");
+    }
+
+    window.scrollTo(0, 0);
+
+    instance.revalidate();
+
+    // Recalculate offsets for every stage
+    for (var pipeline in pipelineStageIdMap) {
+        for (var stage in pipelineStageIdMap[pipeline]) {
+            instance.recalculateOffsets(stage);
+        }
+    }
+
+    sessionStorage.toggleStates = JSON.stringify(toggleStates);
+    instance.repaintEverything();
+
+    window.scrollTo(0, sessionStorage.getItem("page_y"));
+}
+
+/**
+ * Toggle method for Full Screen. Used to toggle the display values table.
+ */
+function toggleTableCompatibleFS(toggleTableId) {
+    var currentPageY = sessionStorage.getItem("page_y");
+    var toggleStates = JSON.parse(sessionStorage.toggleStates);
+    var ele = document.getElementById(toggleTableId);
+
+    if (ele.style.display == "table-row-group") {
+        ele.style.display = "none";
+        toggleStates[toggleTableId] = "none";
+    } else {
+        ele.style.display = "table-row-group";
+        toggleStates[toggleTableId] = "table-row-group";
+    }
+
+    window.scrollTo(0, 0);
+
+    instance.revalidate();
+
+    sessionStorage.toggleStates = JSON.stringify(toggleStates);
+    redrawConnections();
+    window.scrollTo(0, currentPageY);
+}
+
+/**
+ * Store the current page's Y position.
+ */
 function storePagePosition() {
   var page_y = window.pageYOffset;
   sessionStorage.setItem("page_y", page_y);

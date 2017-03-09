@@ -156,7 +156,7 @@ div.pipeline-row {
 
 div.pipeline-cell {
     display: table-cell;
-    padding-bottom: 20px;
+    padding-bottom: 5px;
 }
 
 div.stage {
@@ -213,7 +213,7 @@ div.taskname-minimalist {
     vertical-align: middle;
     white-space: normal;
     word-wrap: break-word;
-    /*width: 120px;*/
+    /*word-break: break-all;*/
     width: 100%;
     color: rgba(200,200,200,1);
 }
