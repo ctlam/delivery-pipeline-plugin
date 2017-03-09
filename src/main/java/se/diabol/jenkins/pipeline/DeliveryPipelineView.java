@@ -83,9 +83,9 @@ public class DeliveryPipelineView extends View {
 
     private static final Logger LOG = Logger.getLogger(DeliveryPipelineView.class.getName());
 
-    private static final int DEFAULT_INTERVAL = 2;
+    private static final int DEFAULT_INTERVAL = 60;
 
-    private static final int DEFAULT_NO_OF_PIPELINES = 3;
+    private static final int DEFAULT_NO_OF_PIPELINES = 5;
     private static final int MAX_NO_OF_PIPELINES = 50;
 
     private static final String OLD_NONE_SORTER = "se.diabol.jenkins.pipeline.sort.NoOpComparator";
@@ -112,17 +112,18 @@ public class DeliveryPipelineView extends View {
     private boolean showTestResults = false;
     private boolean showStaticAnalysisResults = false;
     private boolean linkRelative = false;
-    private boolean pagingEnabled = false;
+    private boolean pagingEnabled = true;
     private boolean showAggregatedChanges = false;
     private String aggregatedChangesGroupingPattern = null;
     private String theme = DEFAULT_THEME;
     private int maxNumberOfVisiblePipelines = -1;
     private List<RegExpSpec> regexpFirstJobs;
-    private boolean linkToConsoleLog = false;
+    private boolean linkToConsoleLog = true;
 
     private String viewMode = ViewMode.MINIMALIST;
     private boolean useFullLocaleTimeStrings = true;
     private boolean showArtifacts = true;
+    private boolean useYamlParser = true;
     private String displayArguments = "";
     private String displayArgumentProject = "";
 
@@ -465,6 +466,15 @@ public class DeliveryPipelineView extends View {
     }
 
     @Exported
+    public boolean isUseYamlParser() {
+        return useYamlParser;
+    }
+
+    public void setUseYamlParser(boolean useYamlParser) {
+        this.useYamlParser = useYamlParser;
+    }
+
+    @Exported
     public String getDisplayArguments() {
         return displayArguments;
     }
@@ -669,8 +679,8 @@ public class DeliveryPipelineView extends View {
         public ListBoxModel doFillNoOfColumnsItems(@AncestorInPath ItemGroup<?> context) {
             ListBoxModel options = new ListBoxModel();
             options.add("1", "1");
-            options.add("2", "2");
-            options.add("3", "3");
+            // options.add("2", "2");
+            // options.add("3", "3");
             return options;
         }
 
@@ -710,7 +720,7 @@ public class DeliveryPipelineView extends View {
         public ListBoxModel doFillViewModeItems() {
             ListBoxModel options = new ListBoxModel();
             options.add(ViewMode.MINIMALIST);
-            options.add(ViewMode.DETAILED);
+            // options.add(ViewMode.DETAILED);
             return options;
         }
 

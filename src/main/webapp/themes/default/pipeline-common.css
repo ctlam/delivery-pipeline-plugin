@@ -1,139 +1,86 @@
+.circle {
+    float: left;
+    margin: 0px 0px 0px 3px;
+    padding: 0px;
+}
+
+.circle_SUCCESS {
+    background: url("successCircle.png") no-repeat;
+}
+
+.circle_FAILED {
+    background: url("failedCircle.png") no-repeat;
+}
+
+.circle_CANCELLED {
+    background: url("cancelledCircle.png") no-repeat;
+}
+
+.circle_NOT_BUILT {
+    background: url("notBuiltCircle.png") no-repeat;
+}
+
+.circle_IDLE {
+    background: url("notBuiltCircle.png") no-repeat;
+}
+
+.circle_RUNNING {
+    background: url("runningCircle.gif") no-repeat;
+    background-color: transparent;
+}
+
+.circle_QUEUED {
+    background: url("queuedCircle.png") no-repeat;
+}
+
+.circle_UNSTABLE {
+    background: url("unstableCircle.png") no-repeat;
+}
+
+.circle_DISABLED {
+    background: url("disabledCircle.png") no-repeat;
+}
+
+.circle_FAILED_ON_BLOCK {
+    background: url("failedOnBlockCircle.png") no-repeat;
+}
+
+.pipelineHeader {
+    display: block;
+    background-color: #4A90E2;
+    color: white;
+    text-align: left;
+}
+
 div.hide {
     visibility: hidden;
 }
 
-.build_header {
-    background: white;
-    color: black;
-    display: block;
-    padding: 8px;
-    font-size: 16px;
-    border-style: solid;
-    border-width: 1px;
-    border-color: #EEEEEE;
-}
-
-.build_SUCCESS {
-    padding: 8px 8px 8px 40px;
-    vertical-align: top;
-    background: url("success.png") no-repeat;
-}
-
-.build_FAILED {
-    padding: 8px 8px 8px 40px;
-    vertical-align: top;
-    background: url("failed.png") no-repeat;
-}
-
-.build_CANCELLED {
-    padding: 8px 8px 8px 40px;
-    vertical-align: top;
-    background: url("cancelled.png") no-repeat;
-}
-
-.build_NOT_BUILT  {
-    padding: 8px 8px 8px 40px;
-    vertical-align: top;
-    background: url("not_built.png") no-repeat;
-}
-
-.build_IDLE  {
-    padding: 8px 8px 8px 40px;
-    vertical-align: top;
-    background: url("not_built.png") no-repeat;
-}
-
-.circle_SUCCESS {
-    float: left;
-    left: 37.5%;
-    background: url("successCircle.png") no-repeat;
-    height: 26px;
-    width: 26px;
-}
-
-.circle_FAILED {
-    float: left;
-    left: 37.5%;
-    background: url("failedCircle.png") no-repeat;
-    height: 26px;
-    width: 26px;
-}
-
-.circle_CANCELLED {
-    float: left;
-    left: 37.5%;
-    background: url("cancelledCircle.png") no-repeat;
-    height: 26px;
-    width: 26px;
-}
-
-.circle_NOT_BUILT {
-    float: left;
-    left: 37.5%;
-    background: url("notBuiltCircle.png") no-repeat;
-    height: 26px;
-    width: 26px;
-}
-
-.circle_IDLE {
-    float: left;
-    left: 37.5%;
-    background: url("notBuiltCircle.png") no-repeat;
-    height: 26px;
-    width: 26px;
-}
-
-.circle_RUNNING {
-    float: left;
-    left: 37.5%;
-    background: url("runningCircle.gif") no-repeat;
-    height: 26px;
-    width: 26px;
-}
-
-.circle_QUEUED {
-    float: left;
-    left: 37.5%;
-    background: url("runningCircle.gif") no-repeat;
-    height: 26px;
-    width: 26px;
-}
-
-.circle_UNSTABLE {
-    float: left;
-    left: 37.5%;
-    background: url("runningCircle.gif") no-repeat;
-    height: 26px;
-    width: 26px;
-}
-
-.circle_DISABLED {
-    float: left;
-    left: 37.5%;
-    background: url("runningCircle.gif") no-repeat;
-    height: 26px;
-    width: 26px;
+div.pipeline-main {
+    background-color: rgba(37,44,49,1);
 }
 
 div.pipeline-loading-icon {
     content: url("white-load.gif");
     display: block;
     margin-left: auto;
-    margin-right: auto
+    margin-right: auto;
 }
 
 section.pipeline-component h1 {
     font-size: 20px;
     font-weight: bold;
     font-stretch: expanded;
-    margin-top: 0;
+    margin: 0;
+    padding: 5px;
 }
 
 section.pipeline-component h2 {
     font-size: 16px;
     font-weight: bold;
     font-stretch: expanded;
-    margin-top: 0;
+    margin: 0;
+    padding: 0;
 }
 
 section.pipeline-component h3 {
@@ -141,11 +88,14 @@ section.pipeline-component h3 {
     font-weight: normal;
     font-stretch: expanded;
     margin: 0;
+    padding: 0;
 }
 
 section.pipeline {
     display: table;
     border-collapse: separate;
+    width: 100%;
+    overflow: auto;
 }
 
 div.changes {
@@ -206,7 +156,7 @@ div.pipeline-row {
 
 div.pipeline-cell {
     display: table-cell;
-    padding-bottom: 30px;
+    padding-bottom: 5px;
 }
 
 div.stage {
@@ -231,8 +181,8 @@ div.stage-task {
 }
 /* ------------------------------- */
 div.stage-minimalist {
-    margin-right: 40px;
-    width: 120px;
+    margin-right: 10px;
+    /*width: 120px;*/
     border: none;
 }
 
@@ -263,7 +213,9 @@ div.taskname-minimalist {
     vertical-align: middle;
     white-space: normal;
     word-wrap: break-word;
-    width: 120px;
+    /*word-break: break-all;*/
+    width: 100%;
+    color: rgba(200,200,200,1);
 }
 
 div.minimalist-task-progress {
@@ -272,7 +224,7 @@ div.minimalist-task-progress {
 
 div.stage-minimalist-header {
     background-color: transparent;
-    font-size: 13px;
+    /*font-size: 13px;*/
     font-weight: normal;;
     display: table;
     width: 100%;
@@ -280,7 +232,7 @@ div.stage-minimalist-header {
     text-align: center;
 }
 
-div.task-content {
+div.task-content-minimalist {
     padding: 0;
     width: 100%;
 }
@@ -561,6 +513,7 @@ div.aggregatedChangesPanelInner > ul {
 	font-weight:normal;
 	margin-bottom:8px;
 	margin-left:10px;
+    margin-top:10px;
 }
 
 .pagination a, .pagination a:visited{
@@ -603,24 +556,147 @@ div.aggregatedChangesPanelInner > ul {
 	cursor:default;
 }
 
+/**
+ * Main table entry
+ */
+
+.build_table {
+    width: 100%;
+    text-align: left;
+    vertical-align: middle;
+    border-collapse: collapse;
+    color: rgba(220,220,220,1);
+}
+
+.build_header {
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+    color: inherit;
+}
+
+.build_column {
+    border-top: 1px solid #ddd;
+    text-align:left;
+    color: inherit;
+}
+
+.build_entry {
+    vertical-align: middle;
+    height: 26px;
+    padding: 0px;
+    margin-top: 15px;
+    margin-bottom: 15px;
+    color: inherit;
+}
+
+.toggled_build_header {
+    background-color: rgba(80,88,92,1);
+    border: 1px solid #ddd
+}
+
+.untoggled_build_header {
+    background-color: transparent;
+    border: none;
+}
+
+.toggled_pipeline {
+    border: 1px solid #ddd;
+    background-color: rgba(31,35,41,1);
+}
+
+.untoggled_pipeline {
+    background-color: transparent;
+    border: none;
+}
+
+/**
+ * Use these classes to prevent borders from showing on default Jenkin tables
+ */
+.displayTable {
+    margin: 15px;
+    text-align:left;
+    border-collapse: collapse;
+    color: rgba(200,200,200,1);
+}
+
+.displayTableLink {
+    color: rgba(220,220,220,1);
+}
+
+.displayTableTr {
+    color: inherit;
+}
+
+.displayTableTr:nth-child(odd) {
+    background-color: rgba(45,51,55,1);
+}
+
+.displayTableTh {
+    border-bottom: 1px solid rgba(61,69,75,1);
+    padding-right: 50px;
+    margin-top: 3px;
+    margin-bottom: 3px;
+    margin-left: 3px;
+    color: inherit;
+}
+
+.displayTableTd {
+    border-bottom: 1px solid rgba(61,69,75,1);
+    font-weight: normal;
+    padding-right: 50px;
+    margin-top: 3px;
+    margin-bottom: 3px;
+    margin-left: 3px;
+    color: inherit;
+}
+
+.hoverTableEntry {
+    text-align: left;
+    color: black;
+    margin-right: 10px;
+}
+
 a span {
     display: none;
     position: absolute;
-    color: #fff;
-    background-color: green;
-    padding: 5px;
-    font-size: 14px;
+    background-color: #ddd;
+    border: 1px solid black;
+    font-size: 13px;
     font-weight: normal;
     min-height: 50px;
     min-width: 100px;
-    z-index: 1;
+    top: 100%;
+    z-index: 5;
 }
 
 a {
     position: relative;
+    color: inherit !important;
 }
 
 a:hover span {
     display: block;
     text-align: left;
+    color: black;
+}
+
+.label {
+    border: 1px solid #ddd;
+    padding: 2px;
+    font-size: 12px;
+    background-color: #ddd;
+    color: black;
+    z-index: 4;
+}
+
+._jsPlumb_connector {
+    z-index: 1;
+}
+
+._jsPlumb_endpoint {
+    z-index: 2;
+}
+
+._jsPlumb_overlay {
+    z-index: 3;
 }

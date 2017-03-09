@@ -1,4 +1,6 @@
 var instance;
+// Jenkins default view has a "main-panel" whereas full screen mode does not
+var isFullScreen = (document.getElementById("main-panel") == null);
 
 function pipelineUtils() {
      var self = this;
@@ -38,16 +40,61 @@ function pipelineUtils() {
                                contributors,
                                tasks = [];
 
-                            // Need this for manifest - CL tracking
-                            var clManifestMap = {};
+                            window.addEventListener("scroll", storePagePosition);
+                            var currentPageY;
+                            try {
+                                currentPageY = sessionStorage.getItem("page_y");
+                                if (currentPageY === undefined) {
+                                    sessionStorage.page_y = 0;
+                                }
+                            } catch (e) {
+                                console.info(e);
+                            }
 
+                            var clManifestMap = {};     // Manifest - CL mapping
+                            var blockingMap = {};       // Blocking project mapping
+                            var conditionalMap = {};    // Conditional project mapping
+                            var downstreamMap = {};     // Downstream project mapping
+                            var projectNameIdMap = {};  // Project Name - Project Id mapping
+
+                            // Initialize sessionStorage variables if not previously set
                             if (sessionStorage.savedPipelineDisplayValues == null) {
                                 sessionStorage.savedPipelineDisplayValues = JSON.stringify({});
                             }
                             var savedPipelineDisplayValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
 
+                            if (sessionStorage.savedPipelineArtifacts == null) {
+                                sessionStorage.savedPipelineArtifacts = JSON.stringify({});
+                            }
+
+                            if (sessionStorage.previousDisplayArgConfig == null) {
+                                sessionStorage.previousDisplayArgConfig = JSON.stringify({});
+                            }
+
                             if (sessionStorage.toggleStates == null) {
                                 sessionStorage.toggleStates = JSON.stringify({});
+                            }
+
+                            if (sessionStorage.blockedOnFailedMap == null) {
+                                sessionStorage.blockedOnFailedMap = JSON.stringify({});
+                            }
+
+                            // Clear the sessionStorage of values we set if and only if we are loading a different view page
+                            // This could break if someone loads a view with the same initial job.
+                            var lastViewedJob;
+                            try {
+                                lastViewedJob = sessionStorage.getItem("lastViewedJob");
+                                var currentJob = data.pipelines[0].name;
+
+                                if (lastViewedJob !== undefined && (currentJob != lastViewedJob)) {
+                                    sessionStorage.savedPipelineDisplayValues = JSON.stringify({});
+                                    sessionStorage.savedPipelineArtifacts = JSON.stringify({});
+                                    sessionStorage.toggleStates = JSON.stringify({});
+                                    sessionStorage.blockedOnFailedMap = JSON.stringify({});
+                                }
+                                sessionStorage.lastViewedJob = currentJob;
+                            } catch (e) {
+                                console.info(e);
                             }
 
                             if (data.error) {
@@ -56,6 +103,25 @@ function pipelineUtils() {
                                 cErrorDiv.hide().html('');
                             }
 
+                            // Get the display arguments in either YAML/JSON format.
+                            var displayArguments = data.displayArguments;
+                            // Attempt to parse the contents
+                            try {
+                                if (displayArguments != "") {
+                                    if (data.useYamlParser) {
+                                        displayArguments = jsyaml.safeLoad(data.displayArguments);
+                                    } else {
+                                        displayArguments = JSON.parse(data.displayArguments);
+                                    }
+                                }
+
+                                if (displayArguments == null) {
+                                    displayArguments = "";
+                                }
+                            } catch (e) {
+                                console.log(e);
+                            }
+                            
                             if (lastResponse === null || JSON.stringify(data.pipelines) !== JSON.stringify(lastResponse.pipelines)) {
 
                                 for (var z = 0; z < divNames.length; z++) {
@@ -67,13 +133,14 @@ function pipelineUtils() {
                                 }
 
                                 jsplumb.reset();
+                                // Keep track of the jsplumb instance so that we can repaint when necessary
                                 instance = jsplumb;
 
                                 for (var c = 0; c < data.pipelines.length; c++) {
                                     html = [];
                                     component = data.pipelines[c];
                                     html.push("<section class='pipeline-component'>");
-                                    html.push("<h1>" + htmlEncode(component.name));
+                                    html.push("<h1 class=\"pipelineHeader\">" + component.name);
                                     if (data.allowPipelineStart) {
                                         if (component.firstJobParameterized) {
                                             html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" onclick="triggerParameterizedBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
@@ -93,6 +160,15 @@ function pipelineUtils() {
                                         html.push("No builds done yet.");
                                     }
 
+                                    html.push("<table class=\"build_table\">");
+                                    html.push("<tr>");
+                                    html.push("<th class=\"build_header\" style=\"width:5%;\">Status</th>");
+                                    html.push("<th class=\"build_header\" style=\"width:45%;\">Build Number</th>");
+                                    html.push("<th class=\"build_header\" style=\"width:10%;\">Duration</th>");
+                                    html.push("<th class=\"build_header\" style=\"width:20%;\">Date</th>");
+                                    html.push("<th class=\"build_header\" style=\"width:15%;\">Started by</th>");
+                                    html.push("</tr>");
+
                                     var isLatestPipeline = true;
 
                                     for (var i = 0; i < component.pipelines.length; i++) {
@@ -102,16 +178,12 @@ function pipelineUtils() {
                                         var buildNum = pipeline.version.substring(1);
                                         var statusString = pipeline.stages[0].tasks[0].status.type;
 
-                                        var dataString = jobName + " " + pipeline.version;
-                                        var displayBuildId = "display-build-" + jobName + "-" + buildNum;
-                                        var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
-
-                                        html.push('<br><a id="' + displayBuildId + '" class="build_header build_' + statusString + '" href="javascript:toggle(\'' + toggleBuildId + '\');">' + dataString + " " + statusString + '</a> ');
-                                        html.push('<div id="' + toggleBuildId + '" style="display:' + getToggleState(toggleBuildId, "block", isLatestPipeline) +'">');
-
-                                        // Only expand the latest pipeline
-                                        if (isLatestPipeline) {
-                                            isLatestPipeline = false;
+                                        var pipelineTimestamp = formatLongDate(pipeline.timestamp);
+                                        var pipelineDuration = formatLongDuration(pipeline.stages[0].tasks[0].status.duration);
+                                            
+                                        if (!data.useFullLocaleTimeStrings) {
+                                            pipelineTimestamp = formatDate(pipeline.timestamp);
+                                            pipelineDuration = formatDuration(pipeline.stages[0].tasks[0].status.duration);
                                         }
 
                                         if (pipeline.triggeredBy && pipeline.triggeredBy.length > 0) {
@@ -136,30 +208,45 @@ function pipelineUtils() {
                                             triggered = triggered + " changes by " + contributors.join(", ");
                                         }
 
+                                        var dataString = jobName + " " + pipeline.version;
+                                        var displayBuildId = "display-build-" + jobName + "-" + buildNum;
+                                        var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
+                                        var toggleRowId = "toggle-row-" + jobName + "-" + buildNum;
+                                        var togglePipelineId = "toggle-pipeline-" + jobName + "-" + buildNum;
+                                        var shouldToggle = (getToggleState(toggleBuildId, "block", isLatestPipeline) != "none");
+
+                                        // Initial CSS class to use
+                                        var initClass = shouldToggle ? "toggled_build_header" : "untoggled_build_header";
+                                        var initPipelineClass = shouldToggle ? "toggled_pipeline" : "untoggled_pipeline";
+
+                                        var toggleFunction = "javascript:toggle('" + toggleBuildId + "','" + toggleRowId + "','" + togglePipelineId + "');";
+
+                                        // if (isFullScreen) {
+                                        //     toggleFunction = "javascript:toggleCompatibleFs('" + jobName + "','" + buildNum + "');";
+                                        // }
+
+                                        html.push("<tr id=\"" + toggleRowId + "\" class=\"" + initClass + "\">");    
+                                        html.push("<td class=\"build_column\"><p class=\"build_entry circle circle_" + statusString + "\" ");
+                                        html.push("style=\"min-height: 26px; min-width: 26px; background-size: 26px 26px;\">&nbsp;</p></td>");
+                                        html.push("<td class=\"build_column\"><p class=\"build_entry\">");
+                                        html.push("<a id=\"" + displayBuildId + "\" href=\"" + toggleFunction + "\">");
+                                        html.push("#" + buildNum + " " + jobName + "</a></p></td>");
+                                        html.push("<td class=\"build_column\"><p class=\"build_entry\">" + pipelineDuration + "</p></td>");
+                                        html.push("<td class=\"build_column\"><p class=\"build_entry\">" + pipelineTimestamp + "</p></td>");
+                                        html.push("<td class=\"build_column\"><p class=\"build_entry\">" + triggered + "</p></td>");
+                                        html.push("</tr><tr><th id=\"" + togglePipelineId + "\" colspan=\"5\" class=\"" + initPipelineClass + "\"><div>");
+                                        html.push("<div id=\"" + toggleBuildId + "\" style=\"display:" + getToggleState(toggleBuildId, "block", isLatestPipeline) + ";\">");
+
+                                        // Only expand the latest pipeline
+                                        if (isLatestPipeline) {
+                                            isLatestPipeline = false;
+                                        }
+
                                         if (pipeline.aggregated) {
                                             if (component.pipelines.length > 1) {
                                                 html.push('<h3>Aggregated view</h3>');
                                             }
-                                        } else {
-                                            var pipelineTimestamp = formatLongDate(pipeline.timestamp);
-                                            var pipelineDuration = formatLongDuration(pipeline.stages[0].tasks[0].status.duration);
-                                            
-                                            if (!data.useFullLocaleTimeStrings) {
-                                                pipelineTimestamp = formatDate(pipeline.timestamp);
-                                                pipelineDuration = formatDuration(pipeline.stages[0].tasks[0].status.duration);
-                                            }
-                                            
-                                            html.push("<table style=\"min-width:500px; text-align:left; padding: 5px; border: 1px solid ddd; border-collapse: collapse;\">");
-                                            html.push("<tr><th style=\"border: 1px solid #ddd;\">Started on: </th><td style=\"border: 1px solid #ddd;\">" + pipelineTimestamp + "</td></tr>");
-                                            html.push("<tr><th style=\"border: 1px solid #ddd;\">Duration (Dd HH:MM:SS): </th><td style=\"border: 1px solid #ddd;\">" + pipelineDuration + "</td></tr>");
-                                            html.push("<tr><th style=\"border: 1px solid #ddd;\">Triggered by: </th><td style=\"border: 1px solid #ddd;\">" + triggered + "</td></tr>");
-
-                                            if (data.showArtifacts) {
-                                                html.push("<tr><th style=\"border: 1px solid #ddd;\">Artifacts: </th><td style=\"border: 1px solid #ddd;\">" + getBuildArtifactLinks(jobName, buildNum) + "</td></tr>");
-                                            }
-                                            
-                                            html.push("</table><h3><br></h3>");
-
+                                        } else {                                            
                                             if (data.showTotalBuildTime) {
                                                 html.push('<h3>Total build time: ' + formatDuration(pipeline.totalBuildTime) + '</h3>');
                                             }
@@ -168,29 +255,124 @@ function pipelineUtils() {
                                                 html.push(generateChangeLog(pipeline.changes));
                                             }
 
-                                            if (data.displayArguments != "") {
+                                            html.push("<section class=\"pipeline\">");
+                                            html.push("<div class=\"pipeline-row\">");
+
+                                            if (displayArguments != "" && displayArguments != null) {
                                                 var toggleTableId = "toggle-table-" + jobName + "-" + buildNum;
                                                 var displayTableId = "display-table-" + jobName + "-" + buildNum;
+                                                var artifactId = "artifacts-" + jobName + "-" + buildNum;
 
-                                                html.push('<h3><a id="' + displayTableId + '" href="javascript:toggleTable(\'' + toggleTableId + '\');">Additional Display Values</a></h3>');
-                                                html.push("<table id=\"" + toggleTableId + "\" style=\"display:" +  getToggleState(toggleTableId, "table", true) + "; min-width:500px; text-align:left; padding: 5px; border: 1px solid ddd; border-collapse: collapse;\">");
-                                                if (JSON.stringify(savedPipelineDisplayValues) == JSON.stringify({})) {
-                                                    html.push(generateDisplayValueTable(data.displayArguments, jobName, buildNum));
-                                                } else {
-                                                    html.push(loadDisplayValues(data.displayArguments, jobName, buildNum, savedPipelineDisplayValues));
+                                                var toggleTableFunction = "javascript:toggleTable('" + toggleTableId + "');";
+
+                                                if (isFullScreen) {
+                                                    toggleTableFunction = "javascript:toggleTableCompatibleFS('" + toggleTableId + "');";
                                                 }
-                                                html.push("</table>");
+
+                                                html.push("<div class=\"pipeline-cell\" style=\"vertical-align: top\">");
+
+                                                html.push("<table class=\"displayTable\" align=\"left\">");
+                                                html.push("<thead><tr><th colspan=\"2\" style=\"text-align: left;\" class=\"displayTableLink\">");
+                                                html.push("<a id=\"" + displayTableId + "\" href=\"" + toggleTableFunction + "\">Show Additional Display Values</a>");
+                                                html.push("</th></tr></thead>");
+                                                html.push("<tbody id=\"" + toggleTableId + "\" style=\"display: " + getToggleState(toggleTableId, "table-row-group", true) + ";\">");
+                                                if (data.showArtifacts) {
+                                                    html.push("<tr class=\"displayTableTr\">");
+                                                    html.push("<th class=\"displayTableTh\">Artifacts </th>");
+                                                    html.push("<td id=\"" + artifactId + "\" class=\"displayTableTd\">" + loadBuildArtifacts(artifactId) + "</td></tr>");
+                                                }
+                                                if (JSON.stringify(savedPipelineDisplayValues) == JSON.stringify({})) {
+                                                    html.push(generateDisplayValueTable(displayArguments, jobName, buildNum));
+                                                } else {
+                                                    html.push(loadDisplayValues(displayArguments, jobName, buildNum, savedPipelineDisplayValues));
+                                                }
+
+                                                html.push("</tbody></table>");
+                                                html.push("</div>");
                                             }
 
-                                            html.push('<h3><br></h3>');
+                                            html.push("<div class=\"pipeline-cell\">");
+
+                                            html.push("<table class=\"displayTable\" align=\"right\"><thead><tr>");
+                                            html.push("<th colspan=\"2\" style=\"text-align: left;\" class=\"displayTableLink\">Legend</th>");
+                                            html.push("</tr></thead>");
+                                            html.push("<tbody style=\"display: table-row-group;\">");
+
+                                            var idSuffix = jobName + "-" + buildNum;
+
+                                            html.push("<tr class=\"displayTableTr\">");
+                                            html.push("<th id=\"nb-" + idSuffix + "\" class=\"displayTableTh\"></th>");
+                                            html.push("<td id=\"nb-" + idSuffix + "-end\" class=\"displayTableTd\" style=\"padding-left: 5px;\">Non-blocking</td></tr>");
+
+                                            html.push("<tr class=\"displayTableTr\">");
+                                            html.push("<th id=\"b-" + idSuffix + "\" class=\"displayTableTh\"></th>");
+                                            html.push("<td id=\"b-" + idSuffix + "-end\" class=\"displayTableTd\" style=\"padding-left: 5px;\">Blocking</td></tr>");
+
+                                            html.push("<tr class=\"displayTableTr\">");
+                                            html.push("<th id=\"nbc-" + idSuffix + "\" class=\"displayTableTh\"></th>");
+                                            html.push("<td id=\"nbc-" + idSuffix + "-end\" class=\"displayTableTd\" style=\"padding-left: 5px;\">Non-blocking Conditional</td></tr>");
+
+                                            html.push("<tr class=\"displayTableTr\">");
+                                            html.push("<th id=\"bc-" + idSuffix + "\" class=\"displayTableTh\"></th>");
+                                            html.push("<td id=\"bc-" + idSuffix + "-end\" class=\"displayTableTd\" style=\"padding-left: 5px;\">Blocking Conditional</td></tr>");
+
+                                            html.push("<tr class=\"displayTableTr\">");
+                                            html.push("<th id=\"d-" + idSuffix + "\" class=\"displayTableTh\"></th>");
+                                            html.push("<td id=\"d-" + idSuffix + "-end\" class=\"displayTableTd\" style=\"padding-left: 5px;\">Downstream</td></tr>");
+
+                                            html.push("</tbody></table>");
+                                            html.push("</div></div></section>");
                                         }
 
-                                        var row = 0, column = 0, stage;
-                                        html.push('<section class="pipeline">');
+                                        // 15px padding around main-panel
+                                        // 10px padding around pipeline-main
+                                        // 1px border left/right around pipeline main
+                                        // 1px border left/right around table
+                                        // There is also some additional padding elsewhere, so assume 100px in padding to ensure enough room
+                                        var maxWidth =  isFullScreen ? window.innerWidth - 100 : document.getElementById("main-panel").offsetWidth - 100;
+                                        var numColumns = 0;
+                                        for (var j = 0; j < pipeline.stages.length; j++) {
+                                            stage = pipeline.stages[j];
+                                            if (stage.column >= numColumns) {
+                                                numColumns = stage.column + 1;
+                                            }
+                                        }
+
+                                        var scaleCondition = (numColumns * 140 > maxWidth);
+
+                                        // Default Values
+                                        var widthPerCell = 130; // 10px for margin-right
+                                        var circleSizePerCell = "26px";
+                                        var leftPercentPerCell = "37.5%";
+                                        var fontSizePerCell = 12;
+
+                                        if (scaleCondition) {
+                                            widthPerCell = Math.floor(maxWidth / numColumns) - 10;
+                                            circleSizePerCell = (maxWidth >= 26) ? "26px" : maxWidth + "px";
+                                            leftPercentPerCell = Math.floor(((widthPerCell - 26) / 2) / widthPerCell * 100) + "%";
+                                            fontSizePerCell = 10; // Set a minimum font-size rather than scaling it down to something unreadable
+                                        }
+
+                                        var row = 0, column = 0, stage;                                   
+                                        html.push("<section class=\"pipeline\">");
                                         html.push('<div class="pipeline-row">');
  
                                         for (var j = 0; j < pipeline.stages.length; j++) {
                                             stage = pipeline.stages[j];
+
+                                            if (stage.blockingJobs != "") {
+                                                blockingMap[getStageId(stage.id + "", i)] = stage.blockingJobs.split(', ');
+                                            }
+
+                                            if (stage.conditionalJobs != "") {
+                                                conditionalMap[getStageId(stage.id + "", i)] = stage.conditionalJobs.split(', ');
+                                            }
+
+                                            if (stage.downstreamJobs != "") {
+                                                downstreamMap[getStageId(stage.id + "", i)] = stage.downstreamJobs.split(', ');
+                                            }
+
+                                            projectNameIdMap[getStageId(stage.id + "", i)] = stage.name;
 
                                             if (stage.row > row) {
                                                 html.push('</div><div class="pipeline-row">');
@@ -201,7 +383,8 @@ function pipelineUtils() {
                                             if (stage.column > column) {
                                                 for (var as = column; as < stage.column; as++) {
                                                     if (data.viewMode == "Minimalist") {
-                                                        html.push('<div class="pipeline-cell"><div class="stage-minimalist hide"></div></div>');
+                                                        html.push("<div class=\"pipeline-cell\">");
+                                                        html.push("<div class=\"stage-minimalist hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
                                                     } else {
                                                         html.push('<div class="pipeline-cell"><div class="stage hide"></div></div>');
                                                     }
@@ -211,12 +394,23 @@ function pipelineUtils() {
 
                                             html.push('<div class="pipeline-cell">');
 
+                                            var link = getLink(data, stage.tasks[0].link);
+                                            var buildStatus = stage.tasks[0].status;
+                                            if (data.linkToConsoleLog) {
+                                                if (buildStatus.success || buildStatus.failed || buildStatus.unstable || buildStatus.cancelled) {
+                                                    link += "console";
+                                                }
+                                            }
+
                                             if (data.viewMode == "Minimalist") {
-                                                html.push('<div class="stage-minimalist ' + getStageClassName(stage.name) + '">');
-                                                html.push('<div class="stage-minimalist-header"><div class="stage-minimalist-name"><a href="' + getLink(data, stage.tasks[0].link) + '">' + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + '</a></div>');
+                                                html.push("<div class=\"stage-minimalist " + getStageClassName(stage.name) + "\" style=\"width: " + widthPerCell + "px;\">");
+                                                html.push("<div class=\"stage-minimalist-header\" style=\"font-size: " + fontSizePerCell + "px;\">");
+                                                html.push("<div class=\"stage-minimalist-name\">");
+                                                html.push("<a href=\"" + link + "\" target=\"_blank\">" + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</a></div>");
                                             } else {
-                                                html.push('<div id="' + getStageId(stage.id + "", i) + '" class="stage ' + getStageClassName(stage.name) + '">');
-                                                html.push('<div class="stage-header"><div class="stage-name build_' + stage.tasks[0].status.type +'">' + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + '</div>');
+                                                html.push("<div id=\"" + getStageId(stage.id + "", i) + "\" class=\"stage " + getStageClassName(stage.name) + "\">");
+                                                html.push("<div class=\"stage-header\">");
+                                                html.push("<div class=\"stage-name build_" + buildStatus.type + "\">" + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</div>");
                                             }
 
                                             if (!pipeline.aggregated) {
@@ -235,13 +429,8 @@ function pipelineUtils() {
                                                 task = stage.tasks[k];
 
                                                 id = getTaskId(task.id, i);
-
-                                                if (data.useFullLocaleTimeStrings) {
-                                                  timestamp = formatLongDate(task.status.timestamp);
-                                                } else {
-                                                  timestamp = formatDate(task.status.timestamp, lastUpdate);
-                                                }
-
+                                                timestamp = data.useFullLocaleTimeStrings ? formatLongDate(task.status.timestamp) : formatDate(task.status.timestamp, lastUpdate);
+                                                
                                                 tasks.push({id: id, taskId: task.id, buildId: task.buildId});
 
                                                 progress = 100;
@@ -252,7 +441,7 @@ function pipelineUtils() {
                                                     progress = task.status.percentage;
                                                     progressClass = "task-progress-running";
                                                 } else if (data.linkToConsoleLog) {
-                                                   if (task.status.success ||
+                                                    if (task.status.success ||
                                                        task.status.failed ||
                                                        task.status.unstable ||
                                                        task.status.cancelled) {
@@ -262,16 +451,32 @@ function pipelineUtils() {
                                                 }
 
                                                 if (data.viewMode == "Minimalist") {
-                                                    var hoverString = "Timestamp: " + timestamp + "<br>Duration: " + formatLongDuration(task.status.duration);
-                                                    // TODO: Re-add console link
-                                                    html.push("<div id=\"" + id + "\" class=\"status stage-minimalist-task " +
-                                                        "\"><div class=\"task-content-minimalist\">" +
-                                                        "<div class=\"task-header\"><div class=\"taskname-minimalist\"><a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle_" + task.status.type + "\"><br><span class=\"tooltip\">" + hoverString + "</span></a></div>");
-                                                    html.push("</div></div></div>");
+                                                    var toolTipStyle = Math.round(column / numColumns) < 0.5 ? "left: 0%;" : "right: 0%;"
+                                                    var hoverTable = "<table><tr>";
+                                                    hoverTable += "<th class=\"hoverTableEntry\">Status:</th>";
+                                                    hoverTable += "<td class=\"hoverTableEntry\">" + task.status.type + "</td></tr><tr>"
+                                                    hoverTable += "<th class=\"hoverTableEntry\">Timestamp:</th>";
+                                                    hoverTable += "<td class=\"hoverTableEntry\">" + timestamp + "</td></tr><tr>";
+                                                    hoverTable += "<th class=\"hoverTableEntry\">Duration:</th>";
+                                                    hoverTable += "<td class=\"hoverTableEntry\">" + formatLongDuration(task.status.duration) + "</td></tr>";
+                                                    hoverTable += "</table>";
+
+                                                    html.push("<div id=\"" + id + "\" class=\"stage-minimalist-task\">");
+                                                    html.push("<div class=\"task-content-minimalist\">");
+                                                    html.push("<div class=\"task-header\">");
+                                                    html.push("<div class=\"taskname-minimalist\">");
+                                                    html.push("<a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle circle_" + task.status.type + "\" ");
+                                                    html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; ");
+                                                    html.push("background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
+                                                    html.push("<br/><span class=\"tooltip\" style=\"" + toolTipStyle + "\">" + hoverTable + "</span></a>");
+                                                    html.push("</div></div></div></div>");
                                                 } else {
-                                                    html.push("<div id=\"" + id + "\" class=\"status stage-task " + // task.status.type +
-                                                        "\"><div class=\"task-progress " + progressClass + "\" style=\"width: " + progress + "%;\"><div class=\"task-content\">" +
-                                                        "<div class=\"task-header\"><div class=\"taskname\"></div>");
+                                                    html.push("<div id=\"" + id + "\" class=\"status stage-task\">");
+                                                    html.push("<div class=\"task-progress " + progressClass + "\" style=\"width: " + progress + "%;\">");
+                                                    html.push("<div class=\"task-content\">");
+                                                    html.push("<div class=\"task-header\">");
+                                                    html.push("<div class=\"taskname\"></div>");
+
                                                     if (data.allowManualTriggers && task.manual && task.manualStep.enabled && task.manualStep.permission) {
                                                         html.push('<div class="task-manual" id="manual-' + id + '" title="Trigger manual build" onclick="triggerManual(\'' + id + '\', \'' + task.id + '\', \'' + task.manualStep.upstreamProject + '\', \'' + task.manualStep.upstreamId + '\', \'' + view.viewUrl + '\');">');
                                                         html.push("</div>");
@@ -316,19 +521,63 @@ function pipelineUtils() {
 
                                         if (!pipeline.aggregated) {
                                             var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                                            getDisplayValues(data.displayArguments, pipeline, jobName, pipeline.version.substring(1));
+                                            var buildNum = pipeline.version.substring(1);
+
+                                            if (data.showArtifacts) {
+                                                var artifactValues = JSON.parse(sessionStorage.savedPipelineArtifacts);
+                                                var artifactId = "artifacts-" + jobName + "-" + buildNum;
+
+                                                if (!artifactValues.hasOwnProperty(artifactId)) {
+                                                    getBuildArtifacts(jobName, buildNum, artifactId);    
+                                                }
+                                            }
+
+                                            getDisplayValues(displayArguments, pipeline, jobName, buildNum);
                                         }
 
                                         html.push('</div>');
                                         html.push("</section>");
 
                                         html.push('</div>');
+                                        html.push('</div></th></tr>')
                                     }
 
+                                    html.push("</table>")
                                     html.push("</section>");
                                     Q("#" + divNames[c % divNames.length]).append(html.join(""));
                                     Q("#pipeline-message-" + pipelineid).html('');
                                 }
+
+                                // Mark the stages that failed on a blocking call
+                                for (var i = 0; i < component.pipelines.length; i++) {
+                                    pipeline = component.pipelines[i];
+                                    var pipelineNum = pipeline.version.substring(1);
+
+                                    if (!JSON.parse(sessionStorage.blockedOnFailedMap).hasOwnProperty(pipeline.stages[0].name + "-" + pipelineNum)) {
+                                        updateFailedOnBlockStages(pipeline, i);    
+                                    } else {
+                                        loadFailedOnBlockStages(pipeline, i);
+                                    }
+                                }
+
+                                var pipelineStageIdMap = {};
+                                
+                                // Create a pipeline - stage id mapping
+                                for (var i = 0; i < component.pipelines.length; i++) {
+                                    pipeline = component.pipelines[i];
+                                    var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                                    var buildNum = pipeline.version.substring(1);
+                                    var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
+                                    var stageIds = {};
+
+                                    for (var j = 0; j < pipeline.stages.length; j++) {
+                                        stage = pipeline.stages[j];
+                                        stageIds[getStageId(stage.id + "", i)] = "true";
+                                    }
+                                    pipelineStageIdMap[toggleBuildId] = stageIds;
+                                }
+
+                                sessionStorage.pipelineStageIdMap = JSON.stringify(pipelineStageIdMap);
 
                                 // Update all the manifest information at the end to minimize number of calls required
                                 if (data.showManifestInfo && (data.manifestJobName != "")) {
@@ -336,39 +585,99 @@ function pipelineUtils() {
                                 }
 
                                 var index = 0, source, target;
-                                var anchors, connector = [];
+                                var sourceOffset = isFullScreen ? 0 : -1;
+                                var targetOffset = isFullScreen ? -1 : -2;
+
+                                var anchors = [[1, 0, 1, 0, 0, 13], [0, 0, -1, 0, 0, 13]];
+                                var downstreamAnchors = [[0.5, 1, 0, 1, sourceOffset, 0], [0, 0, -1, 0, targetOffset, 13]];
+
                                 lastResponse = data;
                                 equalheight(".pipeline-row .stage");
 
+                                if (data.viewMode != "Minimalist") {
+                                    anchors = [[1, 0, 1, 0, 0, 37], [0, 0, -1, 0, 0, 37]];
+                                    // connector = ["Flowchart", { stub: 25, gap: 2, midpoint: 1, alwaysRespectStubs: true } ];
+                                }
+
+                                // use jsPlumb to draw the connections between stages
                                 Q.each(data.pipelines, function (i, component) {
                                     Q.each(component.pipelines, function (j, pipeline) {
                                         index = j;
                                         Q.each(pipeline.stages, function (k, stage) {
                                             if (stage.downstreamStages) {
-
-                                                if (data.viewMode == "Minimalist") {
-                                                    anchors = [[1, 0, 1, 0, 0, 12], [0, 0, -1, 0, 0, 12]];
-                                                    connector = ["Flowchart", { stub: 50, gap: 0, midpoint: 0, alwaysRespectStubs: true } ];
-                                                } else {
-                                                    anchors = [[1, 0, 1, 0, 0, 37], [0, 0, -1, 0, 0, 37]];
-                                                    connector = ["Flowchart", { stub: 25, gap: 2, midpoint: 1, alwaysRespectStubs: true } ];
-                                                }
-
                                                 Q.each(stage.downstreamStageIds, function (l, value) {
                                                     source = getStageId(stage.id + "", index);
                                                     target = getStageId(value + "", index);
-                                                    jsplumb.connect({
+
+                                                    // Blue
+                                                    var color = "rgba(0,122,195,1)";
+                                                    var label = "Non-blocking";
+                                                    var dashstyle = "2 2";
+                                                    var stub = scaleCondition ? 30 : 80;
+
+                                                    var blockedProjects = conditionalProjects = downstreamProjects = [];
+                                                    var targetName;
+                                                    if (blockingMap.hasOwnProperty(source)) {
+                                                        blockedProjects = blockingMap[source];
+                                                    }
+
+                                                    if (conditionalMap.hasOwnProperty(source)) {
+                                                        conditionalProjects = conditionalMap[source];
+                                                    }
+
+                                                    if (downstreamMap.hasOwnProperty(source)) {
+                                                        downstreamProjects = downstreamMap[source];
+                                                    }
+
+                                                    if (projectNameIdMap.hasOwnProperty(target)) {
+                                                        var targetName = projectNameIdMap[target];
+
+                                                        if (blockedProjects.indexOf(targetName) != -1 && conditionalProjects.indexOf(targetName) != -1) {
+                                                            // Orange
+                                                            color = "rgba(255,121,52,1)";
+                                                            label = "Blocking Conditional";
+                                                            dashstyle = "0 0";
+                                                        } else if (blockedProjects.indexOf(targetName) != -1) {
+                                                            // Blue
+                                                            color = "rgba(0,122,195,1)";
+                                                            label = "Blocking";
+                                                            dashstyle = "0 0";
+                                                        } else if (conditionalProjects.indexOf(targetName) != -1) {
+                                                            // Orange
+                                                            color = "rgba(255,121,52,1)";
+                                                            label = "Non-blocking Conditional";
+                                                        }
+
+                                                        if (downstreamProjects.indexOf(targetName) != -1) {
+                                                            // Purple
+                                                            color = "rgba(118,91,161,1)";
+                                                            label = "Downstream";
+                                                            dashstyle = "0 0";
+                                                            stub = 10;
+                                                        }
+                                                    }
+
+                                                    var connection = jsplumb.connect({
                                                         source: source,
                                                         target: target,
-                                                        anchors: anchors, // allow boxes to increase in height but keep anchor lines on the top
+                                                        anchors: (downstreamProjects.indexOf(targetName) != -1) ? downstreamAnchors : anchors, // allow boxes to increase in height but keep anchor lines on the top
                                                         overlays: [
-                                                            //[ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12}]
-                                                            [ "Arrow", { location: 1, foldback: 0.9, width: 1, length: 12}]
+                                                            [ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12 }]
                                                         ],
-                                                        cssClass: "relation",
-                                                        connector: connector,
-                                                        paintStyle: { lineWidth: 2, strokeStyle: "rgba(118,118,118,1)" },
-                                                        endpoint: ["Blank"]
+                                                        connector: ["Flowchart", { stub: stub, gap: 0, midpoint: 0, alwaysRespectStubs: true, cornerRadius: 20 } ],
+                                                        paintStyle: { stroke: color, strokeWidth: 3, dashstyle: dashstyle },
+                                                        hoverPaintStyle: { strokeWidth: 6 },
+                                                        endpoint: "Blank"
+                                                    });
+
+                                                    connection.bind("mouseover", function(conn) {
+                                                        conn.addOverlay([ "Label", { label: label, id: (target + "-label"), location: 0.6, cssClass: "label" }]);
+                                                        conn.addOverlay([ "Arrow", { id: (target + "-arrow"), location: 1, foldback: 0.9, width: 18, length: 18 }]);
+                                                    }); 
+
+                                                    connection.bind("mouseout", function(conn) {
+                                                        conn.removeOverlay((target + "-label"));
+                                                        conn.removeOverlay((target + "-arrow"));
                                                     });
                                                 });
                                             }
@@ -376,6 +685,62 @@ function pipelineUtils() {
                                     });
                                 });
 
+                                var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
+                                // Hide all connectors in untoggled rows
+                                for (var a = 0; a < data.pipelines.length; a++) {
+                                    var component = data.pipelines[a];
+                                    var isLatestPipeline = true;
+
+                                    for (var i = 0; i < component.pipelines.length; i++) {
+                                        pipeline = component.pipelines[i];
+
+                                        var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                                        var buildNum = pipeline.version.substring(1);
+                                        var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
+
+                                        if (getToggleState(toggleBuildId, "block", isLatestPipeline) == "none") {
+                                            var stageIds = pipelineStageIdMap[toggleBuildId];
+
+                                            for (var key in stageIds) {
+                                                jsplumb.hide(key);
+                                            }
+                                        }
+                                        if (isLatestPipeline) {
+                                            isLatestPipeline = false;
+                                        }
+                                    }
+                                }
+
+                                for (var a = 0; a < data.pipelines.length; a++) {
+                                    var component = data.pipelines[a];
+                                    var isLatestPipeline = true;
+
+                                    for (var i = 0; i < component.pipelines.length; i++) {
+                                        pipeline = component.pipelines[i];
+
+                                        var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                                        var buildNum = pipeline.version.substring(1);
+
+                                        var legendMap = {};
+
+                                        legendMap["b-" + jobName + "-" + buildNum] = ["rgba(0,122,195,1)", "0 0"];
+                                        legendMap["nb-" + jobName + "-" + buildNum] = ["rgba(0,122,195,1)", "2 2"];
+                                        legendMap["nbc-" + jobName + "-" + buildNum] = ["rgba(255,121,52,1)", "2 2"];
+                                        legendMap["bc-" + jobName + "-" + buildNum] = ["rgba(255,121,52,1)", "0 0"];
+                                        legendMap["d-" + jobName + "-" + buildNum] = ["rgba(118,91,161,1)", "0 0"];
+
+                                        for (var key in legendMap) {
+                                            jsplumb.connect({
+                                                source: key,
+                                                target: key + "-end",
+                                                anchors: [[0, 0.5, 1, 0, 0, 0], [0, 0.5, -1, 0, 2, 0]],
+                                                connector: ["Flowchart", { stub: 0, gap: 0, midpoint: 0, alwaysRespectStubs: false, cornerRadius: 0 } ],
+                                                paintStyle: { stroke: legendMap[key][0], strokeWidth: 3, dashstyle: legendMap[key][1] },
+                                                endpoint: "Blank"
+                                            });
+                                        }
+                                    }
+                                }
                             } else {
                                 var comp, pipe, head, st, ta, time;
 
@@ -401,7 +766,8 @@ function pipelineUtils() {
                                     }
                                 }
                             }
-                         jsplumb.repaintEverything();
+                            jsplumb.repaintEverything();
+                            window.scrollTo( 0, currentPageY );
                         }
 }
 
@@ -676,14 +1042,14 @@ function formatLongDate(date) {
     dateString = moment(date, "YYYY-MM-DDTHH:mm:ss").toString().split(' ').slice(0, 4).join(' ') + " " + hourString + " " + timeOfDayString + " " + timezoneString;
     return dateString;
   }
-  return "";
+  return "Never started";
 }
 
 function formatCardLongDate(date) {
   if (date != null) {
     return moment(date, "YYYY-MM-DDTHH:mm:ss").toString().split(' ').slice(1, 5).join(' ');
   }
-  return "";
+  return "Never started";
 }
 
 /**
@@ -717,7 +1083,7 @@ function formatLongDuration(ts) {
 
         return days + 'd ' + hours + ':' + minutes + ':' + seconds;
     }
-    return "never started";
+    return "Never started";
 }
 
 function formatDuration(millis) {
@@ -870,83 +1236,94 @@ function equalheight(container) {
 }
 
 /**
+ * Load all artifacts for a build.
+ */
+function loadBuildArtifacts(buildId) {
+    var savedValues = JSON.parse(sessionStorage.savedPipelineArtifacts);    
+
+    if (savedValues.hasOwnProperty(buildId)) {
+        return savedValues[buildId];
+    }
+
+    return "No artifacts found";
+}
+
+/**
  * Get all artifacts for a build.
  */
-function getBuildArtifacts(taskId, buildNum) {
-    var artifacts = [];
+function getBuildArtifacts(jobName, buildNum, buildId) {
     Q.ajax({
-        url: rootURL + "/job/" + taskId + "/" + buildNum + "/api/json?tree=artifacts[*]",
+        url: rootURL + "/job/" + jobName + "/" + buildNum + "/api/json?tree=artifacts[*]",
         type: "GET",
         dataType: 'json',
-        async: false,
+        async: true,
         cache: true,
         timeout: 20000,
         success: function (json) {
-            var data = json.artifacts;
-            if (data.length > 0) {
-                for (var i=0; i<data.length; i++) {
-                    artifacts.push(data[i].fileName);
-                }
-            }
+            getBuildArtifactData(jobName, buildNum, buildId, json.artifacts);
         },
         error: function (xhr, status, error) {
         }
     })
-    return artifacts;
 }
 
-function getBuildArtifactLinks(taskId, buildNum) {
-    var artifacts = getBuildArtifacts(taskId, buildNum);
+/**
+ * Callback function to get an artifacts data.
+ */
+function getBuildArtifactData(jobName, buildNum, buildId, data) {
+    var artifacts = [];
 
-    if (artifacts.length == 0) {
-      return "No artifacts found";
+    if (data.length > 0) {
+        for (var i=0; i<data.length; i++) {
+            artifacts.push(data[i].fileName);
+        }
     }
-
-    var retVal = "";
 
     if (artifacts.length > 0) {
         for (var i=0; i<artifacts.length; i++) {
-            var artifactInfo = "";
             Q.ajax({
-                url: rootURL + "/job/" + taskId + "/" + buildNum + "/artifact/" + artifacts[i],
+                url: rootURL + "/job/" + jobName + "/" + buildNum + "/artifact/" + artifacts[i],
                 type: "GET",
-                async: false,
+                async: true,
                 cache: true,
                 timeout: 20000,
                 success: function (json) {
-                    artifactInfo = json;
+                    getBuildArtifactLinks(this.url, json, buildId);
                 },
                 error: function (xhr, status, error) {
                 }
             })
-
-            retVal += "<a href=\"http://localhost:8080/job/" + taskId + "/" + buildNum + "/artifact/" + artifacts[i] + "\">" + htmlEncode(artifacts[i]) +
-            "<span class=\"tooltip\">" + artifactInfo + "</span></a>, "
         }
-        retVal = retVal.substring(0, retVal.length - 2);
+    }
+}
+
+/**
+ * Callback function to generate a link to a specific build artifact.
+ */
+function getBuildArtifactLinks(url, json, buildId) {
+    var savedValues = JSON.parse(sessionStorage.savedPipelineArtifacts);
+    var ele = document.getElementById(buildId);
+    var artifact = url.split("/artifact/")[1];
+
+    if (ele.innerHTML != "No artifacts found") {
+        ele.innerHTML += ", <a href=\"" + url + "\" style=\"color: inherit;\">" + artifact + "<span class=\"tooltip\">" + json + "</span></a>";
+    } else {
+        ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" + artifact + "<span class=\"tooltip\">" + json + "</span></a>";
     }
 
-    return retVal;
+    savedValues[buildId] = ele.innerHTML;
+    sessionStorage.savedPipelineArtifacts = JSON.stringify(savedValues);
 }
 
 /**
  * Generate an table of specified display values
  */
 function generateDisplayValueTable(displayArgs, pipelineName, pipelineNum) {
-    var displayArgsJson;
-
-    try {
-        displayArgsJson = JSON.parse(displayArgs);
-    }
-    catch (err) {
-        return "INVALID JSON"
-    }
-
     var retVal = "";
 
-    for (var mainProject in displayArgsJson) {
+    for (var mainProject in displayArgs) {
         if (mainProject == pipelineName) {
-            var mainProjectDisplayConfig = displayArgsJson[mainProject];
+            var mainProjectDisplayConfig = displayArgs[mainProject];
 
             for (var displayKey in mainProjectDisplayConfig) {
                 var displayKeyConfig = mainProjectDisplayConfig[displayKey];
@@ -956,7 +1333,8 @@ function generateDisplayValueTable(displayArgs, pipelineName, pipelineNum) {
                 }
 
                 var id = mainProject + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
-                retVal += "<tr><th style=\"border: 1px solid #ddd;\">" + displayKey + "</th><td id=\"" + id + "\" style=\"border: 1px solid #ddd;\">Value not found across pipeline</td></tr>";    
+                retVal += "<tr class=\"displayTableTr\"><th class=\"displayTableTh\">" + displayKey + "</th>";
+                retVal += "<td id=\"" + id + "\" class=\"displayTableTd\">Value not found across pipeline</td></tr>";    
             }    
         }
     }
@@ -967,20 +1345,11 @@ function generateDisplayValueTable(displayArgs, pipelineName, pipelineNum) {
  * Load the displayed values
  */
 function loadDisplayValues(displayArgs, pipelineName, pipelineNum, savedPipelineDisplayValues) {
-    var displayArgsJson;
-
-    try {
-        displayArgsJson = JSON.parse(displayArgs);
-    }
-    catch (err) {
-        return "INVALID JSON"
-    }
-
     var retVal = "";
 
-    for (var mainProject in displayArgsJson) {
+    for (var mainProject in displayArgs) {
         if (mainProject == pipelineName) {
-            var mainProjectDisplayConfig = displayArgsJson[mainProject];
+            var mainProjectDisplayConfig = displayArgs[mainProject];
 
             for (var displayKey in mainProjectDisplayConfig) {
                 var displayKeyConfig = mainProjectDisplayConfig[displayKey];
@@ -992,9 +1361,11 @@ function loadDisplayValues(displayArgs, pipelineName, pipelineNum, savedPipeline
                 var id = mainProject + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
 
                 if (savedPipelineDisplayValues.hasOwnProperty(id)) {
-                    retVal += "<tr><th style=\"border: 1px solid #ddd;\">" + displayKey + "</th><td id=\"" + id + "\" style=\"border: 1px solid #ddd;\">" + savedPipelineDisplayValues[id] + "</td></tr>";
+                    retVal += "<tr class=\"displayTableTr\"><th class=\"displayTableTh\">" + displayKey + "</th>";
+                    retVal += "<td id=\"" + id + "\" class=\"displayTableTd\">" + savedPipelineDisplayValues[id] + "</td></tr>";
                 } else {
-                    retVal += "<tr><th style=\"border: 1px solid #ddd;\">" + displayKey + "</th><td id=\"" + id + "\" style=\"border: 1px solid #ddd;\">Value not found across pipeline</td></tr>";
+                    retVal += "<tr class=\"displayTableTr\"><th class=\"displayTableTh\">" + displayKey + "</th>";
+                    retVal += "<td id=\"" + id + "\" class=\"displayTableTd\">Value not found across pipeline</td></tr>";
                 }
             }
         }
@@ -1006,37 +1377,36 @@ function loadDisplayValues(displayArgs, pipelineName, pipelineNum, savedPipeline
  * Retrieve desired values from any projects along a pipeline
  */
 function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
-    var displayArgsJson;
-
-    try {
-        displayArgsJson = JSON.parse(displayArgs);
-    }
-    catch (err) {
-        return;
-    }
-
     var stage;
     var projectNameIdMap = {};
     var updateString = "";
     var retVal = "";
+    var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+    var previousDisplayArgConfig = JSON.parse(sessionStorage.previousDisplayArgConfig);
 
-     // Get a mapping of project names to project build ids
-     for (var j = 0; j < pipeline.stages.length; j++) {
+    // Get a mapping of project names to project build ids
+    for (var j = 0; j < pipeline.stages.length; j++) {
         stage = pipeline.stages[j];
         projectNameIdMap[stage.name] = stage.tasks[0].buildId;
-     }
+    }
 
-    for (var mainProject in displayArgsJson) {
+    for (var mainProject in displayArgs) {
         if (mainProject == pipelineName) {
-            var mainProjectDisplayConfig = displayArgsJson[mainProject];
+            var mainProjectDisplayConfig = displayArgs[mainProject];
 
             for (var displayKey in mainProjectDisplayConfig) {
                 var displayKeyConfig = mainProjectDisplayConfig[displayKey];
-                var projectName, filePath, artifactName, envName, paramName, grepPattern;
-                projectName = filePath = artifactName = envName = paramName = grepPattern = "";
+                var projectName, filePath, artifactName, envName, paramName, fromConsole, grepPattern;
+                projectName = filePath = artifactName = envName = paramName = fromConsole = grepPattern = "";
 
                 if (displayKeyConfig.hasOwnProperty("projectName")) {
                     projectName = displayKeyConfig.projectName;
+
+                    // Do not search for a previously found value
+                    var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
+                    if (savedValues.hasOwnProperty(id)) {
+                        continue;
+                    }
 
                     if (projectNameIdMap.hasOwnProperty(projectName) == false) {
                         continue;
@@ -1058,14 +1428,21 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
                         paramName = displayKeyConfig.paramName;
                     }
 
+                    if (displayKeyConfig.hasOwnProperty("fromConsole")) {
+                        fromConsole = displayKeyConfig.fromConsole;
+                    }
+
                     // We expect one of the following to be populated so we know where to look
-                    if (filePath == "" && artifactName == "" && envName == "" && paramName == "") {
+                    if (filePath == "" && artifactName == "" && envName == "" && paramName == "" && fromConsole == "") {
                         continue;
                     }
 
                     var url = "";
                     if (artifactName != "") {
                         url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/artifact/" + artifactName;
+                        if (projectNameIdMap[projectName] == null) {
+                            return;
+                        }
                     }
 
                     if (filePath != "") {
@@ -1074,6 +1451,16 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
 
                     if (envName != "" || paramName != "") {
                         url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/injectedEnvVars/api/json";
+                        if (projectNameIdMap[projectName] == null) {
+                            return;
+                        }
+                    }
+
+                    if (fromConsole == "true") {
+                        url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/consoleText";
+                        if (projectNameIdMap[projectName] == null) {
+                            return;
+                        }
                     }
 
                     // In the event that somehow we fail to create a URL
@@ -1081,18 +1468,21 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
                         continue;
                     }
 
-                    Q.ajax({
-                        url: rootURL + "/" + url,
-                        type: "GET",
-                        async: true,
-                        cache: true,
-                        timeout: 20000,
-                        success: function(data) {
-                            updateDisplayValues(data, this.url, displayArgs, pipelineName, pipelineNum);
-                        },
-                        error: function (xhr, status, error) {
-                        }
-                    })
+                    // Upon a configuration change, reload all data
+                    if (previousDisplayArgConfig != displayArgs) {
+                        Q.ajax({
+                            url: rootURL + "/" + url,
+                            type: "GET",
+                            async: true,
+                            cache: true,
+                            timeout: 20000,
+                            success: function(data) {
+                                updateDisplayValues(data, this.url, displayArgs, pipelineName, pipelineNum);
+                            },
+                            error: function (xhr, status, error) {
+                            }
+                        })
+                    }
                 }
             }
         }
@@ -1101,6 +1491,10 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
             continue;
         }
     }
+
+    if (JSON.parse(sessionStorage.previousDisplayArgConfig) != displayArgs) {
+        sessionStorage.previousDisplayArgConfig = JSON.stringify(displayArgs);
+    }
 }
 
  /**
@@ -1108,28 +1502,20 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
   */
 function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) {
     var projectName = (url.split("/job/")[1]).split("/")[0];
-    var displayArgsJson = JSON.parse(displayArgs);
 
-    // Check if we are parsing for an environment variable / parameter
+    // Environment Variable / Parameter
     if (url.indexOf("/injectedEnvVars/") != -1) {
-        for (var mainProject in displayArgsJson) {
+        for (var mainProject in displayArgs) {
             if (mainProject == pipelineName) {
-                var mainProjectDisplayConfig = displayArgsJson[mainProject];
+                var mainProjectDisplayConfig = displayArgs[mainProject];
 
                 for (var displayKey in mainProjectDisplayConfig) {
                     var displayKeyConfig = mainProjectDisplayConfig[displayKey];
                     var envName = "";
 
-                    if (displayKeyConfig.hasOwnProperty("projectName")) {
-                        if (displayKeyConfig.projectName != projectName) {
-                            continue;
-                        }
+                    if (displayKeyConfig.hasOwnProperty("projectName") && displayKeyConfig.projectName == projectName) {
                         if (displayKeyConfig.hasOwnProperty("envName") || displayKeyConfig.hasOwnProperty("paramName")) {
-                            if (displayKeyConfig.hasOwnProperty("envName")) {
-                                envName = displayKeyConfig.envName;
-                            } else {
-                                envName = displayKeyConfig.paramName;
-                            }
+                            envName = displayKeyConfig.hasOwnProperty("envName") ? displayKeyConfig.envName : displayKeyConfig.paramName;
                             
                             if (data.hasOwnProperty("envMap")) {
                                 var envMap = data.envMap;
@@ -1137,7 +1523,14 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                                 if (envMap.hasOwnProperty(envName)) {
                                     var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
                                     var ele = document.getElementById(id);
-                                    ele.innerHTML = envMap[envName];
+
+                                    if (displayKeyConfig.hasOwnProperty("grepPattern")) {
+                                        var grepPattern = displayKeyConfig.grepPattern;
+                                        var grepFlag = displayKeyConfig.hasOwnProperty("grepFlag") ? displayKeyConfig.grepFlag : 'g';
+                                        ele.innerHTML = grepRegexp(grepPattern, grepFlag, envMap[envName]);
+                                    } else {
+                                        ele.innerHTML = envMap[envName];    
+                                    }
 
                                     var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
                                     savedValues[id] = ele.innerHTML;
@@ -1149,10 +1542,49 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                 }
             }
         }
+    // Console Log
+    } else if (url.indexOf("/consoleText") != -1) {
+        for (var mainProject in displayArgs) {
+            if (mainProject == pipelineName) {
+                var mainProjectDisplayConfig = displayArgs[mainProject];
+
+                for (var displayKey in mainProjectDisplayConfig) {
+                    var displayKeyConfig = mainProjectDisplayConfig[displayKey];
+
+                    if (displayKeyConfig.hasOwnProperty("projectName") && displayKeyConfig.projectName == projectName) {
+                        if (displayKeyConfig.hasOwnProperty("fromConsole") && (displayKeyConfig.fromConsole == "true" || displayKeyConfig.fromConsole == true)) {
+                            var toolTipData = data.replace(/-/g, '&#x2011;');
+
+                            if (displayKeyConfig.hasOwnProperty("grepPattern")) {
+                                var grepPattern = displayKeyConfig.grepPattern;
+                                var grepFlag = displayKeyConfig.hasOwnProperty("grepFlag") ? displayKeyConfig.grepFlag : 'g';
+                                toolTipData = grepRegexp(grepPattern, grepFlag, toolTipData);
+                            }
+                            toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br/>');
+
+                            var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
+                            var ele = document.getElementById(id);
+
+                            if (displayKeyConfig.hasOwnProperty("useLink") && (displayKeyConfig.useLink == "true" || displayKeyConfig.useLink == true)) {
+                                ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
+                            } else {
+                                ele.innerHTML = toolTipData;
+                                redrawConnections();
+                            }
+
+                            var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+                            savedValues[id] = ele.innerHTML;
+                            sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
+                        }
+                    }
+                }
+            }
+        }
+    // File Path or Artifact Name
     } else {
         var file;
         var propertyType;
-        // Check if we are parsing for a filePath or an artifact
+
         if (url.indexOf("/ws/") != -1) {
             file = url.split("/ws/")[1];
             propertyType = "filePath";
@@ -1161,61 +1593,37 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
             propertyType = "artifactName";
         }
 
-        for (var mainProject in displayArgsJson) {
+        for (var mainProject in displayArgs) {
             if (mainProject == pipelineName) {
-                var mainProjectDisplayConfig = displayArgsJson[mainProject];
+                var mainProjectDisplayConfig = displayArgs[mainProject];
 
                 for (var displayKey in mainProjectDisplayConfig) {
                     var displayKeyConfig = mainProjectDisplayConfig[displayKey];
 
-                    if (displayKeyConfig.hasOwnProperty("projectName")) {
-                        if (displayKeyConfig.projectName != projectName) {
-                            continue;
-                        }
-                        if (displayKeyConfig.hasOwnProperty(propertyType)) {
-                            if (displayKeyConfig[propertyType] == file) {
-                                var toolTipData = data.replace(/-/g, '&#x2011;');
+                    if (displayKeyConfig.hasOwnProperty("projectName") && displayKeyConfig.projectName == projectName) {
+                        if (displayKeyConfig.hasOwnProperty(propertyType) && displayKeyConfig[propertyType] == file) {
+                            var toolTipData = data.replace(/-/g, '&#x2011;');
 
-                                if (displayKeyConfig.hasOwnProperty("grepPattern")) {
-                                    var expression = displayKeyConfig.grepPattern;
-                                    var grepFlag = 'g';
-
-                                    if (displayKeyConfig.hasOwnProperty("grepFlag")) {
-                                        grepFlag = displayKeyConfig.grepFlag;
-                                    }
-
-                                    if (expression.charAt(0) == "/" && expression.charAt(expression.length - 1) == "/") {
-                                        expression = expression.substring(1, expression.length - 1);
-                                    }
-
-                                    var regex = new RegExp(expression, grepFlag);
-                                    var match;
-                                    var results = [];
-
-                                    while (match = regex.exec(toolTipData)) {
-                                        results.push(match[0]);
-                                    }
-                                    toolTipData = results.join("\n");
-                                }
-
-                                toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br>');
-                                var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
-                                var ele = document.getElementById(id);
-
-                                if (displayKeyConfig.hasOwnProperty("flattenValue")) {
-                                    if (displayKeyConfig.flattenValue == "true") {
-                                        ele.innerHTML = toolTipData;
-                                        // In the event of multi-line values, redraw the connections to line them up correctly
-                                        redrawConnections();
-                                    }
-                                } else {
-                                    ele.innerHTML = "<a href=\"" + url + "\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";    
-                                }
-
-                                var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
-                                savedValues[id] = ele.innerHTML;
-                                sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
+                            if (displayKeyConfig.hasOwnProperty("grepPattern")) {
+                                var grepPattern = displayKeyConfig.grepPattern;
+                                var grepFlag = displayKeyConfig.hasOwnProperty("grepFlag") ? displayKeyConfig.grepFlag : 'g';
+                                toolTipData = grepRegexp(grepPattern, grepFlag, toolTipData);
                             }
+                            toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br/>');
+
+                            var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
+                            var ele = document.getElementById(id);
+
+                            if (displayKeyConfig.hasOwnProperty("useLink") && (displayKeyConfig.useLink == "true" || displayKeyConfig.useLink == true)) {
+                                ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";    
+                            } else {
+                                ele.innerHTML = toolTipData;
+                                redrawConnections();
+                            }
+
+                            var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+                            savedValues[id] = ele.innerHTML;
+                            sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
                         }
                     }
                 }
@@ -1224,25 +1632,142 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
     }
 }
 
+/**
+ * Grep regexp method.
+ */
+function grepRegexp(grepPattern, grepFlag, data) {
+    var expression = grepPattern;
+
+    if (expression.charAt(0) == "/" && expression.charAt(expression.length - 1) == "/") {
+        expression = expression.substring(1, expression.length - 1);
+    }
+
+    var regex = new RegExp(expression, grepFlag);
+    var match;
+    var results = [];
+
+    while (match = regex.exec(data)) {
+        results.push(match[0]);
+    }
+    return results.join("\n");
+}
+
+/**
+ * Load the stages that failed on a blocking call.
+ */
+function loadFailedOnBlockStages(pipeline, i) {
+    var pipelineNum = pipeline.version.substring(1);
+    var blockedOnFailedMap = JSON.parse(sessionStorage.blockedOnFailedMap);
+    var failedOnBlockingJobs = blockedOnFailedMap[pipeline.stages[0].name + "-" + pipelineNum];
+
+    // No point iterating through the pipeline if there is no stage that failed on a blocking call
+    if (JSON.stringify(failedOnBlockingJobs) == JSON.stringify({})) {
+        return;
+    }
+
+    for (var j = 0; j < pipeline.stages.length - 1; j++) {
+        var stage = pipeline.stages[j];
+
+        if (failedOnBlockingJobs.hasOwnProperty(stage.name)) {
+            var ele = document.getElementById(getStageId(stage.id + "", i));
+            if (ele != null) {
+               ele.className = "circle circle_FAILED_ON_BLOCK";
+            }
+        }
+    }
+}
+
+/**
+ * Mark the stages that failed on a blocking call.
+ */
+function updateFailedOnBlockStages(pipeline, i) {
+    var blockedOnFailedMap = JSON.parse(sessionStorage.blockedOnFailedMap);
+    var pipelineNum = pipeline.version.substring(1);
+    var failedOnBlockingJobs = {};
+
+    for (var j = 0; j < pipeline.stages.length - 1; j++) {
+        var stage = pipeline.stages[j];
+        var ele = document.getElementById(getStageId(stage.id + "", i));
+        var downstreamStages = stage.downstreamStages;
+        var downstreamStageIds = stage.downstreamStageIds;
+        var blockingJobs = stage.blockingJobs;
+
+        var stageNum = stage.tasks[0].buildId;
+
+        if (downstreamStages.size() == 0) {
+            continue;
+        }
+
+        if (stage.tasks[0].status.type == "FAILED") {
+            for (var k = 0; k < downstreamStages.size(); k++) {
+                if (blockingJobs.split(', ').indexOf(downstreamStages[k]) != -1) {
+                    var downstreamEle = document.getElementById(getStageId(downstreamStageIds[k] + "", i));
+                    if (downstreamEle != null) {
+                        if (downstreamEle.className == "circle circle_FAILED" || downstreamEle.className == "circle circle_CANCELLED") {
+                            ele.className = "circle circle_FAILED_ON_BLOCK";
+                            failedOnBlockingJobs[stage.name] = "true";
+                        }
+                    }
+                }
+            }
+        }
+
+        blockedOnFailedMap[pipeline.stages[0].name + "-" + pipelineNum] = failedOnBlockingJobs;
+        sessionStorage.blockedOnFailedMap = JSON.stringify(blockedOnFailedMap);
+    }
+}
+
+/**
+ * Check if any row has been toggled. If no row is toggled, we'll toggle the first row.
+ * Could differ from a user's expectation, but in most cases users will only be interested
+ * in the latest run of the pipeline anyway.
+ */
+function checkIfAnyRowToggled(toggleStates) {
+    if (JSON.stringify(toggleStates) != JSON.stringify({})) {
+        for (var key in toggleStates) {
+            // Since all the toggle states are saved together, and the display table values
+            // are saved as "table-row-group" when toggled, we only need to check for "block" state
+            // Not a very elegant solution but the toggle states can be split under two different keys
+            if (toggleStates[key] == "block") {
+                return true;
+            }
+        }
+        return false;
+    } else {
+        return false;
+    }
+}
+
+/**
+ * Get the session state for any build toggles.
+ */
 function getToggleState(toggleId, toggleType, defaultToggleOn) {
     var toggleStates = JSON.parse(sessionStorage.toggleStates);
 
     if (toggleType == "block") {
-        if (toggleStates.hasOwnProperty(toggleId)) {
-            return toggleStates[toggleId];
+        if (defaultToggleOn) {
+            // If another row other than the first row is already toggled,
+            // do not toggle the first row by default
+            if (checkIfAnyRowToggled(toggleStates)) {
+                if (toggleStates.hasOwnProperty(toggleId)) {
+                    return toggleStates[toggleId];
+                }
+                return "none";
+            }
+            return "block";
         } else {
-            if (defaultToggleOn) {
-                return "block";
+            if (toggleStates.hasOwnProperty(toggleId)) {
+                return toggleStates[toggleId];
             }
         }
     }
 
-    if (toggleType == "table") {
+    if (toggleType == "table-row-group") {
         if (toggleStates.hasOwnProperty(toggleId)) {
             return toggleStates[toggleId];
         } else {
             if (defaultToggleOn) {
-                return "table";
+                return "table-row-group";
             }
         }
     }
@@ -1250,34 +1775,198 @@ function getToggleState(toggleId, toggleType, defaultToggleOn) {
     return "none";
 }
 
-function toggle(toggleBuildId) {
+// Toggle method
+function toggle(toggleBuildId, toggleRowId, togglePipelineId) {
     var toggleStates = JSON.parse(sessionStorage.toggleStates);
+    var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
+    var stageIds = pipelineStageIdMap[toggleBuildId];
+
     var ele = document.getElementById(toggleBuildId);
+    var rowEle =  document.getElementById(toggleRowId);
+    var pipelineEle = document.getElementById(togglePipelineId);
 
     if (ele.style.display == "block") {
         ele.style.display = "none";
+        rowEle.className = "untoggled_build_header";
+        pipelineEle.className = "untoggled_pipeline";
         toggleStates[toggleBuildId] = "none";
+
+        // Hide all the connectors
+        for (var key in stageIds) {
+            instance.hide(key);
+        }
     } else {
         ele.style.display = "block";
+        rowEle.className = "toggled_build_header";
+        pipelineEle.className = "toggled_pipeline";
         toggleStates[toggleBuildId] = "block";
+
+        // Show all the connectors
+        for (var key in stageIds) {
+            instance.show(key);
+        }
+    }
+
+    window.scrollTo(0, 0);
+    instance.revalidate();
+
+    // Recalculate offsets for every stage
+    for (var pipeline in pipelineStageIdMap) {
+        for (var stage in pipelineStageIdMap[pipeline]) {
+            instance.recalculateOffsets(stage);
+        }
+    }
+
+    sessionStorage.toggleStates = JSON.stringify(toggleStates);
+    redrawConnections();
+    window.scrollTo(0, sessionStorage.getItem("page_y"));
+}
+
+// For showing and hiding the display values table
+function toggleTable(toggleTableId) {
+    var toggleStates = JSON.parse(sessionStorage.toggleStates);
+    var ele = document.getElementById(toggleTableId);
+
+    if (ele.style.display == "table-row-group") {
+        ele.style.display = "none";
+        toggleStates[toggleTableId] = "none";
+    } else {
+        ele.style.display = "table-row-group";
+        toggleStates[toggleTableId] = "table-row-group";
     }
 
     sessionStorage.toggleStates = JSON.stringify(toggleStates);
     redrawConnections();
 }
 
-function toggleTable(toggleTableId) {
+/**
+ * Toggle method for Full Screen. Used to toggle build rows.
+ * The toggle() method works fine in both normal view and fullscreen.
+ * However, we'll leave this method in case of any new visual bugs.
+ */
+function toggleCompatibleFs(jobName, buildNum) {
     var toggleStates = JSON.parse(sessionStorage.toggleStates);
-    var ele = document.getElementById(toggleTableId);
+    var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
 
-    if (ele.style.display == "table") {
-        ele.style.display = "none";
-        toggleStates[toggleTableId] = "none";
+    var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
+
+    if (toggleStates.hasOwnProperty(toggleBuildId)) {
+        if (toggleStates[toggleBuildId] == "none") {
+            toggleStates[toggleBuildId] = "block";
+        } else {
+            toggleStates[toggleBuildId] = "none";
+        }
     } else {
-        ele.style.display = "table";
-        toggleStates[toggleTableId] = "table";
+        toggleStates[toggleBuildId] = "block";
+    }
+
+    for (var buildId in toggleStates) {
+        if (toggleStates.hasOwnProperty(buildId)) {
+            var rowId = "toggle-row-" + buildId.split("toggle-build-")[1];
+            var pipelineId = "toggle-pipeline-" + buildId.split("toggle-build-")[1];
+            
+            var ele = document.getElementById(buildId);
+            var rowEle = document.getElementById(rowId);
+            var pipelineEle = document.getElementById(pipelineId);
+
+            console.info("Hiding: " + buildId);
+
+            ele.style.display = "none";
+            rowEle.className = "untoggled_build_header";
+            pipelineEle.className = "untoggled_pipeline";
+
+            var stageIds = pipelineStageIdMap[buildId];
+            // Hide all the connectors
+            for (var key in stageIds) {
+                instance.hide(key);
+            }  
+        }
+    }
+
+    var sorted = [];
+    for (var buildId in toggleStates) {
+        sorted.push(buildId);
+    }
+
+    sorted.sort(function(a, b) {
+        var buildNumA = parseInt(a.split("-").slice(-1)[0]);
+        var buildNumB = parseInt(b.split("-").slice(-1)[0]);
+        return buildNumA - buildNumB;
+    });
+
+    var orderedString = sorted.join(",");
+
+    while(orderedString != "") {
+        var buildId = orderedString.split(",")[0];
+
+         if (toggleStates.hasOwnProperty(buildId) && toggleStates[buildId] == "block") {
+            var rowId = "toggle-row-" + buildId.split("toggle-build-")[1];
+            var pipelineId = "toggle-pipeline-" + buildId.split("toggle-build-")[1];
+            
+            var ele = document.getElementById(buildId);
+            var rowEle = document.getElementById(rowId);
+            var pipelineEle = document.getElementById(pipelineId);
+
+            ele.style.display = "block";
+            rowEle.className = "toggled_build_header";
+            pipelineEle.className = "toggled_pipeline";
+
+            var stageIds = pipelineStageIdMap[buildId];
+            // Show all the connectors
+            for (var key in stageIds) {
+                instance.show(key);
+            }  
+        }
+
+        orderedString = orderedString.split(",").slice(1).join(",");
+    }
+
+    window.scrollTo(0, 0);
+
+    instance.revalidate();
+
+    // Recalculate offsets for every stage
+    for (var pipeline in pipelineStageIdMap) {
+        for (var stage in pipelineStageIdMap[pipeline]) {
+            instance.recalculateOffsets(stage);
+        }
     }
 
     sessionStorage.toggleStates = JSON.stringify(toggleStates);
+    instance.repaintEverything();
+
+    window.scrollTo(0, sessionStorage.getItem("page_y"));
+}
+
+/**
+ * Toggle method for Full Screen. Used to toggle the display values table.
+ */
+function toggleTableCompatibleFS(toggleTableId) {
+    var currentPageY = sessionStorage.getItem("page_y");
+    var toggleStates = JSON.parse(sessionStorage.toggleStates);
+    var ele = document.getElementById(toggleTableId);
+
+    if (ele.style.display == "table-row-group") {
+        ele.style.display = "none";
+        toggleStates[toggleTableId] = "none";
+    } else {
+        ele.style.display = "table-row-group";
+        toggleStates[toggleTableId] = "table-row-group";
+    }
+
+    window.scrollTo(0, 0);
+
+    instance.revalidate();
+
+    sessionStorage.toggleStates = JSON.stringify(toggleStates);
     redrawConnections();
+    window.scrollTo(0, currentPageY);
+}
+
+/**
+ * Store the current page's Y position.
+ */
+function storePagePosition() {
+  var page_y = window.pageYOffset;
+  sessionStorage.setItem("page_y", page_y);
 }

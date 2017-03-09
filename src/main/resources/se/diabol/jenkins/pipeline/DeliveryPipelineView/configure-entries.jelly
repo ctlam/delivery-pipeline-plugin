@@ -7,6 +7,8 @@
             <f:select/>
         </f:entry>
 
+        <!--
+
         <f:entry title="Display aggregated pipeline for each pipeline" field="showAggregatedPipeline">
             <f:checkbox/>
         </f:entry>
@@ -18,6 +20,8 @@
         <f:entry title="Group aggregated changelog by regular expression" field="aggregatedChangesGroupingPattern">
             <f:textbox/>
         </f:entry>
+
+        -->
 
         <f:entry title="Number of columns" field="noOfColumns">
             <f:select/>
@@ -71,9 +75,14 @@
             <f:checkbox/>
         </f:entry>
 
+        <!--
+        Disabled because this is very misleading
+        
         <f:entry title="Show total build time" field="showTotalBuildTime">
             <f:checkbox/>
         </f:entry>
+
+        -->
 
         <f:entry title="Use relative links for easier navigation" field="linkRelative">
             <f:checkbox/>
@@ -98,8 +107,13 @@
         <f:entry name="theme" title="Theme" field="theme">
             <select name="theme" class="setting-input  select">
                 <option value="default" selected="${instance.getTheme().equals('default')? 'true':null}">Default</option>
+
+                <!--
+                Only supporting default view at the moment
                 <option value="contrast" selected="${instance.getTheme().equals('contrast')? 'true':null}">Contrast</option>
                 <option value="overview" selected="${instance.getTheme().equals('overview')? 'true':null}">Overview</option>
+                -->
+                
             </select>
         </f:entry>
 
@@ -124,6 +138,10 @@
         </f:entry>
 
         <f:entry title="Display Top-Level Artifacts" field="showArtifacts">
+            <f:checkbox/>
+        </f:entry>
+
+        <f:entry title="Use YAML Parser for Display Arguments" field="useYamlParser">
             <f:checkbox/>
         </f:entry>
 
