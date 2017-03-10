@@ -1,6 +1,6 @@
 .circle {
     float: left;
-    margin: 0px 0px 0px 3px;
+    margin: 0px;
     padding: 0px;
 }
 
@@ -47,9 +47,18 @@
 
 .pipelineHeader {
     display: block;
-    background-color: #4A90E2;
-    color: white;
+    background-color: rgba(36,66,92,1);
+    /*border: 1px solid rgba(31,101,160,1);*/
+    border: 1px solid black;
+    color: rgba(220,220,220,1);
     text-align: left;
+    margin: 0px 0px 15px 0px;
+
+    /* Safari 5.1+, Chrome 10+ */
+    background: -webkit-linear-gradient(top, rgba(36,66,92,1), rgba(30,50,71,1));
+
+    /* Firefox 3.6+ */
+    background: -moz-linear-gradient(top, rgba(36,66,92,1), rgba(30,50,71,1));
 }
 
 div.hide {
@@ -76,19 +85,11 @@ section.pipeline-component h1 {
 }
 
 section.pipeline-component h2 {
-    font-size: 16px;
-    font-weight: bold;
-    font-stretch: expanded;
-    margin: 0;
-    padding: 0;
-}
-
-section.pipeline-component h3 {
     font-size: 14px;
     font-weight: normal;
     font-stretch: expanded;
     margin: 0;
-    padding: 0;
+    padding: 5px;
 }
 
 section.pipeline {
@@ -569,13 +570,13 @@ div.aggregatedChangesPanelInner > ul {
 }
 
 .build_header {
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid #b3b3b3;
     text-align: left;
     color: inherit;
 }
 
 .build_column {
-    border-top: 1px solid #ddd;
+    border-top: 1px solid #b3b3b3;
     text-align:left;
     color: inherit;
 }
@@ -591,7 +592,13 @@ div.aggregatedChangesPanelInner > ul {
 
 .toggled_build_header {
     background-color: rgba(80,88,92,1);
-    border: 1px solid #ddd
+    border: 1px solid #b3b3b3;
+
+    /* Safari 5.1+, Chrome 10+ */
+    background: -webkit-linear-gradient(top, rgba(80,88,92,1), rgba(67,74,78,1));
+
+    /* Firefox 3.6+ */
+    background: -moz-linear-gradient(top, rgba(80,88,92,1), rgba(67,74,78,1));
 }
 
 .untoggled_build_header {
@@ -600,7 +607,7 @@ div.aggregatedChangesPanelInner > ul {
 }
 
 .toggled_pipeline {
-    border: 1px solid #ddd;
+    border: 1px solid #b3b3b3;
     background-color: rgba(31,35,41,1);
 }
 
@@ -633,10 +640,7 @@ div.aggregatedChangesPanelInner > ul {
 
 .displayTableTh {
     border-bottom: 1px solid rgba(61,69,75,1);
-    padding-right: 50px;
-    margin-top: 3px;
-    margin-bottom: 3px;
-    margin-left: 3px;
+    padding: 3px 50px 3px 3px;
     color: inherit;
 }
 
@@ -644,10 +648,22 @@ div.aggregatedChangesPanelInner > ul {
     border-bottom: 1px solid rgba(61,69,75,1);
     font-weight: normal;
     padding-right: 50px;
-    margin-top: 3px;
-    margin-bottom: 3px;
-    margin-left: 3px;
+    padding: 3px 50px 3px 3px;
     color: inherit;
+}
+
+.legendRow:nth-child(odd) {
+    background-color: transparent;
+}
+
+.legendTh {
+    padding: 3px 50px 3px 3px;
+    border: none;
+}
+
+.legendTd {
+    padding: 3px 50px 3px 10px;
+    border: none;
 }
 
 .hoverTableEntry {

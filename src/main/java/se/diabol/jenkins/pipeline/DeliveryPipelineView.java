@@ -242,6 +242,7 @@ public class DeliveryPipelineView extends View {
         return fullScreenCss;
     }
 
+    @Exported
     public int getUpdateInterval() {
         //This occurs when the plugin has been updated and as long as the view has not been updated
         //Jenkins will set the default value to 0

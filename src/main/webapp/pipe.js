@@ -143,8 +143,15 @@ function pipelineUtils() {
                                 for (var c = 0; c < data.pipelines.length; c++) {
                                     html = [];
                                     component = data.pipelines[c];
+
+                                    var returnUrl = window.location.href;
+                                    if (isFullScreen) {
+                                        returnUrl = returnUrl.split("?fullscreen=true")[0];
+                                    }
+
                                     html.push("<section class='pipeline-component'>");
-                                    html.push("<h1 class=\"pipelineHeader\">" + component.name);
+                                    html.push("<div class=\"pipelineHeader\">");
+                                    html.push("<h1><a href=\"" + returnUrl + "\">" + component.name + "</a>");
                                     if (data.allowPipelineStart) {
                                         if (component.firstJobParameterized) {
                                             html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" onclick="triggerParameterizedBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
@@ -155,6 +162,8 @@ function pipelineUtils() {
                                         html.push("</a>");
                                     }
                                     html.push("</h1>");
+                                    html.push("<h2>Refreshed every " + data.updateInterval + " seconds.</h2>");
+                                    html.push("</div>");
                                     if (!showAvatars) {
                                         html.push("<div class='pagination'>");
                                         html.push(component.pagingData);
@@ -231,7 +240,7 @@ function pipelineUtils() {
 
                                         html.push("<tr id=\"" + toggleRowId + "\" class=\"" + initClass + "\">");    
                                         html.push("<td class=\"build_column\"><p class=\"build_entry circle circle_" + statusString + "\" ");
-                                        html.push("style=\"min-height: 26px; min-width: 26px; background-size: 26px 26px;\">&nbsp;</p></td>");
+                                        html.push("style=\"min-height: 26px; min-width: 26px; background-size: 26px 26px; margin-left: 7px;\">&nbsp;</p></td>");
                                         html.push("<td class=\"build_column\"><p class=\"build_entry\">");
                                         html.push("<a id=\"" + displayBuildId + "\" href=\"" + toggleFunction + "\">");
                                         html.push("#" + buildNum + " " + jobName + "</a></p></td>");
@@ -304,25 +313,25 @@ function pipelineUtils() {
 
                                             var idSuffix = jobName + "-" + buildNum;
 
-                                            html.push("<tr class=\"displayTableTr\">");
-                                            html.push("<th id=\"nb-" + idSuffix + "\" class=\"displayTableTh\"></th>");
-                                            html.push("<td id=\"nb-" + idSuffix + "-end\" class=\"displayTableTd\" style=\"padding-left: 5px;\">Non-blocking</td></tr>");
+                                            html.push("<tr class=\"displayTableTr legendRow\">");
+                                            html.push("<th id=\"nb-" + idSuffix + "\" class=\"displayTableTh legendTh\"></th>");
+                                            html.push("<td id=\"nb-" + idSuffix + "-end\" class=\"displayTableTd legendTd\">Non-blocking</td></tr>");
 
-                                            html.push("<tr class=\"displayTableTr\">");
-                                            html.push("<th id=\"b-" + idSuffix + "\" class=\"displayTableTh\"></th>");
-                                            html.push("<td id=\"b-" + idSuffix + "-end\" class=\"displayTableTd\" style=\"padding-left: 5px;\">Blocking</td></tr>");
+                                            html.push("<tr class=\"displayTableTr legendRow\">");
+                                            html.push("<th id=\"b-" + idSuffix + "\" class=\"displayTableTh legendTh\"></th>");
+                                            html.push("<td id=\"b-" + idSuffix + "-end\" class=\"displayTableTd legendTd\">Blocking</td></tr>");
 
-                                            html.push("<tr class=\"displayTableTr\">");
-                                            html.push("<th id=\"nbc-" + idSuffix + "\" class=\"displayTableTh\"></th>");
-                                            html.push("<td id=\"nbc-" + idSuffix + "-end\" class=\"displayTableTd\" style=\"padding-left: 5px;\">Non-blocking Conditional</td></tr>");
+                                            html.push("<tr class=\"displayTableTr legendRow\">");
+                                            html.push("<th id=\"nbc-" + idSuffix + "\" class=\"displayTableTh legendTh\"></th>");
+                                            html.push("<td id=\"nbc-" + idSuffix + "-end\" class=\"displayTableTd legendTd\">Non-blocking Conditional</td></tr>");
 
-                                            html.push("<tr class=\"displayTableTr\">");
-                                            html.push("<th id=\"bc-" + idSuffix + "\" class=\"displayTableTh\"></th>");
-                                            html.push("<td id=\"bc-" + idSuffix + "-end\" class=\"displayTableTd\" style=\"padding-left: 5px;\">Blocking Conditional</td></tr>");
+                                            html.push("<tr class=\"displayTableTr legendRow\">");
+                                            html.push("<th id=\"bc-" + idSuffix + "\" class=\"displayTableTh legendTh\"></th>");
+                                            html.push("<td id=\"bc-" + idSuffix + "-end\" class=\"displayTableTd legendTd\">Blocking Conditional</td></tr>");
 
-                                            html.push("<tr class=\"displayTableTr\">");
-                                            html.push("<th id=\"d-" + idSuffix + "\" class=\"displayTableTh\"></th>");
-                                            html.push("<td id=\"d-" + idSuffix + "-end\" class=\"displayTableTd\" style=\"padding-left: 5px;\">Downstream</td></tr>");
+                                            html.push("<tr class=\"displayTableTr legendRow\">");
+                                            html.push("<th id=\"d-" + idSuffix + "\" class=\"displayTableTh legendTh\"></th>");
+                                            html.push("<td id=\"d-" + idSuffix + "-end\" class=\"displayTableTd legendTd\">Downstream</td></tr>");
 
                                             html.push("</tbody></table>");
                                             html.push("</div></div></section>");
@@ -724,7 +733,7 @@ function pipelineUtils() {
                                             jsplumb.connect({
                                                 source: key,
                                                 target: key + "-end",
-                                                anchors: [[0, 0.5, 1, 0, 0, 0], [0, 0.5, -1, 0, 2, 0]],
+                                                anchors: [[0, 0.5, 1, 0, 1, 0], [0, 0.5, -1, 0, 2, 0]],
                                                 connector: ["Flowchart", { stub: 0, gap: 0, midpoint: 0, alwaysRespectStubs: false, cornerRadius: 0 } ],
                                                 paintStyle: { stroke: legendMap[key][0], strokeWidth: 3, dashstyle: legendMap[key][1] },
                                                 endpoint: "Blank"

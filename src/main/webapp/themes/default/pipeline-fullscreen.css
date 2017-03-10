@@ -18,12 +18,16 @@ section.pipeline-component h1 {
     font-size: 38px;
     font-weight: bold;
     vertical-align: middle;
-    margin: 20px 0px 20px 0px;
     padding: 10px;
 }
 
 section.pipeline-component h2 {
-    font-size: 24px;
+    font-size: 16px;
+    padding: 10px;
+}
+
+.pipelineHeader {
+    margin: 20px 0px 40px 0px;
 }
 
 div.changes h1 {
@@ -149,4 +153,9 @@ div.aggregatedChangesPanelOuter {
     margin: 8px;
     border: 1px solid lightgray;
     background-color: #646060;
+}
+
+a span {
+    min-height: 75px;
+    min-width: 250px;
 }
