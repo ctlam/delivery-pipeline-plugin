@@ -41,6 +41,8 @@ function pipelineUtils() {
                                tasks = [];
 
                             window.addEventListener("scroll", storePagePosition);
+                            window.addEventListener("resize", revalidateConnections);
+
                             var currentPageY;
                             try {
                                 currentPageY = sessionStorage.getItem("page_y");
@@ -51,7 +53,6 @@ function pipelineUtils() {
                                 console.info(e);
                             }
 
-                            var clManifestMap = {};     // Manifest - CL mapping
                             var blockingMap = {};       // Blocking project mapping
                             var conditionalMap = {};    // Conditional project mapping
                             var downstreamMap = {};     // Downstream project mapping
@@ -579,25 +580,15 @@ function pipelineUtils() {
 
                                 sessionStorage.pipelineStageIdMap = JSON.stringify(pipelineStageIdMap);
 
-                                // Update all the manifest information at the end to minimize number of calls required
-                                if (data.showManifestInfo && (data.manifestJobName != "")) {
-                                    getManifestInfo(data.manifestJobName, clManifestMap);
-                                }
-
                                 var index = 0, source, target;
                                 var sourceOffset = isFullScreen ? 0 : -1;
                                 var targetOffset = isFullScreen ? -1 : -2;
 
-                                var anchors = [[1, 0, 1, 0, 0, 13], [0, 0, -1, 0, 0, 13]];
-                                var downstreamAnchors = [[0.5, 1, 0, 1, sourceOffset, 0], [0, 0, -1, 0, targetOffset, 13]];
+                                var anchors = [[1, 0, 1, 0, 0, 13], [0, 0, -1, 0, -1, 13]];
+                                var downstreamAnchors = [[0.5, 1, 0, 1, 0, 1], [0, 0, -1, 0, -1, 13]];
 
                                 lastResponse = data;
                                 equalheight(".pipeline-row .stage");
-
-                                if (data.viewMode != "Minimalist") {
-                                    anchors = [[1, 0, 1, 0, 0, 37], [0, 0, -1, 0, 0, 37]];
-                                    // connector = ["Flowchart", { stub: 25, gap: 2, midpoint: 1, alwaysRespectStubs: true } ];
-                                }
 
                                 // use jsPlumb to draw the connections between stages
                                 Q.each(data.pipelines, function (i, component) {
@@ -773,6 +764,25 @@ function pipelineUtils() {
 
 function redrawConnections() {
     instance.repaintEverything();
+}
+
+function revalidateConnections() {
+    if (isFullScreen) {
+        window.scrollTo(0, 0);
+        instance.revalidate();
+
+        // Recalculate offsets for every stage
+        for (var pipeline in pipelineStageIdMap) {
+            for (var stage in pipelineStageIdMap[pipeline]) {
+                instance.recalculateOffsets(stage);
+            }
+        }
+
+        redrawConnections();
+        window.scrollTo(0, sessionStorage.getItem("page_y"));
+    } else {
+        redrawConnections();
+    }    
 }
 
 function getLink(data, link) {
