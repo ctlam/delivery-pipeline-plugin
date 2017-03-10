@@ -42,6 +42,9 @@ function pipelineUtils() {
 
                             window.addEventListener("scroll", storePagePosition);
                             window.addEventListener("resize", revalidateConnections);
+                            window.addEventListener('webkitfullscreenchange', revalidateConnections);
+                            window.addEventListener('mozfullscreenchange', revalidateConnections);
+                            window.addEventListener('fullscreenchange', revalidateConnections);
 
                             var currentPageY;
                             try {
@@ -765,6 +768,8 @@ function redrawConnections() {
 
 function revalidateConnections() {
     if (isFullScreen) {
+        var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
+
         window.scrollTo(0, 0);
         instance.revalidate();
 
