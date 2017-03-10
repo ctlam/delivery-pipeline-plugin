@@ -95,7 +95,7 @@ section.pipeline {
     display: table;
     border-collapse: separate;
     width: 100%;
-    overflow: auto;
+    /*overflow: auto;*/
 }
 
 div.changes {

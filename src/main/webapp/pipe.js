@@ -581,9 +581,6 @@ function pipelineUtils() {
                                 sessionStorage.pipelineStageIdMap = JSON.stringify(pipelineStageIdMap);
 
                                 var index = 0, source, target;
-                                var sourceOffset = isFullScreen ? 0 : -1;
-                                var targetOffset = isFullScreen ? -1 : -2;
-
                                 var anchors = [[1, 0, 1, 0, 0, 13], [0, 0, -1, 0, -1, 13]];
                                 var downstreamAnchors = [[0.5, 1, 0, 1, 0, 1], [0, 0, -1, 0, -1, 13]];
 
