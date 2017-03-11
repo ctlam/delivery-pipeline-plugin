@@ -386,6 +386,8 @@ public class Stage extends AbstractItem {
                         } else {
                             pushNextDown = false;
                         }
+
+                        lastRowDiscovered = lastRowDiscovered + (pushNextDown ? 1 : 0);
                     } else {
                         //update/set row number in the columnRowMap for this effective column
                         columnRowMap.put(effectiveColumn, currentRowForThisColumn + (pushNextDown ? 1 : 0));
