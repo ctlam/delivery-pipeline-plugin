@@ -217,6 +217,7 @@ div.taskname-minimalist {
     /*word-break: break-all;*/
     width: 100%;
     color: rgba(200,200,200,1);
+    line-height: 1.3em;
 }
 
 div.minimalist-task-progress {
@@ -583,10 +584,20 @@ div.aggregatedChangesPanelInner > ul {
 
 .build_entry {
     vertical-align: middle;
-    height: 26px;
-    padding: 0px;
-    margin-top: 15px;
-    margin-bottom: 15px;
+    height: 46px;
+    margin: 0px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    color: inherit;
+    line-height: 1.6em;
+}
+
+.build_circle {
+    vertical-align: middle;
+    height: 46px;
+    width: 100%;
+    background-position: 7px center;
+    background-size: 26px 26px;
     color: inherit;
 }
 
@@ -601,8 +612,19 @@ div.aggregatedChangesPanelInner > ul {
     background: -moz-linear-gradient(top, rgba(80,88,92,1), rgba(67,74,78,1));
 }
 
+.toggled_build_header:hover {
+    background-color: rgba(100,109,115,1);
+    background: -webkit-linear-gradient(top, rgba(100,109,115,1), rgba(86,96,101,1));
+    background: -moz-linear-gradient(top, rgba(100,109,115,1), rgba(86,96,101,1));
+}
+
 .untoggled_build_header {
     background-color: transparent;
+    border: none;
+}
+
+.untoggled_build_header:hover {
+    background-color: rgba(55,65,72,1);
     border: none;
 }
 
@@ -630,6 +652,10 @@ div.aggregatedChangesPanelInner > ul {
     color: rgba(220,220,220,1);
 }
 
+.displayTableLink:hover {
+    color: rgba(85,159,213,1);
+}
+
 .displayTableTr {
     color: inherit;
 }
@@ -639,12 +665,14 @@ div.aggregatedChangesPanelInner > ul {
 }
 
 .displayTableTh {
+    border-top: 1px solid rgba(61,69,75,1);
     border-bottom: 1px solid rgba(61,69,75,1);
     padding: 3px 50px 3px 3px;
     color: inherit;
 }
 
 .displayTableTd {
+    border-top: 1px solid rgba(61,69,75,1);
     border-bottom: 1px solid rgba(61,69,75,1);
     font-weight: normal;
     padding-right: 50px;

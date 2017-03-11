@@ -51,10 +51,14 @@ function pipelineUtils() {
                                 currentPageY = sessionStorage.getItem("page_y");
                                 if (currentPageY === undefined) {
                                     sessionStorage.page_y = 0;
+                                    currentPageY = 0;
                                 }
                             } catch (e) {
                                 console.info(e);
                             }
+
+                            // Scroll to the top before drawing in fullscreen mode
+                            window.scrollTo( 0 , 0 );
 
                             var blockingMap = {};       // Blocking project mapping
                             var conditionalMap = {};    // Conditional project mapping
@@ -203,7 +207,7 @@ function pipelineUtils() {
                                             triggered = "";
                                             for (var y = 0; y < pipeline.triggeredBy.length; y++) {
                                                 trigger = pipeline.triggeredBy[y];
-                                                triggered = triggered + ' <span class="' + trigger.type + '">' + htmlEncode(trigger.description) + '</span>';
+                                                triggered = triggered + trigger.description;
                                                 if (y < pipeline.triggeredBy.length - 1) {
                                                     triggered = triggered + ", ";
                                                 }
@@ -221,7 +225,6 @@ function pipelineUtils() {
                                             triggered = triggered + " changes by " + contributors.join(", ");
                                         }
 
-                                        var dataString = jobName + " " + pipeline.version;
                                         var displayBuildId = "display-build-" + jobName + "-" + buildNum;
                                         var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
                                         var toggleRowId = "toggle-row-" + jobName + "-" + buildNum;
@@ -231,23 +234,25 @@ function pipelineUtils() {
                                         // Initial CSS class to use
                                         var initClass = shouldToggle ? "toggled_build_header" : "untoggled_build_header";
                                         var initPipelineClass = shouldToggle ? "toggled_pipeline" : "untoggled_pipeline";
-
-                                        var toggleFunction = "javascript:toggle('" + toggleBuildId + "','" + toggleRowId + "','" + togglePipelineId + "');";
-
-                                        // if (isFullScreen) {
-                                        //     toggleFunction = "javascript:toggleCompatibleFs('" + jobName + "','" + buildNum + "');";
-                                        // }
+                                        var toggleFunction = "javascript:toggle('" + jobName + "','" + buildNum + "');";
 
                                         html.push("<tr id=\"" + toggleRowId + "\" class=\"" + initClass + "\">");    
-                                        html.push("<td class=\"build_column\"><p class=\"build_entry circle circle_" + statusString + "\" ");
-                                        html.push("style=\"min-height: 26px; min-width: 26px; background-size: 26px 26px; margin-left: 7px;\">&nbsp;</p></td>");
-                                        html.push("<td class=\"build_column\"><p class=\"build_entry\">");
-                                        html.push("<a id=\"" + displayBuildId + "\" href=\"" + toggleFunction + "\">");
-                                        html.push("#" + buildNum + " " + jobName + "</a></p></td>");
-                                        html.push("<td class=\"build_column\"><p class=\"build_entry\">" + pipelineDuration + "</p></td>");
-                                        html.push("<td class=\"build_column\"><p class=\"build_entry\">" + pipelineTimestamp + "</p></td>");
-                                        html.push("<td class=\"build_column\"><p class=\"build_entry\">" + triggered + "</p></td>");
-                                        html.push("</tr><tr><th id=\"" + togglePipelineId + "\" colspan=\"5\" class=\"" + initPipelineClass + "\"><div>");
+                                        html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
+                                        html.push("<p class=\"circle circle_" + statusString + " build_circle\">&nbsp;</p></a></td>");
+
+                                        html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
+                                        html.push("<p class=\"build_entry\">#" + buildNum + " " + jobName + "</p></a></td>");
+
+                                        html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
+                                        html.push("<p class=\"build_entry\">" + pipelineDuration + "</p></a></td>");
+
+                                        html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
+                                        html.push("<p class=\"build_entry\">" + pipelineTimestamp + "</p></a></td>");
+
+                                        html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
+                                        html.push("<p class=\"build_entry\">" + triggered + "</p></a></td>");
+
+                                        html.push("</tr><tr><th id=\"" + togglePipelineId + "\" colspan=\"5\" class=\"" + initPipelineClass + "\">");
                                         html.push("<div id=\"" + toggleBuildId + "\" style=\"display:" + getToggleState(toggleBuildId, "block", isLatestPipeline) + ";\">");
 
                                         // Only expand the latest pipeline
@@ -276,17 +281,17 @@ function pipelineUtils() {
                                                 var displayTableId = "display-table-" + jobName + "-" + buildNum;
                                                 var artifactId = "artifacts-" + jobName + "-" + buildNum;
 
-                                                var toggleTableFunction = "javascript:toggleTable('" + toggleTableId + "');";
+                                                var toggleTableFunction = "javascript:toggleTable('" + toggleTableId + "','" + displayTableId + "');";
 
                                                 if (isFullScreen) {
-                                                    toggleTableFunction = "javascript:toggleTableCompatibleFS('" + toggleTableId + "');";
+                                                    toggleTableFunction = "javascript:toggleTableCompatibleFS('" + toggleTableId + "','" + displayTableId + "');";
                                                 }
 
                                                 html.push("<div class=\"pipeline-cell\" style=\"vertical-align: top\">");
 
                                                 html.push("<table class=\"displayTable\" align=\"left\">");
                                                 html.push("<thead><tr><th colspan=\"2\" style=\"text-align: left;\" class=\"displayTableLink\">");
-                                                html.push("<a id=\"" + displayTableId + "\" href=\"" + toggleTableFunction + "\">Show Additional Display Values</a>");
+                                                html.push("<a id=\"" + displayTableId + "\" href=\"" + toggleTableFunction + "\">Hide Additional Display Values</a>");
                                                 html.push("</th></tr></thead>");
                                                 html.push("<tbody id=\"" + toggleTableId + "\" style=\"display: " + getToggleState(toggleTableId, "table-row-group", true) + ";\">");
                                                 if (data.showArtifacts) {
@@ -479,6 +484,7 @@ function pipelineUtils() {
                                                     html.push("<div class=\"task-header\">");
                                                     html.push("<div class=\"taskname-minimalist\">");
                                                     html.push("<a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle circle_" + task.status.type + "\" ");
+                                                    html.push("href=\"" + getLink(data, task.link) + consoleLogLink + "\" target=\"_blank\" ");
                                                     html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; ");
                                                     html.push("background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
                                                     html.push("<br/><span class=\"tooltip\" style=\"" + toolTipStyle + "\">" + hoverTable + "</span></a>");
@@ -548,11 +554,7 @@ function pipelineUtils() {
                                             getDisplayValues(displayArguments, pipeline, jobName, buildNum);
                                         }
 
-                                        html.push('</div>');
-                                        html.push("</section>");
-
-                                        html.push('</div>');
-                                        html.push('</div></th></tr>')
+                                        html.push('</div></section></div></th></tr>');
                                     }
 
                                     html.push("</table>")
@@ -652,7 +654,6 @@ function pipelineUtils() {
                                                             // Purple
                                                             color = "rgba(118,91,161,1)";
                                                             label = "Downstream";
-                                                            dashstyle = "0 0";
                                                             stub = 10;
                                                         }
                                                     }
@@ -727,7 +728,7 @@ function pipelineUtils() {
                                         legendMap["nb-" + jobName + "-" + buildNum] = ["rgba(0,122,195,1)", "2 2"];
                                         legendMap["nbc-" + jobName + "-" + buildNum] = ["rgba(255,121,52,1)", "2 2"];
                                         legendMap["bc-" + jobName + "-" + buildNum] = ["rgba(255,121,52,1)", "0 0"];
-                                        legendMap["d-" + jobName + "-" + buildNum] = ["rgba(118,91,161,1)", "0 0"];
+                                        legendMap["d-" + jobName + "-" + buildNum] = ["rgba(118,91,161,1)", "2 2"];
 
                                         for (var key in legendMap) {
                                             jsplumb.connect({
@@ -1693,6 +1694,7 @@ function loadFailedOnBlockStages(pipeline, i) {
             var ele = document.getElementById(getStageId(stage.id + "", i));
             if (ele != null) {
                ele.className = "circle circle_FAILED_ON_BLOCK";
+               ele.innerHTML = ele.innerHTML.replace("FAILED", "FAILED (on blocking call)");
             }
         }
     }
@@ -1726,6 +1728,7 @@ function updateFailedOnBlockStages(pipeline, i) {
                     if (downstreamEle != null) {
                         if (downstreamEle.className == "circle circle_FAILED" || downstreamEle.className == "circle circle_CANCELLED") {
                             ele.className = "circle circle_FAILED_ON_BLOCK";
+                            ele.innerHTML = ele.innerHTML.replace("FAILED", "FAILED (due to blocking call)");
                             failedOnBlockingJobs[stage.name] = "true";
                         }
                     }
@@ -1797,11 +1800,16 @@ function getToggleState(toggleId, toggleType, defaultToggleOn) {
 }
 
 // Toggle method
-function toggle(toggleBuildId, toggleRowId, togglePipelineId) {
+function toggle(jobName, buildNum) {
+    console.info("Hi");
     var toggleStates = JSON.parse(sessionStorage.toggleStates);
     var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
-    var stageIds = pipelineStageIdMap[toggleBuildId];
+    
+    var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
+    var toggleRowId = "toggle-row-" + jobName + "-" + buildNum;
+    var togglePipelineId = "toggle-pipeline-" + jobName + "-" + buildNum;
 
+    var stageIds = pipelineStageIdMap[toggleBuildId];
     var ele = document.getElementById(toggleBuildId);
     var rowEle =  document.getElementById(toggleRowId);
     var pipelineEle = document.getElementById(togglePipelineId);
@@ -1844,15 +1852,18 @@ function toggle(toggleBuildId, toggleRowId, togglePipelineId) {
 }
 
 // For showing and hiding the display values table
-function toggleTable(toggleTableId) {
+function toggleTable(toggleTableId, displayTableId) {
     var toggleStates = JSON.parse(sessionStorage.toggleStates);
     var ele = document.getElementById(toggleTableId);
+    var displayEle = document.getElementById(displayTableId);
 
     if (ele.style.display == "table-row-group") {
         ele.style.display = "none";
+        displayEle.innerHTML = "Show Additional Display Values";
         toggleStates[toggleTableId] = "none";
     } else {
         ele.style.display = "table-row-group";
+        displayEle.innerHTML = "Hide Additional Display Values";
         toggleStates[toggleTableId] = "table-row-group";
     }
 
@@ -1962,16 +1973,19 @@ function toggleCompatibleFs(jobName, buildNum) {
 /**
  * Toggle method for Full Screen. Used to toggle the display values table.
  */
-function toggleTableCompatibleFS(toggleTableId) {
+function toggleTableCompatibleFS(toggleTableId, displayTableId) {
     var currentPageY = sessionStorage.getItem("page_y");
     var toggleStates = JSON.parse(sessionStorage.toggleStates);
     var ele = document.getElementById(toggleTableId);
+    var displayEle = document.getElementById(displayTableId);
 
     if (ele.style.display == "table-row-group") {
         ele.style.display = "none";
+        displayEle.innerHTML = "Show Additional Display Values";
         toggleStates[toggleTableId] = "none";
     } else {
         ele.style.display = "table-row-group";
+        displayEle.innerHTML = "Hide Additional Display Values";
         toggleStates[toggleTableId] = "table-row-group";
     }
 

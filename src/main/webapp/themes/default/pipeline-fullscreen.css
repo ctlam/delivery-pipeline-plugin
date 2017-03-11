@@ -159,3 +159,7 @@ a span {
     min-height: 75px;
     min-width: 250px;
 }
+
+.build_entry {
+    line-height: 2.5em;
+}
