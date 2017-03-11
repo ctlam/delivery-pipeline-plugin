@@ -282,6 +282,8 @@ function pipelineUtils() {
                                                 var artifactId = "artifacts-" + jobName + "-" + buildNum;
 
                                                 var toggleTableFunction = "javascript:toggleTable('" + toggleTableId + "','" + displayTableId + "');";
+                                                var initDisplayValMessage = (getToggleState(toggleTableId, "table-row-group", true) == "none") ? "Show " : "Hide ";
+                                                initDisplayValMessage += "Additional Display Values";
 
                                                 if (isFullScreen) {
                                                     toggleTableFunction = "javascript:toggleTableCompatibleFS('" + toggleTableId + "','" + displayTableId + "');";
@@ -291,7 +293,7 @@ function pipelineUtils() {
 
                                                 html.push("<table class=\"displayTable\" align=\"left\">");
                                                 html.push("<thead><tr><th colspan=\"2\" style=\"text-align: left;\" class=\"displayTableLink\">");
-                                                html.push("<a id=\"" + displayTableId + "\" href=\"" + toggleTableFunction + "\">Hide Additional Display Values</a>");
+                                                html.push("<a id=\"" + displayTableId + "\" href=\"" + toggleTableFunction + "\">" + initDisplayValMessage + "</a>");
                                                 html.push("</th></tr></thead>");
                                                 html.push("<tbody id=\"" + toggleTableId + "\" style=\"display: " + getToggleState(toggleTableId, "table-row-group", true) + ";\">");
                                                 if (data.showArtifacts) {
@@ -312,7 +314,7 @@ function pipelineUtils() {
                                             html.push("<div class=\"pipeline-cell\">");
 
                                             html.push("<table class=\"displayTable\" align=\"right\"><thead><tr>");
-                                            html.push("<th colspan=\"2\" style=\"text-align: left;\" class=\"displayTableLink\">Legend</th>");
+                                            html.push("<th colspan=\"2\" style=\"text-align: left; color: inherit;\">Legend</th>");
                                             html.push("</tr></thead>");
                                             html.push("<tbody style=\"display: table-row-group;\">");
 
