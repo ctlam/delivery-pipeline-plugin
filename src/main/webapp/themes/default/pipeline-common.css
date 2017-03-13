@@ -1,3 +1,12 @@
+/*
+ * To distinguish header icons from pipeline icons
+ */
+.circle_header {
+    float: left;
+    margin: 0px;
+    padding: 0px;
+}
+
 .circle {
     float: left;
     margin: 0px;
@@ -76,6 +85,10 @@ div.pipeline-loading-icon {
     margin-right: auto;
 }
 
+section.pipeline-component {
+    width: 100%;
+}
+
 section.pipeline-component h1 {
     font-size: 20px;
     font-weight: bold;
@@ -94,7 +107,7 @@ section.pipeline-component h2 {
 
 section.pipeline {
     display: table;
-    border-collapse: separate;
+    border-collapse: collapse;
     width: 100%;
     /*overflow: auto;*/
 }
@@ -576,8 +589,28 @@ div.aggregatedChangesPanelInner > ul {
     color: inherit;
 }
 
+.build_header_STATUS {
+    width: 5%;
+}
+
+.build_header_BUILD_NUM {
+    width: 55%;
+}
+
+.build_header_DURATION {
+    width: 10%;
+}
+
+.build_header_DATE {
+    width: 20%;
+}
+
+.build_header_STARTED_BY {
+    width: 10%;
+}
+
 .build_column {
-    border-top: 1px solid #b3b3b3;
+    border-bottom: 1px solid #b3b3b3;
     text-align:left;
     color: inherit;
 }

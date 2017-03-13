@@ -1,6 +1,7 @@
 var instance;
 // Jenkins default view has a "main-panel" whereas full screen mode does not
 var isFullScreen = (document.getElementById("main-panel") == null);
+var numColumns = 0;
 
 function pipelineUtils() {
      var self = this;
@@ -40,11 +41,21 @@ function pipelineUtils() {
                                contributors,
                                tasks = [];
 
+                            if (isFullScreen) {
+                                document.onkeydown = function(evt) {
+                                    evt = evt || window.event;
+                                    if (evt.keyCode == 27) {
+                                        var returnUrl = window.location.href.split("?fullscreen=true")[0];
+                                        window.location.href = returnUrl;
+                                    }
+                                };
+                            }
+
                             window.addEventListener("scroll", storePagePosition);
-                            window.addEventListener("resize", revalidateConnections);
-                            window.addEventListener('webkitfullscreenchange', revalidateConnections);
-                            window.addEventListener('mozfullscreenchange', revalidateConnections);
-                            window.addEventListener('fullscreenchange', revalidateConnections);
+                            window.addEventListener("resize", rescaleConnections);
+                            window.addEventListener('webkitfullscreenchange', rescaleConnections);
+                            window.addEventListener('mozfullscreenchange', rescaleConnections);
+                            window.addEventListener('fullscreenchange', rescaleConnections);
 
                             var currentPageY;
                             try {
@@ -166,7 +177,11 @@ function pipelineUtils() {
                                         html.push("</a>");
                                     }
                                     html.push("</h1>");
-                                    html.push("<h2>Refreshed every " + data.updateInterval + " seconds.</h2>");
+                                    html.push("<h2>Refreshed every " + data.updateInterval + " seconds.");
+                                    if (isFullScreen) {
+                                        html.push("<br/>Press ESC at any time to return to the default view.");
+                                    }
+                                    html.push("</h2>");
                                     html.push("</div>");
                                     if (!showAvatars) {
                                         html.push("<div class='pagination'>");
@@ -179,11 +194,11 @@ function pipelineUtils() {
 
                                     html.push("<table class=\"build_table\">");
                                     html.push("<tr>");
-                                    html.push("<th class=\"build_header\" style=\"width:5%;\">Status</th>");
-                                    html.push("<th class=\"build_header\" style=\"width:45%;\">Build Number</th>");
-                                    html.push("<th class=\"build_header\" style=\"width:10%;\">Duration</th>");
-                                    html.push("<th class=\"build_header\" style=\"width:20%;\">Date</th>");
-                                    html.push("<th class=\"build_header\" style=\"width:15%;\">Started by</th>");
+                                    html.push("<th class=\"build_header build_header_STATUS\">Status</th>");
+                                    html.push("<th class=\"build_header build_header_BUILD_NUM\">Build Number</th>");
+                                    html.push("<th class=\"build_header build_header_DURATION\">Duration</th>");
+                                    html.push("<th class=\"build_header build_header_DATE\">Date</th>");
+                                    html.push("<th class=\"build_header build_header_STARTED_BY\">Started by</th>");
                                     html.push("</tr>");
 
                                     var isLatestPipeline = true;
@@ -238,7 +253,7 @@ function pipelineUtils() {
 
                                         html.push("<tr id=\"" + toggleRowId + "\" class=\"" + initClass + "\">");    
                                         html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
-                                        html.push("<p class=\"circle circle_" + statusString + " build_circle\">&nbsp;</p></a></td>");
+                                        html.push("<p class=\"circle_header circle_" + statusString + " build_circle\">&nbsp;</p></a></td>");
 
                                         html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
                                         html.push("<p class=\"build_entry\">#" + buildNum + " " + jobName + "</p></a></td>");
@@ -350,7 +365,6 @@ function pipelineUtils() {
                                         // 1px border left/right around table
                                         // There is also some additional padding elsewhere, so assume 100px in padding to ensure enough room
                                         var maxWidth =  isFullScreen ? window.innerWidth - 100 : document.getElementById("main-panel").offsetWidth - 100;
-                                        var numColumns = 0;
                                         for (var j = 0; j < pipeline.stages.length; j++) {
                                             stage = pipeline.stages[j];
                                             if (stage.column >= numColumns) {
@@ -368,8 +382,8 @@ function pipelineUtils() {
 
                                         if (scaleCondition) {
                                             widthPerCell = Math.floor(maxWidth / numColumns) - 10;
-                                            circleSizePerCell = (maxWidth >= 26) ? "26px" : maxWidth + "px";
-                                            leftPercentPerCell = Math.floor(((widthPerCell - 26) / 2) / widthPerCell * 100) + "%";
+                                            circleSizePerCell = (widthPerCell >= 26) ? "26px" : widthPerCell + "px";
+                                            leftPercentPerCell = Math.floor(((widthPerCell - parseInt(circleSizePerCell.replace("px", ""))) / 2) / widthPerCell * 100) + "%";
                                             fontSizePerCell = 10; // Set a minimum font-size rather than scaling it down to something unreadable
                                         }
 
@@ -412,7 +426,7 @@ function pipelineUtils() {
                                                 }
                                             }
 
-                                            html.push('<div class="pipeline-cell">');
+                                            html.push("<div class=\"pipeline-cell\">");
 
                                             var link = getLink(data, stage.tasks[0].link);
                                             var buildStatus = stage.tasks[0].status;
@@ -423,7 +437,7 @@ function pipelineUtils() {
                                             }
 
                                             if (data.viewMode == "Minimalist") {
-                                                html.push("<div class=\"stage-minimalist " + getStageClassName(stage.name) + "\" style=\"width: " + widthPerCell + "px;\">");
+                                                html.push("<div class=\"stage-minimalist\" style=\"width: " + widthPerCell + "px;\">");    
                                                 html.push("<div class=\"stage-minimalist-header\" style=\"font-size: " + fontSizePerCell + "px;\">");
                                                 html.push("<div class=\"stage-minimalist-name\">");
                                                 html.push("<a href=\"" + link + "\" target=\"_blank\">" + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</a></div>");
@@ -774,10 +788,16 @@ function pipelineUtils() {
                         }
 }
 
+/**
+ * Redraws all the connections.
+ */
 function redrawConnections() {
     instance.repaintEverything();
 }
 
+/**
+ * Revalidates all the connections, recalculates the offsets and redraws all the connections.
+ */
 function revalidateConnections() {
     if (isFullScreen) {
         var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
@@ -797,6 +817,35 @@ function revalidateConnections() {
     } else {
         redrawConnections();
     }    
+}
+
+/**
+ * Rescales and redraws the pipeline.
+ */
+function rescaleConnections() {
+    var maxWidth =  isFullScreen ? window.innerWidth - 100 : document.getElementById("main-panel").offsetWidth - 100;
+    var scaleCondition = (numColumns * 140 > maxWidth);
+
+    // Default Values
+    var widthPerCell = 130; // 10px for margin-right
+    var circleSizePerCell = "26px";
+    var leftPercentPerCell = "37.5%";
+    var fontSizePerCell = 12;
+
+    if (scaleCondition) {
+        widthPerCell = Math.floor(maxWidth / numColumns) - 10;
+        circleSizePerCell = (widthPerCell >= 26) ? "26px" : widthPerCell + "px";
+        leftPercentPerCell = Math.floor(((widthPerCell - parseInt(circleSizePerCell.replace("px", ""))) / 2) / widthPerCell * 100) + "%";
+        fontSizePerCell = 10; // Set a minimum font-size rather than scaling it down to something unreadable
+    }
+
+    Q(".stage-minimalist").css("width", widthPerCell);
+    Q(".circle").css("left", leftPercentPerCell);
+    Q(".circle").css("height", circleSizePerCell);
+    Q(".circle").css("width", circleSizePerCell);
+    Q(".circle").css("background-size", circleSizePerCell + " " + circleSizePerCell);
+
+    revalidateConnections();
 }
 
 function getLink(data, link) {
@@ -1057,8 +1106,9 @@ function formatLongDate(date) {
     var hourString = dateString.split(' ')[4];
     var hour = hourString.split(':')[0];
     var timeOfDayString = "AM";
+    var today = new Date();
 
-    if (parseInt(hour) > 12) {
+    if (parseInt(hour) >= 12) {
         timeOfDayString = "PM";
         hourString = (parseInt(hour) - 12).toString() + ':' + hourString.split(':').slice(1).join(':');
     }
@@ -1803,7 +1853,6 @@ function getToggleState(toggleId, toggleType, defaultToggleOn) {
 
 // Toggle method
 function toggle(jobName, buildNum) {
-    console.info("Hi");
     var toggleStates = JSON.parse(sessionStorage.toggleStates);
     var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
     
