@@ -1082,14 +1082,13 @@ Date.prototype.dst = function() {
 /**
  * For the 4 primary US timezones
  */
-function getUSTimezone(timezone) {
+function getUSTimezone(timestamp, timezone) {
     var timezones = '{}';
-    var today = new Date();
+    var today = new Date(timestamp);
 
     // Account for daylight savings time
     if (today.dst()) {
-        // timezones = JSON.parse('{"GMT-0700": "PDT", "GMT-0600": "MDT", "GMT-0500": "CDT","GMT-0400": "EDT"}');
-        timezones = JSON.parse('{"-08:00": "PDT", "-07:00": "MDT", "-06:00": "CDT","-05:00": "EDT"}');
+        timezones = JSON.parse('{"-07:00": "PDT", "-06:00": "MDT", "-05:00": "CDT","-04:00": "EDT"}');
     }
     else {
         timezones = JSON.parse('{"-08:00": "PST", "-07:00": "MST", "-06:00": "CST","-05:00": "EST"}');
@@ -1106,10 +1105,10 @@ function getUSTimezone(timezone) {
 /**
  * Returns a human readable date string using the browsers time zone.
  */
-function formatLongDate(date) {
-  if (date != null) {
-    var dateString = moment.unix(parseInt(date) / 1000).format("ddd MMM Do YYYY h:mm:ss A Z");
-    var timezoneString = getUSTimezone(dateString.split(' ')[6]);
+function formatLongDate(timestamp) {
+  if (timestamp != null) {
+    var dateString = moment.unix(parseInt(timestamp) / 1000).format("ddd MMM Do YYYY h:mm:ss A Z");
+    var timezoneString = getUSTimezone(parseInt(timestamp), dateString.split(' ')[6]);
 
     return dateString.split(' ').slice(0, 6).join(' ') + " " + timezoneString;
   }
