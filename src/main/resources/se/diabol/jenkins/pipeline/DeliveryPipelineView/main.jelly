@@ -42,7 +42,7 @@
     </j:switch>
 
     <script type="text/javascript" src="${resURL}/plugin/delivery-pipeline-plugin/js-yaml.min.js"/>
-    <script type="text/javascript" src="${resURL}/plugin/delivery-pipeline-plugin/moment.min.js"/>
+    <script type="text/javascript" src="${resURL}/plugin/delivery-pipeline-plugin/moment-with-locales.min.js"/>
     <script type="text/javascript" src="${resURL}/plugin/delivery-pipeline-plugin/jsplumb.min.js"/>
     <script type="text/javascript" src="${resURL}/plugin/delivery-pipeline-plugin/pipe.js"/>
     <j:if test="${it.theme == 'overview'}">

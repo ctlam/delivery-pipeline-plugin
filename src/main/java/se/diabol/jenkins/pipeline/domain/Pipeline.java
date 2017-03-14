@@ -268,7 +268,7 @@ public class Pipeline extends AbstractItem {
         List<Pipeline> result = new ArrayList<Pipeline>();
         int no = noOfPipelines;
         if (firstProject.isInQueue()) {
-            String pipeLineTimestamp = PipelineUtils.formatTimestamp(firstProject.getQueueItem().getInQueueSince());
+            String pipeLineTimestamp = PipelineUtils.timestampToString(firstProject.getQueueItem().getInQueueSince());
             List<Stage> pipelineStages = new ArrayList<Stage>();
             for (Stage stage : getStages()) {
                 pipelineStages.add(stage.createLatestStage(context, null));
@@ -295,7 +295,7 @@ public class Pipeline extends AbstractItem {
             List<Change> pipelineChanges = Change.getChanges(firstBuild);
             Set<UserInfo> contributors = showChanges ? UserInfo.getContributors(pipelineChanges) : null;
 
-            String pipeLineTimestamp = PipelineUtils.formatTimestamp(firstBuild.getTimeInMillis());
+            String pipeLineTimestamp = PipelineUtils.timestampToString(firstBuild.getTimeInMillis());
             List<Stage> pipelineStages = new ArrayList<Stage>();
             for (Stage stage : getStages()) {
                 pipelineStages.add(stage.createLatestStage(context, firstBuild));

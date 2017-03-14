@@ -157,10 +157,22 @@ div.aggregatedChangesPanelOuter {
 }
 
 a span {
-    min-height: 75px;
-    min-width: 250px;
+    min-width: initial;
 }
 
 .build_entry {
     line-height: 2.5em;
+}
+
+.hoverTable {
+    font-size: 13px;
+}
+
+.hoverTableTh {
+    min-width: 140px;
+}
+
+/* Enough to fit the timestamp in one line */
+.hoverTableTd {
+    min-width: 210px;
 }

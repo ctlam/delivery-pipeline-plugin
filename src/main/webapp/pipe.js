@@ -487,13 +487,13 @@ function pipelineUtils() {
 
                             if (data.viewMode == "Minimalist") {
                                 var toolTipStyle = Math.round(column / numColumns) < 0.5 ? "left: 0%;" : "right: 0%;"
-                                var hoverTable = "<table><tr>";
-                                hoverTable += "<th class=\"hoverTableEntry\">Status:</th>";
-                                hoverTable += "<td class=\"hoverTableEntry\">" + task.status.type + "</td></tr><tr>"
-                                hoverTable += "<th class=\"hoverTableEntry\">Timestamp:</th>";
-                                hoverTable += "<td class=\"hoverTableEntry\">" + timestamp + "</td></tr><tr>";
-                                hoverTable += "<th class=\"hoverTableEntry\">Duration:</th>";
-                                hoverTable += "<td class=\"hoverTableEntry\">" + formatLongDuration(task.status.duration) + "</td></tr>";
+                                var hoverTable = "<table class=\"hoverTable\"><tr class=\"hoverRow\">";
+                                hoverTable += "<th class=\"hoverTableTh\">Status:</th>";
+                                hoverTable += "<td class=\"hoverTableTd\">" + task.status.type + "</td></tr><tr class=\"hoverRow\">"
+                                hoverTable += "<th class=\"hoverTableTh\">Timestamp:</th>";
+                                hoverTable += "<td class=\"hoverTableTd\">" + timestamp + "</td></tr><tr class=\"hoverRow\">";
+                                hoverTable += "<th class=\"hoverTableTh\">Duration:</th>";
+                                hoverTable += "<td class=\"hoverTableTd\">" + formatLongDuration(task.status.duration) + "</td></tr>";
                                 hoverTable += generateStageDisplayValueTable(displayArguments, jobName, stage.name, getStageId(stage.id + "", i));
                                 hoverTable += "</table>";
 
@@ -1088,10 +1088,11 @@ function getUSTimezone(timezone) {
 
     // Account for daylight savings time
     if (today.dst()) {
-        timezones = JSON.parse('{"GMT-0700": "PDT", "GMT-0600": "MDT", "GMT-0500": "CDT","GMT-0400": "EDT"}');
+        // timezones = JSON.parse('{"GMT-0700": "PDT", "GMT-0600": "MDT", "GMT-0500": "CDT","GMT-0400": "EDT"}');
+        timezones = JSON.parse('{"-08:00": "PDT", "-07:00": "MDT", "-06:00": "CDT","-05:00": "EDT"}');
     }
     else {
-        timezones = JSON.parse('{"GMT-0800": "PST", "GMT-0700": "MST", "GMT-0600": "CST","GMT-0500": "EST"}');
+        timezones = JSON.parse('{"-08:00": "PST", "-07:00": "MST", "-06:00": "CST","-05:00": "EST"}');
     }
 
     // For other parts in the world
@@ -1102,30 +1103,15 @@ function getUSTimezone(timezone) {
     return timezones[timezone];
 }
 
+/**
+ * Returns a human readable date string using the browsers time zone.
+ */
 function formatLongDate(date) {
   if (date != null) {
-    // No moment method to get the timezone so we'll do it ourselves
-    var dateString = moment(date, "YYYY-MM-DDTHH:mm:ss").toString();
-    var timezoneString = getUSTimezone(dateString.split(' ')[5]);
-    var hourString = dateString.split(' ')[4];
-    var hour = hourString.split(':')[0];
-    var timeOfDayString = "AM";
-    var today = new Date();
+    var dateString = moment.unix(parseInt(date) / 1000).format("ddd MMM Do YYYY h:mm:ss A Z");
+    var timezoneString = getUSTimezone(dateString.split(' ')[6]);
 
-    if (parseInt(hour) >= 12) {
-        timeOfDayString = "PM";
-        hourString = (parseInt(hour) - 12).toString() + ':' + hourString.split(':').slice(1).join(':');
-    }
-
-    dateString = moment(date, "YYYY-MM-DDTHH:mm:ss").toString().split(' ').slice(0, 4).join(' ') + " " + hourString + " " + timeOfDayString + " " + timezoneString;
-    return dateString;
-  }
-  return "Never started";
-}
-
-function formatCardLongDate(date) {
-  if (date != null) {
-    return moment(date, "YYYY-MM-DDTHH:mm:ss").toString().split(' ').slice(1, 5).join(' ');
+    return dateString.split(' ').slice(0, 6).join(' ') + " " + timezoneString;
   }
   return "Never started";
 }
@@ -1750,8 +1736,8 @@ function generateStageDisplayValueTable(displayArgs, pipelineName, stageName, st
             var re = new RegExp(' ', 'g');
 
             for (var displayKey in mainProjectDisplayConfig) {
-                retVal += "<th class=\"hoverTableEntry\">" + displayKey + ":</th>";
-                retVal += "<td id=\"" + stageId + "-" + displayKey.replace(re, '_') + "\" class=\"hoverTableEntry\">Value not found across pipeline</td></tr>";  
+                retVal += "<tr class=\"hoverRow\"><th class=\"hoverTableTh\">" + displayKey + ":</th>";
+                retVal += "<td id=\"" + stageId + "-" + displayKey.replace(re, '_') + "\" class=\"hoverTableTd\">Value not found across pipeline</td></tr>";  
             }    
         }
     }
