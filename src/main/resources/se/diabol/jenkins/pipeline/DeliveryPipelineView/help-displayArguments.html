@@ -7,21 +7,30 @@
     <br/>
 <pre>
 The pipeline project name:
-    The display value:
-        projectName: some project name
-        filePath: file path relative to the workspace
-        artifactName: the name of the artifact
-        envName: the name of an environment variable
-        paramName: the name of a parameter
-        fromConsole: boolean value of true or false
-        grepPattern: a regex expression -- see notes below
-        grepFlag: the regexp flag
-        useLink: boolean value of true or false
+    Global:
+        The display value:
+            projectName: some project name
+            filePath: file path relative to the workspace
+            artifactName: the name of the artifact
+            envName: the name of an environment variable
+            paramName: the name of a parameter
+            fromConsole: boolean value of true or false
+            grepPattern: a regex expression -- see notes below
+            grepFlag: the regexp flag
+            useLink: boolean value of true or false
+    Project_1:
+        The display value:
+            filePath: file path relative to the workspace
+    Project_2:
+        The display value:
+            envName: the name of an environment variable
 </pre>
 
 <p>
 Additional Notes:<br/>
 - The pipeline project name is the name of the first job in your pipeline.<br/>
+- Any arguments under "Global" will be displayed at the top of every build run.
+- Any arguments titled a specific project name will be displayed when hovering over the project's status icon in the pipeline.
 - The display value is simply a header.<br/><br/>
 - Only specify one of { filePath | artifactName | envName | paramName | fromConsole }.<br/>
 - useLink is used in conjunction with { filePath | artifactName } and is OPTIONAL.<br/>
@@ -38,9 +47,10 @@ Example of usage:
 
 <pre>
 SOME_PROJECT_NAME:
-    Executor Number:
-        projectName: test-project
-        envName: EXECUTOR_NUMBER
+    Global:
+        Executor Number:
+            projectName: test-project
+            envName: EXECUTOR_NUMBER
 </pre>
 
 <p>

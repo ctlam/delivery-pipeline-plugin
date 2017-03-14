@@ -220,6 +220,7 @@ div.taskname-minimalist {
     font-size: 12px;
     font-weight: normal;
     width: 100%;
+    padding: 0;
 }
 
 .stage-minimalist-name {
@@ -245,11 +246,6 @@ div.stage-minimalist-header {
     width: 100%;
     white-space: nowrap;
     text-align: center;
-}
-
-div.task-content-minimalist {
-    padding: 0;
-    width: 100%;
 }
 
 /* ------------------------------- */
