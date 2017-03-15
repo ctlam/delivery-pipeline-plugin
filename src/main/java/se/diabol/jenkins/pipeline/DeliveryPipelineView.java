@@ -727,7 +727,8 @@ public class DeliveryPipelineView extends View {
 
         @Override
         public String getDisplayName() {
-            return "Delivery Pipeline View";
+            return "Build Timeline View";
+            // return "Delivery Pipeline View";
         }
     }
 
