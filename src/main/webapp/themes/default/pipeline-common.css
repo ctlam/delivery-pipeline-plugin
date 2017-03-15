@@ -607,13 +607,14 @@ div.aggregatedChangesPanelInner > ul {
 
 .hoverText {
     color: rgba(200,200,200,1);
+    font-size: 12px;
 }
 
 .hoverTable {
     text-align:left;
     border-collapse: collapse;
     color: rgba(200,200,200,1);
-    font-size: 11px;
+    font-size: 12px;
 }
 
 .hoverRow:nth-child(odd) {

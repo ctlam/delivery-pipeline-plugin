@@ -84,8 +84,12 @@ a span {
     font-size: 15px;
 }
 
+.hoverText {
+    font-size: 14px;
+}
+
 .hoverTable {
-    font-size: 13px;
+    font-size: 14px;
 }
 
 .hoverTableTh {
@@ -94,7 +98,7 @@ a span {
 
 /* Enough to fit the timestamp in one line */
 .hoverTableTd {
-    min-width: 210px;
+    min-width: 240px;
 }
 
 .legendTh {
