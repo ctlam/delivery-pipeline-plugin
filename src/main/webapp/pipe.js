@@ -86,6 +86,10 @@ function pipelineUtils() {
             sessionStorage.savedPipelineArtifacts = JSON.stringify({});
         }
 
+        if (sessionStorage.savedStageDisplayValues == null) {
+            sessionStorage.savedStageDisplayValues = JSON.stringify({});
+        }
+
         if (sessionStorage.previousDisplayArgConfig == null) {
             sessionStorage.previousDisplayArgConfig = JSON.stringify({});
         }
@@ -108,6 +112,7 @@ function pipelineUtils() {
             if (lastViewedJob !== undefined && (currentJob != lastViewedJob)) {
                 sessionStorage.savedPipelineDisplayValues = JSON.stringify({});
                 sessionStorage.savedPipelineArtifacts = JSON.stringify({});
+                sessionStorage.savedStageDisplayValues = JSON.stringify({});
                 sessionStorage.toggleStates = JSON.stringify({});
                 sessionStorage.blockedOnFailedMap = JSON.stringify({});
             }
@@ -324,7 +329,7 @@ function pipelineUtils() {
                                 toggleTableFunction = "javascript:toggleTableCompatibleFS('" + toggleTableId + "','" + displayTableId + "');";
                             }
 
-                            html.push("<div class=\"pipeline-cell\" style=\"vertical-align: top\">");
+                            html.push("<div class=\"pipeline-cell\" style=\"vertical-align: top;\">");
 
                             html.push("<table class=\"displayTable\" align=\"left\">");
                             html.push("<thead><tr><th colspan=\"2\" style=\"text-align: left;\" class=\"displayTableLink\">");
@@ -1845,6 +1850,7 @@ function generateStageDisplayValueTable(displayArgs, pipelineName, stageName, st
  */
 function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildNum, stageId) {
     var previousDisplayArgConfig = JSON.parse(sessionStorage.previousDisplayArgConfig);
+    var savedStageDisplayValues = JSON.parse(sessionStorage.savedStageDisplayValues);
     var re = new RegExp(' ', 'g');
 
     for (var mainProject in displayArgs) {
@@ -1856,6 +1862,17 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
             var mainProjectDisplayConfig = (displayArgs[mainProject])[stageName];
 
             for (var displayKey in mainProjectDisplayConfig) {
+
+                var saveId = stageName + "-" + stageBuildNum + "-" + displayKey.replace(re, '_');
+                if (savedStageDisplayValues.hasOwnProperty(saveId)) {
+                    var id = stageId + "-" + displayKey.replace(re, '_');
+                    var ele = document.getElementById(id);
+
+                    console.info("previous value found in cache");
+                    ele.innerHTML = savedStageDisplayValues[saveId];
+                    continue;
+                }
+
                 var displayKeyConfig = mainProjectDisplayConfig[displayKey];
                 var filePath, artifactName, envName, paramName, fromConsole, grepPattern;
                 filePath = artifactName = envName = paramName = fromConsole = grepPattern = "";
@@ -1916,7 +1933,8 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
                         cache: true,
                         timeout: 20000,
                         success: function(data) {
-                            updateStageDisplayValues(this.url, data, displayArgs, pipelineName, stageName, stageId);
+                            updateStageDisplayValues(this.url, data, displayArgs, pipelineName, stageName, 
+                                stageBuildNum, stageId);
                         },
                         error: function (xhr, status, error) {
                         }
@@ -1930,7 +1948,7 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
  /**
   * Callback function to update the stage specific display values
   */
-function updateStageDisplayValues(url, data, displayArgs, pipelineName, stageName, stageId) {
+function updateStageDisplayValues(url, data, displayArgs, pipelineName, stageName, stageBuildNum, stageId) {
     var projectName = (url.split("/job/")[1]).split("/")[0];
     var re = new RegExp(' ', 'g');
 
@@ -1965,6 +1983,11 @@ function updateStageDisplayValues(url, data, displayArgs, pipelineName, stageNam
                                 } else {
                                     ele.innerHTML = envMap[envName];    
                                 }
+
+                                var saveId = stageName + "-" + stageBuildNum + "-" + displayKey.replace(re, '_');
+                                var savedValues = JSON.parse(sessionStorage.savedStageDisplayValues);
+                                savedValues[saveId] = ele.innerHTML;
+                                sessionStorage.savedStageDisplayValues = JSON.stringify(savedValues);
                             }
                         }
                     }
@@ -1997,6 +2020,11 @@ function updateStageDisplayValues(url, data, displayArgs, pipelineName, stageNam
                         var id = stageId + "-" + displayKey.replace(re, '_');
                         var ele = document.getElementById(id);
                         ele.innerHTML = toolTipData;
+
+                        var saveId = stageName + "-" + stageBuildNum + "-" + displayKey.replace(re, '_');
+                        var savedValues = JSON.parse(sessionStorage.savedStageDisplayValues);
+                        savedValues[saveId] = ele.innerHTML;
+                        sessionStorage.savedStageDisplayValues = JSON.stringify(savedValues);
                     }
                 }
             }
@@ -2038,6 +2066,11 @@ function updateStageDisplayValues(url, data, displayArgs, pipelineName, stageNam
                         var id = stageId + "-" + displayKey.replace(re, '_');
                         var ele = document.getElementById(id);
                         ele.innerHTML = toolTipData;
+
+                        var saveId = stageName + "-" + stageBuildNum + "-" + displayKey.replace(re, '_');
+                        var savedValues = JSON.parse(sessionStorage.savedStageDisplayValues);
+                        savedValues[saveId] = ele.innerHTML;
+                        sessionStorage.savedStageDisplayValues = JSON.stringify(savedValues);
                     }
                 }
             }
