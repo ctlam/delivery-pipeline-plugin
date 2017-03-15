@@ -1,5 +1,5 @@
 /*
- * To distinguish header icons from pipeline icons
+ * To distinguish header icons from pipeline icons when using jQuery
  */
 .circle_header {
     float: left;
@@ -170,14 +170,17 @@ div.pipeline-row {
 
 div.pipeline-cell {
     display: table-cell;
-    padding-bottom: 5px;
+    vertical-align: bottom;
+    padding: 0px 0px 5px 0px;
+    margin: 0px;
 }
 
+/*
 div.stage {
-    margin-right: 60px;
-    min-width: 180px;
-    border: solid 1px #C8C8C8;
-    border-radius: 5px;
+    margin-right: 10px;
+    width: 120px;
+    border: none;
+    height: initial;
 }
 
 div.stage a {
@@ -188,12 +191,8 @@ div.stage a {
 div.stage a:visited {
     color: inherit;
 }
+*/
 
-div.stage-task {
-    white-space: nowrap;
-    margin: 2px 2px 2px 2px;
-}
-/* ------------------------------- */
 div.stage-minimalist {
     margin-right: 10px;
     /*width: 120px;*/
@@ -209,13 +208,12 @@ div.stage-minimalist a:visited {
     color: inherit;
 }
 
-div.stage-minimalist-task {
+div.stage-task {
     white-space: nowrap;
-    min-height: 20px;
     padding: 0;
 }
 
-div.taskname-minimalist {
+div.taskname {
     display: table-cell;
     font-size: 12px;
     font-weight: normal;
@@ -223,7 +221,7 @@ div.taskname-minimalist {
     padding: 0;
 }
 
-.stage-minimalist-name {
+.stage-name {
     display: table-cell;
     vertical-align: middle;
     white-space: normal;
@@ -234,11 +232,7 @@ div.taskname-minimalist {
     line-height: 1.3em;
 }
 
-div.minimalist-task-progress {
-    min-height: 20px;
-}
-
-div.stage-minimalist-header {
+div.stage-header {
     background-color: transparent;
     /*font-size: 13px;*/
     font-weight: normal;;
@@ -248,26 +242,9 @@ div.stage-minimalist-header {
     text-align: center;
 }
 
-/* ------------------------------- */
-
 div.task-content {
     padding: 3px 3px 3px 3px;
     width: 100%;
-}
-
-div.stage-header {
-    background: #EEEEEE;
-    font-size: 13px;
-    font-weight: bold;
-    display: table;
-    width: 100%;
-    white-space: nowrap;
-    border-bottom: 1px solid #C8C8C8;
-}
-
-.stage-name {
-    display: table-cell;
-    vertical-align: middle;
 }
 
 .stage-version {
@@ -286,9 +263,10 @@ div.task-header {
 
 div.taskname {
     display: table-cell;
-    background: url("console.png") no-repeat;
-    background-position: left center;
-    padding: 1px, 1px, 1px, 20px;
+    font-size: 12px;
+    font-weight: normal;
+    width: 100%;
+    padding: 0;
 }
 
 div.task-manual {
@@ -314,108 +292,6 @@ div.task-rebuild {
     float: right;
     padding-right: 5px;
     z-index: 100;
-
-}
-
-.console {
-    display: table-cell;
-    background: url("console.png") no-repeat;
-    background-position: left center;
-    padding: 1px 1px 1px 20px;
-}
-
-.timestamp {
-    display: table-cell;
-    background: url("timestamp.png") no-repeat;
-    background-position: left center;
-    padding: 1px 1px 1px 20px;
-}
-
-.duration {
-    display: table-cell;
-    background: url("duration.png") no-repeat;
-    padding: 1px 1px 1px 20px;
-    background-position: left center;
-}
-
-div.task-progress-running {
-    background-color: lightskyblue;
-    animation-duration: 1s;
-    animation-name: bluePulse;
-    animation-iteration-count: infinite;
-
-    -webkit-animation-name: bluePulse;
-    -webkit-animation-duration: 1s;
-    -webkit-animation-iteration-count: infinite;
-
-}
-
-@keyframes bluePulse {
-    0% {
-        background-color: #0197fe;
-    }
-    50% {
-        background-color: #2daebf;
-    }
-    100% {
-        background-color: #0197fe;
-    }
-}
-
-@-webkit-keyframes bluePulse {
-    from {
-        background-color: #0197fe;
-    }
-    50% {
-        background-color: #2daebf;
-    }
-    to {
-        background-color: #0197fe;
-    }
-}
-
-.IDLE {
-    border-left: 6px solid #d3d3d3;
-}
-
-.QUEUED {
-    border-left: 6px solid darkblue;
-}
-
-.FAILED {
-    border-left: 6px solid #8b0000;
-    background-color: #ff6347;
-}
-
-.SUCCESS {
-    border-left: 6px solid #228b22;
-}
-
-.UNSTABLE {
-    border-left: 6px solid #fcae3f;
-    background-color: #fad42e;
-    font-weight: bold;
-}
-
-.CANCELLED {
-    border-left: 6px solid #8b8989;
-    background-color: #d3d3d3;
-    font-weight: bold;
-}
-
-.NOT_BUILT {
-    border-left: 6px solid #8b8989;
-    background-color: #d3d3d3;
-    font-weight: bold;
-}
-
-.DISABLED {
-    border-left: 6px solid transparent;
-    color: #a9a9a9;
-}
-
-.RUNNING {
-    border-left: 6px solid #0092ef;
 }
 
 div.left {
@@ -444,10 +320,6 @@ div.button-start {
 div.pipeline-message {
     font-size: 15px;
     z-index: -50;
-}
-
-._jsPlumb_connector {
-    z-index: -100;
 }
 
 div.infoPanel {
@@ -675,6 +547,7 @@ div.aggregatedChangesPanelInner > ul {
     text-align:left;
     border-collapse: collapse;
     color: rgba(200,200,200,1);
+    font-size: 14px;
 }
 
 .displayTableLink {
@@ -704,9 +577,16 @@ div.aggregatedChangesPanelInner > ul {
     border-top: 1px solid rgba(61,69,75,1);
     border-bottom: 1px solid rgba(61,69,75,1);
     font-weight: normal;
-    padding-right: 50px;
     padding: 3px 50px 3px 3px;
     color: inherit;
+}
+
+.displayTableEntryLink {
+}
+
+/* For links in the display table */
+.displayTableEntryLink:hover {
+    color: rgba(85,159,213,1);
 }
 
 .legendRow:nth-child(odd) {
@@ -716,15 +596,20 @@ div.aggregatedChangesPanelInner > ul {
 .legendTh {
     padding: 0px 50px 0px 3px;
     border: none;
+    font-size: 12px;
 }
 
 .legendTd {
     padding: 0px 10px 0px 10px;
     border: none;
+    font-size: 12px;
+}
+
+.hoverText {
+    color: rgba(200,200,200,1);
 }
 
 .hoverTable {
-    margin: 5px;
     text-align:left;
     border-collapse: collapse;
     color: rgba(200,200,200,1);
@@ -762,11 +647,16 @@ a span {
     min-width: 100px;
     top: 100%;
     z-index: 6;
+    padding: 5px;
 }
 
 a {
     position: relative;
-    color: inherit !important;
+    color: inherit;
+}
+
+a:link {
+    color: inherit;
 }
 
 a:hover span {

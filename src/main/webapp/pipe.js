@@ -122,23 +122,42 @@ function pipelineUtils() {
             cErrorDiv.hide().html('');
         }
 
+        // Get the display arguments from a specified project url
+        var displayArgumentsFromProject = {};
+        if (!isNullOrEmpty(data.displayArgumentsProject)) {
+            try {
+                // Attempt to parse the contents
+                var returnedArguments = retrieveDisplayArgumentsFromProject(data.displayArgumentsProject);
+                if (data.useYamlParser) {
+                    displayArgumentsFromProject = jsyaml.safeLoad(returnedArguments);
+                } else {
+                    displayArgumentsFromProject = JSON.parse(returnedArguments);
+                }
+            } catch (e) {
+                console.log(e);
+            }
+        }
+
         // Get the display arguments in either YAML/JSON format.
-        var displayArguments = data.displayArguments;
-        // Attempt to parse the contents
+        var displayArguments = {};
         try {
-            if (displayArguments != "") {
+            // Attempt to parse the contents
+            if (!isNullOrEmpty(data.displayArguments)) {
                 if (data.useYamlParser) {
                     displayArguments = jsyaml.safeLoad(data.displayArguments);
                 } else {
                     displayArguments = JSON.parse(data.displayArguments);
                 }
             }
-
-            if (displayArguments == null) {
-                displayArguments = "";
-            }
         } catch (e) {
             console.log(e);
+        }
+
+        // Hope that jQuery can perform the deep merge
+        try {
+            displayArguments = Q.extend(true, {}, displayArgumentsFromProject, displayArguments);
+        } catch (e) {
+            console.log("Error performing deep merge on display arguments");
         }
         
         if (lastResponse === null || JSON.stringify(data.pipelines) !== JSON.stringify(lastResponse.pipelines)) {
@@ -291,7 +310,8 @@ function pipelineUtils() {
                         html.push("<section class=\"pipeline\">");
                         html.push("<div class=\"pipeline-row\">");
 
-                        if (displayArguments != "" && displayArguments != null) {
+                        //if (displayArguments != "" && displayArguments != null) {
+                        if (JSON.stringify(displayArguments) != JSON.stringify({})) {
                             var toggleTableId = "toggle-table-" + jobName + "-" + buildNum;
                             var displayTableId = "display-table-" + jobName + "-" + buildNum;
                             var artifactId = "artifacts-" + jobName + "-" + buildNum;
@@ -420,8 +440,6 @@ function pipelineUtils() {
                                 if (data.viewMode == "Minimalist") {
                                     html.push("<div class=\"pipeline-cell\">");
                                     html.push("<div class=\"stage-minimalist hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
-                                } else {
-                                    html.push('<div class="pipeline-cell"><div class="stage hide"></div></div>');
                                 }
                                 column++;
                             }
@@ -439,13 +457,9 @@ function pipelineUtils() {
 
                         if (data.viewMode == "Minimalist") {
                             html.push("<div class=\"stage-minimalist\" style=\"width: " + widthPerCell + "px;\">");    
-                            html.push("<div class=\"stage-minimalist-header\" style=\"font-size: " + fontSizePerCell + "px;\">");
-                            html.push("<div class=\"stage-minimalist-name\">");
+                            html.push("<div class=\"stage-header\" style=\"font-size: " + fontSizePerCell + "px;\">");
+                            html.push("<div class=\"stage-name\">");
                             html.push("<a href=\"" + link + "\" target=\"_blank\">" + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</a></div>");
-                        } else {
-                            html.push("<div id=\"" + getStageId(stage.id + "", i) + "\" class=\"stage " + getStageClassName(stage.name) + "\">");
-                            html.push("<div class=\"stage-header\">");
-                            html.push("<div class=\"stage-name build_" + buildStatus.type + "\">" + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</div>");
                         }
 
                         if (!pipeline.aggregated) {
@@ -497,53 +511,15 @@ function pipelineUtils() {
                                 hoverTable += generateStageDisplayValueTable(displayArguments, jobName, stage.name, getStageId(stage.id + "", i));
                                 hoverTable += "</table>";
 
-                                html.push("<div id=\"" + id + "\" class=\"stage-minimalist-task\">");
+                                html.push("<div id=\"" + id + "\" class=\"stage-task\">");
                                 html.push("<div class=\"task-header\">");
-                                html.push("<div class=\"taskname-minimalist\">");
+                                html.push("<div class=\"taskname\">");
                                 html.push("<a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle circle_" + task.status.type + "\" ");
                                 html.push("href=\"" + getLink(data, task.link) + consoleLogLink + "\" target=\"_blank\" ");
                                 html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; ");
                                 html.push("background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
                                 html.push("<br/><span class=\"tooltip\" style=\"" + toolTipStyle + "\">" + hoverTable + "</span></a>");
                                 html.push("</div></div></div>");
-                            } else {
-                                html.push("<div id=\"" + id + "\" class=\"status stage-task\">");
-                                html.push("<div class=\"task-progress " + progressClass + "\" style=\"width: " + progress + "%;\">");
-                                html.push("<div class=\"task-content\">");
-                                html.push("<div class=\"task-header\">");
-                                html.push("<div class=\"taskname\"></div>");
-
-                                if (data.allowManualTriggers && task.manual && task.manualStep.enabled && task.manualStep.permission) {
-                                    html.push('<div class="task-manual" id="manual-' + id + '" title="Trigger manual build" onclick="triggerManual(\'' + id + '\', \'' + task.id + '\', \'' + task.manualStep.upstreamProject + '\', \'' + task.manualStep.upstreamId + '\', \'' + view.viewUrl + '\');">');
-                                    html.push("</div>");
-                                } else {
-                                    if (!pipeline.aggregated && data.allowRebuild && task.rebuildable) {
-                                        html.push('<div class="task-rebuild" id="rebuild-' + id + '" title="Trigger rebuild" onclick="triggerRebuild(\'' + id + '\', \'' + task.id + '\', \'' + task.buildId + '\', \'' + view.viewUrl + '\');">');
-                                        html.push("</div>");
-                                    }
-                                }
-
-                                html.push('</div><div class="task-details">');
-                                if (timestamp != "") {
-                                    html.push("<div class='console'><a href=\"" + getLink(data, task.link) + consoleLogLink + "\">" + taskHeader + "</a></div>");
-                                }
-
-                                html.push('</div><div class="task-details">');
-                                if (timestamp != "") {
-                                    html.push("<div id=\"" + id + ".timestamp\" class='timestamp'>" + timestamp + "</div>");
-                                }
-
-                                html.push('</div><div class="task-details">');
-                                if (task.status.duration >= 0) {
-                                    html.push("<div class='duration'>" + formatDuration(task.status.duration) + "</div>");
-                                }
-
-                                html.push("</div></div></div></div>");
-
-                                html.push(generateDescription(data, task));
-                                html.push(generateTestInfo(data, task));
-                                html.push(generateStaticAnalysisInfo(data, task));
-                                html.push(generatePromotionsInfo(data, task));
                             }
                         }
 
@@ -604,10 +580,12 @@ function pipelineUtils() {
 
                 for (var j = 0; j < pipeline.stages.length; j++) {
                     stage = pipeline.stages[j];
-                    stageIds[getStageId(stage.id + "", i)] = "true";
+
+                    var id = getStageId(stage.id + "", i);
+                    stageIds[id] = "true";
 
                     // We can update specific stage display values here as well
-                    getStageDisplayValues(displayArguments, jobName, stage.name, stage.tasks[0].buildId, getStageId(stage.id + "", i));
+                    getStageDisplayValues(displayArguments, jobName, stage.name, stage.tasks[0].buildId, id);
                 }
                 pipelineStageIdMap[toggleBuildId] = stageIds;
             }
@@ -943,13 +921,17 @@ function rescaleConnections() {
         fontSizePerCell = 10; // Set a minimum font-size rather than scaling it down to something unreadable
     }
 
-    Q(".stage-minimalist").css("width", widthPerCell);
+    Q(".stage").css("width", widthPerCell);
     Q(".circle").css("left", leftPercentPerCell);
     Q(".circle").css("height", circleSizePerCell);
     Q(".circle").css("width", circleSizePerCell);
     Q(".circle").css("background-size", circleSizePerCell + " " + circleSizePerCell);
 
     revalidateConnections();
+}
+
+function isNullOrEmpty(strValue) {
+    return ((strValue == null) || (strValue == ""));
 }
 
 function getLink(data, link) {
@@ -1468,12 +1450,13 @@ function getBuildArtifactLinks(url, json, buildId) {
     var ele = document.getElementById(buildId);
     var artifact = url.split("/artifact/")[1];
 
+    var eleString = "<a href=\"" + url + "\" class=\"displayTableEntryLink\">" + artifact + 
+                    "<span class=\"tooltip hoverText\">" + json + "</span></a>";
+
     if (ele.innerHTML != "No artifacts found") {
-        ele.innerHTML += ", <a href=\"" + url + "\" style=\"color: inherit;\">" + artifact;
-        ele.innerHTML += "<span class=\"tooltip\">" + json + "</span></a>";
+        ele.innerHTML += ", " + eleString;
     } else {
-        ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" + artifact;
-        ele.innerHTML += "<span class=\"tooltip\">" + json + "</span></a>";
+        ele.innerHTML = eleString;
     }
 
     savedValues[buildId] = ele.innerHTML;
@@ -1502,8 +1485,8 @@ function generateGlobalDisplayValueTable(displayArgs, pipelineName, pipelineNum)
                 }
 
                 var id = mainProject + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
-                retVal += "<tr class=\"displayTableTr\"><th class=\"displayTableTh\">" + displayKey + "</th>";
-                retVal += "<td id=\"" + id + "\" class=\"displayTableTd\">Value not found across pipeline</td></tr>";    
+                retVal += "<tr class=\"displayTableTr\"><th class=\"displayTableTh\">" + displayKey + "</th>" + 
+                          "<td id=\"" + id + "\" class=\"displayTableTd\">Value not found across pipeline</td></tr>";    
             }    
         }
     }
@@ -1534,15 +1517,15 @@ function loadGlobalDisplayValues(displayArgs, pipelineName, pipelineNum, savedPi
                 var id = mainProject + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
 
                 if (savedPipelineDisplayValues.hasOwnProperty(id)) {
-                    retVal += "<tr class=\"displayTableTr\">";
-                    retVal += "<th class=\"displayTableTh\">" + displayKey + "</th>";
-                    retVal += "<td id=\"" + id + "\" class=\"displayTableTd\">" + savedPipelineDisplayValues[id];
-                    retVal += "</td></tr>";
+                    retVal += "<tr class=\"displayTableTr\">" + 
+                              "<th class=\"displayTableTh\">" + displayKey + "</th>" +
+                              "<td id=\"" + id + "\" class=\"displayTableTd\">" + savedPipelineDisplayValues[id] +
+                              "</td></tr>";
                 } else {
-                    retVal += "<tr class=\"displayTableTr\">";
-                    retVal += "<th class=\"displayTableTh\">" + displayKey + "</th>";
-                    retVal += "<td id=\"" + id + "\" class=\"displayTableTd\">Value not found across pipeline</td>";
-                    retVal += "</tr>";
+                    retVal += "<tr class=\"displayTableTr\">" + 
+                              "<th class=\"displayTableTh\">" + displayKey + "</th>" +
+                              "<td id=\"" + id + "\" class=\"displayTableTd\">Value not found across pipeline</td>" +
+                              "</tr>";
                 }
             }
         }
@@ -1758,9 +1741,9 @@ function updateGlobalDisplayValues(data, url, displayArgs, pipelineName, pipelin
                             if (displayKeyConfig.hasOwnProperty("useLink") && 
                                 (displayKeyConfig.useLink == "true" || displayKeyConfig.useLink == true)) {
 
-                                ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" + 
-                                                url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData
-                                                + "</span></a>";
+                                ele.innerHTML = "<a href=\"" + url + "\" class=\"displayTableEntryLink\">" + 
+                                                url.split("/job/")[1] + "<span class=\"tooltip hoverText\">" + toolTipData +
+                                                "</span></a>";
                             } else {
                                 ele.innerHTML = toolTipData;
                                 redrawConnections();
@@ -1814,9 +1797,9 @@ function updateGlobalDisplayValues(data, url, displayArgs, pipelineName, pipelin
 
                             if (displayKeyConfig.hasOwnProperty("useLink") && 
                                 (displayKeyConfig.useLink == "true" || displayKeyConfig.useLink == true)) {
-                                ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" 
-                                                + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData
-                                                + "</span></a>";    
+                                ele.innerHTML = "<a href=\"" + url + "\" class=\"displayTableEntryLink\">" +
+                                                url.split("/job/")[1] + "<span class=\"tooltip hoverText\">" + toolTipData +
+                                                "</span></a>";    
                             } else {
                                 ele.innerHTML = toolTipData;
                                 redrawConnections();
@@ -2147,6 +2130,26 @@ function updateFailedOnBlockStages(pipeline, i) {
         blockedOnFailedMap[pipeline.stages[0].name + "-" + pipelineNum] = failedOnBlockingJobs;
         sessionStorage.blockedOnFailedMap = JSON.stringify(blockedOnFailedMap);
     }
+}
+
+/**
+ * Retrieves the display arguments from an existing project
+ */
+function retrieveDisplayArgumentsFromProject(projectUrl) {
+    var displayArguments;
+    Q.ajax({
+        url: rootURL + "/job/" + projectUrl + "/*view*/",
+        type: "GET",
+        async: false,
+        cache: true,
+        timeout: 20000,
+        success: function(data) {
+            displayArguments = data;
+        },
+        error: function (xhr, status, error) {
+        }
+    })
+    return displayArguments;
 }
 
 /**

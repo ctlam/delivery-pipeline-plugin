@@ -125,7 +125,7 @@ public class DeliveryPipelineView extends View {
     private boolean showArtifacts = true;
     private boolean useYamlParser = true;
     private String displayArguments = "";
-    private String displayArgumentProject = "";
+    private String displayArgumentsProject = "";
 
     private transient String error;
 
@@ -485,12 +485,12 @@ public class DeliveryPipelineView extends View {
     }
 
     @Exported
-    public String getDisplayArgumentProject() {
-        return displayArgumentProject;
+    public String getDisplayArgumentsProject() {
+        return displayArgumentsProject;
     }
 
-    public void setDisplayArgumentProject(String displayArgumentProject) {
-        this.displayArgumentProject = displayArgumentProject;
+    public void setDisplayArgumentsProject(String displayArgumentsProject) {
+        this.displayArgumentsProject = displayArgumentsProject;
     }
 
     @JavaScriptMethod
