@@ -165,7 +165,7 @@ div.change-message {
 
 div.pipeline-row {
     display: table-row;
-    padding: 10px 10px 10px 10px;
+    padding: 10px 10px 15px 10px;
 }
 
 div.pipeline-cell {
@@ -761,7 +761,7 @@ a span {
     min-height: 50px;
     min-width: 100px;
     top: 100%;
-    z-index: 5;
+    z-index: 6;
 }
 
 a {
@@ -780,7 +780,7 @@ a:hover span {
     font-size: 12px;
     background-color: #ddd;
     color: black;
-    z-index: 4;
+    z-index: 5;
 }
 
 ._jsPlumb_connector {
@@ -793,4 +793,8 @@ a:hover span {
 
 ._jsPlumb_overlay {
     z-index: 3;
+}
+
+.jtk-hover {
+    z-index: 4;
 }

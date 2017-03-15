@@ -615,8 +615,9 @@ function pipelineUtils() {
             sessionStorage.pipelineStageIdMap = JSON.stringify(pipelineStageIdMap);
 
             var index = 0, source, target;
-            var anchors = [[1, 0, 1, 0, 0, 13], [0, 0, -1, 0, -1, 13]];
-            var downstreamAnchors = [[0.5, 1, 0, 1, 0, 1], [0, 0, -1, 0, -1, 13]];
+            var anchors = [[1, 0, 1, 0, 0, 13], [0, 0, -1, 0, 0, 13]];
+            var downstreamAnchors = [[0.5, 1, 0, 1, 0, 1], [0, 0, -1, 0, -0.5, 13]];
+            var backgroundColor = "rgba(31,35,41,1)";
 
             lastResponse = data;
             equalheight(".pipeline-row .stage");
@@ -630,17 +631,19 @@ function pipelineUtils() {
                             Q.each(stage.downstreamStageIds, function (l, value) {
                                 source = getStageId(stage.id + "", index);
                                 target = getStageId(value + "", index);
-
-                                // Blue
-                                var color = "rgba(0,122,195,1)";
-                                var label = "Non-blocking";
-                                var dashstyle = "2 2";
+                                
+                                var color = "rgba(0,122,195,1)";    // Default blue
+                                var label = "Non-blocking";         // Default non-blocking
+                                var dashstyle = "2 2";              // Default dashed line
+                                var strokeWidth = 3.5;                // Default line width of 3.5
                                 var stub = scaleCondition ? 30 : 80;
+                                var lastBlockingJob;
 
                                 var blockedProjects = conditionalProjects = downstreamProjects = [];
                                 var targetName;
                                 if (blockingMap.hasOwnProperty(source)) {
                                     blockedProjects = blockingMap[source];
+                                    lastBlockingJob = blockedProjects[blockedProjects.length - 1];
                                 }
 
                                 if (conditionalMap.hasOwnProperty(source)) {
@@ -654,52 +657,143 @@ function pipelineUtils() {
                                 if (projectNameIdMap.hasOwnProperty(target)) {
                                     var targetName = projectNameIdMap[target];
 
-                                    if (blockedProjects.indexOf(targetName) != -1 && conditionalProjects.indexOf(targetName) != -1) {
-                                        // Orange
-                                        color = "rgba(255,121,52,1)";
+                                    if (blockedProjects.indexOf(targetName) != -1 && 
+                                        conditionalProjects.indexOf(targetName) != -1) {
+                                        color = "rgba(255,121,52,1)";   // Orange
                                         label = "Blocking Conditional";
                                         dashstyle = "0 0";
                                     } else if (blockedProjects.indexOf(targetName) != -1) {
-                                        // Blue
-                                        color = "rgba(0,122,195,1)";
+                                        color = "rgba(0,122,195,1)";    // Blue
                                         label = "Blocking";
                                         dashstyle = "0 0";
                                     } else if (conditionalProjects.indexOf(targetName) != -1) {
-                                        // Orange
-                                        color = "rgba(255,121,52,1)";
+                                        color = "rgba(255,121,52,1)";   // Orange
                                         label = "Non-blocking Conditional";
                                     }
 
                                     if (downstreamProjects.indexOf(targetName) != -1) {
-                                        // Purple
-                                        color = "rgba(118,91,161,1)";
+                                        color = "rgba(118,91,161,1)";   // Purple
                                         label = "Downstream";
                                         stub = 10;
                                     }
                                 }
 
+                                var isDownstreamProject = (downstreamProjects.indexOf(targetName) != -1);
+                                var connector = ["Flowchart", {
+                                    stub: stub,
+                                    gap: 0,
+                                    midpoint: 0,
+                                    alwaysRespectStubs: false,
+                                    cornerRadius: 20
+                                }];
+
+                                // Draw a hidden connection hide the bad line overlapping
+                                // Only do it if there is a mix of conditional and blocking jobs however as having all
+                                // blocking jobs (or blue lines) looks visually ok
+                                if (lastBlockingJob == projectNameIdMap[target] &&
+                                    conditionalMap.hasOwnProperty(source)) {
+
+                                    var hideBadOverlapConn = jsplumb.connect({
+                                        source: source,
+                                        target: target,
+                                        anchors: anchors,
+                                        connector: connector,
+                                        paintStyle: { 
+                                            stroke: backgroundColor,
+                                            strokeWidth: strokeWidth,
+                                            outlineStroke: backgroundColor,
+                                            outlineWidth: 0.5
+                                        },
+                                        endpoint: "Blank"
+                                    });
+
+                                    hideBadOverlapConn.bind("mouseover", function(conn) {
+                                        conn.setHover(false);
+                                    });
+                                }
+
+                                // Add a hidden connection behind the actual connection
+                                // Due to the nature of dashed lines, hovering over the gaps in the line
+                                // will not be considered "hovering". We can remedy this by setting a mouseover/out
+                                // event on this hidden connection.
+                                var hiddenConn;
+                                if (dashstyle != "0 0") {
+                                    hiddenConn = jsplumb.connect({
+                                        source: source,
+                                        target: target,
+                                        anchors: isDownstreamProject ? downstreamAnchors : anchors,
+                                        connector: connector,
+                                        paintStyle: {
+                                            stroke: "rgba(31,35,41,1)",
+                                            strokeWidth: strokeWidth
+                                        },
+                                        endpoint: "Blank"
+                                    });
+                                }
+
                                 var connection = jsplumb.connect({
                                     source: source,
                                     target: target,
-                                    anchors: (downstreamProjects.indexOf(targetName) != -1) ? downstreamAnchors : anchors, // allow boxes to increase in height but keep anchor lines on the top
+                                    // allow boxes to increase in height but keep anchor lines on the top
+                                    anchors: isDownstreamProject ? downstreamAnchors : anchors, 
                                     overlays: [
                                         [ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12 }]
                                     ],
-                                    connector: ["Flowchart", { stub: stub, gap: 0, midpoint: 0, alwaysRespectStubs: true, cornerRadius: 20 } ],
-                                    paintStyle: { stroke: color, strokeWidth: 3, dashstyle: dashstyle },
-                                    hoverPaintStyle: { strokeWidth: 6 },
+                                    connector: connector,
+                                    paintStyle: { stroke: color, strokeWidth: strokeWidth, dashstyle: dashstyle },
+                                    hoverPaintStyle: { strokeWidth: (strokeWidth * 1.5) },
                                     endpoint: "Blank"
                                 });
 
                                 connection.bind("mouseover", function(conn) {
-                                    conn.addOverlay([ "Label", { label: label, id: (target + "-label"), location: 0.6, cssClass: "label" }]);
-                                    conn.addOverlay([ "Arrow", { id: (target + "-arrow"), location: 1, foldback: 0.9, width: 18, length: 18 }]);
+                                    conn.addOverlay([ "Label", { 
+                                        label: label,
+                                        id: (target + "-label"),
+                                        location: 0.6,
+                                        cssClass: "label"
+                                    }]);
+                                    conn.addOverlay([ "Arrow", {
+                                        id: (target + "-arrow"),
+                                        location: 1,
+                                        foldback: 0.9,
+                                        width: 18,
+                                        length: 18
+                                    }]);
                                 }); 
 
                                 connection.bind("mouseout", function(conn) {
                                     conn.removeOverlay((target + "-label"));
                                     conn.removeOverlay((target + "-arrow"));
                                 });
+
+                                // Add the hidden connection mouse events
+                                if (dashstyle != "0 0") {
+                                    hiddenConn.bind("mouseover", function(conn) {
+                                        // Always false
+                                        conn.setHover(false);
+                                        connection.setHover(true);
+                                        connection.addOverlay([ "Label", {
+                                            label: label,
+                                            id: (target + "-label"),
+                                            location: 0.6,
+                                            cssClass: "label"
+                                        }]);
+                                        connection.addOverlay([ "Arrow", {
+                                            id: (target + "-arrow"),
+                                            location: 1,
+                                            foldback: 0.9,
+                                            width: 18,
+                                            length: 18
+                                        }]);
+                                    }); 
+
+                                    hiddenConn.bind("mouseout", function(conn) {
+                                        conn.setHover(false);
+                                        connection.setHover(false);
+                                        connection.removeOverlay((target + "-label"));
+                                        connection.removeOverlay((target + "-arrow"));
+                                    });
+                                }
                             });
                         }
                     });
@@ -755,7 +849,13 @@ function pipelineUtils() {
                             source: key,
                             target: key + "-end",
                             anchors: [[0, 0.5, 1, 0, 1, 0], [0, 0.5, -1, 0, 2, 0]],
-                            connector: ["Flowchart", { stub: 0, gap: 0, midpoint: 0, alwaysRespectStubs: false, cornerRadius: 0 } ],
+                            connector: ["Flowchart", {
+                                stub: 0,
+                                gap: 0,
+                                midpoint: 0,
+                                alwaysRespectStubs: false,
+                                cornerRadius: 0
+                            }],
                             paintStyle: { stroke: legendMap[key][0], strokeWidth: 3, dashstyle: legendMap[key][1] },
                             endpoint: "Blank"
                         });
@@ -1369,9 +1469,11 @@ function getBuildArtifactLinks(url, json, buildId) {
     var artifact = url.split("/artifact/")[1];
 
     if (ele.innerHTML != "No artifacts found") {
-        ele.innerHTML += ", <a href=\"" + url + "\" style=\"color: inherit;\">" + artifact + "<span class=\"tooltip\">" + json + "</span></a>";
+        ele.innerHTML += ", <a href=\"" + url + "\" style=\"color: inherit;\">" + artifact;
+        ele.innerHTML += "<span class=\"tooltip\">" + json + "</span></a>";
     } else {
-        ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" + artifact + "<span class=\"tooltip\">" + json + "</span></a>";
+        ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" + artifact;
+        ele.innerHTML += "<span class=\"tooltip\">" + json + "</span></a>";
     }
 
     savedValues[buildId] = ele.innerHTML;
@@ -1432,11 +1534,15 @@ function loadGlobalDisplayValues(displayArgs, pipelineName, pipelineNum, savedPi
                 var id = mainProject + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
 
                 if (savedPipelineDisplayValues.hasOwnProperty(id)) {
-                    retVal += "<tr class=\"displayTableTr\"><th class=\"displayTableTh\">" + displayKey + "</th>";
-                    retVal += "<td id=\"" + id + "\" class=\"displayTableTd\">" + savedPipelineDisplayValues[id] + "</td></tr>";
+                    retVal += "<tr class=\"displayTableTr\">";
+                    retVal += "<th class=\"displayTableTh\">" + displayKey + "</th>";
+                    retVal += "<td id=\"" + id + "\" class=\"displayTableTd\">" + savedPipelineDisplayValues[id];
+                    retVal += "</td></tr>";
                 } else {
-                    retVal += "<tr class=\"displayTableTr\"><th class=\"displayTableTh\">" + displayKey + "</th>";
-                    retVal += "<td id=\"" + id + "\" class=\"displayTableTd\">Value not found across pipeline</td></tr>";
+                    retVal += "<tr class=\"displayTableTr\">";
+                    retVal += "<th class=\"displayTableTh\">" + displayKey + "</th>";
+                    retVal += "<td id=\"" + id + "\" class=\"displayTableTd\">Value not found across pipeline</td>";
+                    retVal += "</tr>";
                 }
             }
         }
@@ -1635,7 +1741,8 @@ function updateGlobalDisplayValues(data, url, displayArgs, pipelineName, pipelin
                     var displayKeyConfig = mainProjectDisplayConfig[displayKey];
 
                     if (displayKeyConfig.hasOwnProperty("projectName") && displayKeyConfig.projectName == projectName) {
-                        if (displayKeyConfig.hasOwnProperty("fromConsole") && (displayKeyConfig.fromConsole == "true" || displayKeyConfig.fromConsole == true)) {
+                        if (displayKeyConfig.hasOwnProperty("fromConsole") && 
+                            (displayKeyConfig.fromConsole == "true" || displayKeyConfig.fromConsole == true)) {
                             var toolTipData = data.replace(/-/g, '&#x2011;');
 
                             if (displayKeyConfig.hasOwnProperty("grepPattern")) {
@@ -1648,8 +1755,12 @@ function updateGlobalDisplayValues(data, url, displayArgs, pipelineName, pipelin
                             var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
                             var ele = document.getElementById(id);
 
-                            if (displayKeyConfig.hasOwnProperty("useLink") && (displayKeyConfig.useLink == "true" || displayKeyConfig.useLink == true)) {
-                                ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
+                            if (displayKeyConfig.hasOwnProperty("useLink") && 
+                                (displayKeyConfig.useLink == "true" || displayKeyConfig.useLink == true)) {
+
+                                ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" + 
+                                                url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData
+                                                + "</span></a>";
                             } else {
                                 ele.innerHTML = toolTipData;
                                 redrawConnections();
@@ -1701,8 +1812,11 @@ function updateGlobalDisplayValues(data, url, displayArgs, pipelineName, pipelin
                             var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
                             var ele = document.getElementById(id);
 
-                            if (displayKeyConfig.hasOwnProperty("useLink") && (displayKeyConfig.useLink == "true" || displayKeyConfig.useLink == true)) {
-                                ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";    
+                            if (displayKeyConfig.hasOwnProperty("useLink") && 
+                                (displayKeyConfig.useLink == "true" || displayKeyConfig.useLink == true)) {
+                                ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" 
+                                                + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData
+                                                + "</span></a>";    
                             } else {
                                 ele.innerHTML = toolTipData;
                                 redrawConnections();
