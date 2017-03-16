@@ -346,18 +346,10 @@ function pipelineUtils() {
                                 html.push("<td id=\"" + artifactId + "\" class=\"displayTableTd\">" + loadBuildArtifacts(artifactId) + "</td></tr>");
                             }
 
-                            // If there are no saved values -- first time running so generate the table
                             if (JSON.stringify(savedPipelineDisplayValues) == JSON.stringify({})) {
                                 html.push(generateGlobalDisplayValueTable(displayArguments, jobName, buildNum));
                             } else {
-                                // Upon a configuration change, generate a new table
-                                // Otherwise, build a table using loaded values from cache
-                                var previousDisplayArgConfig = JSON.parse(sessionStorage.previousDisplayArgConfig);
-                                if (previousDisplayArgConfig != displayArguments) {
-                                    html.push(generateGlobalDisplayValueTable(displayArguments, jobName, buildNum));
-                                } else {
-                                    html.push(loadGlobalDisplayValues(displayArguments, jobName, buildNum, savedPipelineDisplayValues));    
-                                }
+                                html.push(loadGlobalDisplayValues(displayArguments, jobName, buildNum, savedPipelineDisplayValues));
                             }
 
                             html.push("</tbody></table>");
@@ -546,28 +538,17 @@ function pipelineUtils() {
 
                         html.push("</div></div>");
                         column++;
-                    }
 
-                    if (!pipeline.aggregated) {
-                        var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                        var buildNum = pipeline.version.substring(1);
-                        var buildStatus = pipeline.stages[0].tasks[0].status;
+                        // Ensure no cell can be more than 25% of the pipeline-row
+                        if (numColumns < 4 && j == pipeline.stages.length - 1) {
+                            var numAdditionalColumnsToAdd = 4 - numColumns;
 
-                        if (data.showArtifacts) {
-                            var artifactValues = JSON.parse(sessionStorage.savedPipelineArtifacts);
-                            var artifactId = "artifacts-" + jobName + "-" + buildNum;
-
-                            if (!artifactValues.hasOwnProperty(artifactId)) {
-                                
-                                // Only get build artifacts for completed pipeline runs
-                                if (buildStatus.success || buildStatus.failed || buildStatus.unstable || 
-                                    buildStatus.cancelled) {
-                                    getBuildArtifacts(jobName, buildNum, artifactId);    
-                                }
+                            for (var m = 0; m < numAdditionalColumnsToAdd; m++) {
+                                html.push("<div class=\"pipeline-cell\">");
+                                html.push("<div class=\"stage hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
                             }
                         }
                     }
-
                     html.push('</div></section></div></th></tr>');
                 }
 
@@ -577,28 +558,38 @@ function pipelineUtils() {
                 Q("#pipeline-message-" + pipelineid).html('');
             }
 
-            // Mark the stages that failed on a blocking call and update global display values
-            // The pipeline must have finished before this will execute
+            // Update pipeline data if every stage in the pipeline has run to completion.
             for (var i = 0; i < component.pipelines.length; i++) {
-                pipeline = component.pipelines[i];
-
+                var pipeline = component.pipelines[i];
                 var pipelineNum = pipeline.version.substring(1);
                 var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
                 var buildNum = pipeline.version.substring(1);
-
-                // Only update failed on blocking stages if every stage is completed
                 var allStagesComplete = true;
+
                 for (var j = 0; j < pipeline.stages.length; j++) {
                     var stage = pipeline.stages[j];
-                    var buildStatus = stage.tasks[0].status;
-                    if (buildStatus.queued || buildStatus.running) {
+                    var stageStatus = stage.tasks[0].status.type;
+
+                    if (stageStatus == "QUEUED" || stageStatus == "RUNNING") {
                         allStagesComplete = false;
-                        break;
                     }
                 }
 
                 if (allStagesComplete) {
+                    if (data.showArtifacts) {
+                        var artifactValues = JSON.parse(sessionStorage.savedPipelineArtifacts);
+                        var artifactId = "artifacts-" + jobName + "-" + buildNum;
+
+                        // Update top level artifacts
+                        if (!artifactValues.hasOwnProperty(artifactId)) {
+                            getBuildArtifacts(jobName, buildNum, artifactId);    
+                        }
+                    }
+
+                    // Update global display values
                     getGlobalDisplayValues(displayArguments, pipeline, jobName, buildNum);
+
+                    // Mark the stages that failed on a blocking call
                     if (!JSON.parse(sessionStorage.blockedOnFailedMap).hasOwnProperty(pipeline.stages[0].name + "-" + pipelineNum)) {
                         updateFailedOnBlockStages(pipeline, i);    
                     } else {
@@ -611,21 +602,21 @@ function pipelineUtils() {
             
             // Create a pipeline - stage id mapping
             for (var i = 0; i < component.pipelines.length; i++) {
-                pipeline = component.pipelines[i];
+                var pipeline = component.pipelines[i];
                 var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
                 var buildNum = pipeline.version.substring(1);
                 var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
                 var stageIds = {};
 
                 for (var j = 0; j < pipeline.stages.length; j++) {
-                    stage = pipeline.stages[j];
+                    var stage = pipeline.stages[j];
+                    var stageStatus = stage.tasks[0].status;
 
                     var id = getStageId(stage.id + "", i);
                     stageIds[id] = "true";
 
-                    // Update specific stage display values here as well -- only for completed jobs
-                    var buildStatus = stage.tasks[0].status;
-                    if (buildStatus.success || buildStatus.failed || buildStatus.unstable || buildStatus.cancelled) {
+                    // Update specific stage display values if the stage has finished
+                    if (stageStatus.success || stageStatus.failed || stageStatus.unstable || stageStatus.cancelled) {
                         getStageDisplayValues(displayArguments, jobName, stage.name, stage.tasks[0].buildId, id);
                     }
                 }
@@ -655,7 +646,7 @@ function pipelineUtils() {
                                 var color = "rgba(0,122,195,1)";    // Default blue
                                 var label = "Non-blocking";         // Default non-blocking
                                 var dashstyle = "2 2";              // Default dashed line
-                                var strokeWidth = 3.5;                // Default line width of 3.5
+                                var strokeWidth = 3.5;              // Default line width of 3.5
                                 var stub = scaleCondition ? 30 : 80;
                                 var lastBlockingJob;
 
@@ -1623,7 +1614,7 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
 
                     // Do not search for a previously found value
                     var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
-                    if (savedValues.hasOwnProperty(id) && previousDisplayArgConfig == displayArgs) {
+                    if (savedValues.hasOwnProperty(id)) {
                         continue;
                     }
 
@@ -1922,7 +1913,7 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
             for (var displayKey in mainProjectDisplayConfig) {
 
                 var saveId = stageName + "-" + stageBuildNum + "-" + displayKey.replace(re, '_');
-                if (savedStageDisplayValues.hasOwnProperty(saveId) && previousDisplayArgConfig == displayArgs) {
+                if (savedStageDisplayValues.hasOwnProperty(saveId)) {
                     var id = stageId + "-" + displayKey.replace(re, '_');
                     var ele = document.getElementById(id);
                     ele.innerHTML = savedStageDisplayValues[saveId];
@@ -2214,12 +2205,12 @@ function updateFailedOnBlockStages(pipeline, i) {
 
         var stageNum = stage.tasks[0].buildId;
 
-        if (downstreamStages.size() == 0) {
+        if (downstreamStages.length == 0) {
             continue;
         }
 
         if (stage.tasks[0].status.type == "FAILED") {
-            for (var k = 0; k < downstreamStages.length; k++) {
+            for (var k = 0; k < downstreamStages.size(); k++) {
                 if (blockingJobs.split(', ').indexOf(downstreamStages[k]) != -1) {
                     var downstreamEle = document.getElementById(getStageId(downstreamStageIds[k] + "", i));
                     if (downstreamEle != null) {
@@ -2295,6 +2286,9 @@ function getToggleState(toggleId, toggleType, defaultToggleOn) {
                 }
                 return "none";
             }
+
+            toggleStates[toggleId] = "block";
+            sessionStorage.toggleStates = JSON.stringify(toggleStates);
             return "block";
         } else {
             if (toggleStates.hasOwnProperty(toggleId)) {
