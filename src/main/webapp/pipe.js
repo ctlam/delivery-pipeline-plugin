@@ -346,10 +346,18 @@ function pipelineUtils() {
                                 html.push("<td id=\"" + artifactId + "\" class=\"displayTableTd\">" + loadBuildArtifacts(artifactId) + "</td></tr>");
                             }
 
+                            // If there are no saved values -- first time running so generate the table
                             if (JSON.stringify(savedPipelineDisplayValues) == JSON.stringify({})) {
                                 html.push(generateGlobalDisplayValueTable(displayArguments, jobName, buildNum));
                             } else {
-                                html.push(loadGlobalDisplayValues(displayArguments, jobName, buildNum, savedPipelineDisplayValues));
+                                // Upon a configuration change, generate a new table
+                                // Otherwise, build a table using loaded values from cache
+                                var previousDisplayArgConfig = JSON.parse(sessionStorage.previousDisplayArgConfig);
+                                if (previousDisplayArgConfig != displayArguments) {
+                                    html.push(generateGlobalDisplayValueTable(displayArguments, jobName, buildNum));
+                                } else {
+                                    html.push(loadGlobalDisplayValues(displayArguments, jobName, buildNum, savedPipelineDisplayValues));    
+                                }
                             }
 
                             html.push("</tbody></table>");
@@ -448,7 +456,7 @@ function pipelineUtils() {
                             for (var as = column; as < stage.column; as++) {
                                 if (data.viewMode == "Minimalist") {
                                     html.push("<div class=\"pipeline-cell\">");
-                                    html.push("<div class=\"stage-minimalist hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
+                                    html.push("<div class=\"stage hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
                                 }
                                 column++;
                             }
@@ -465,7 +473,7 @@ function pipelineUtils() {
                         }
 
                         if (data.viewMode == "Minimalist") {
-                            html.push("<div class=\"stage-minimalist\" style=\"width: " + widthPerCell + "px;\">");    
+                            html.push("<div class=\"stage\" style=\"width: " + widthPerCell + "px;\">");    
                             html.push("<div class=\"stage-header\" style=\"font-size: " + fontSizePerCell + "px;\">");
                             html.push("<div class=\"stage-name\">");
                             html.push("<a href=\"" + link + "\" target=\"_blank\">" + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</a></div>");
@@ -543,17 +551,21 @@ function pipelineUtils() {
                     if (!pipeline.aggregated) {
                         var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
                         var buildNum = pipeline.version.substring(1);
+                        var buildStatus = pipeline.stages[0].tasks[0].status;
 
                         if (data.showArtifacts) {
                             var artifactValues = JSON.parse(sessionStorage.savedPipelineArtifacts);
                             var artifactId = "artifacts-" + jobName + "-" + buildNum;
 
                             if (!artifactValues.hasOwnProperty(artifactId)) {
-                                getBuildArtifacts(jobName, buildNum, artifactId);    
+                                
+                                // Only get build artifacts for completed pipeline runs
+                                if (buildStatus.success || buildStatus.failed || buildStatus.unstable || 
+                                    buildStatus.cancelled) {
+                                    getBuildArtifacts(jobName, buildNum, artifactId);    
+                                }
                             }
                         }
-
-                        getGlobalDisplayValues(displayArguments, pipeline, jobName, buildNum);
                     }
 
                     html.push('</div></section></div></th></tr>');
@@ -565,15 +577,33 @@ function pipelineUtils() {
                 Q("#pipeline-message-" + pipelineid).html('');
             }
 
-            // Mark the stages that failed on a blocking call
+            // Mark the stages that failed on a blocking call and update global display values
+            // The pipeline must have finished before this will execute
             for (var i = 0; i < component.pipelines.length; i++) {
                 pipeline = component.pipelines[i];
-                var pipelineNum = pipeline.version.substring(1);
 
-                if (!JSON.parse(sessionStorage.blockedOnFailedMap).hasOwnProperty(pipeline.stages[0].name + "-" + pipelineNum)) {
-                    updateFailedOnBlockStages(pipeline, i);    
-                } else {
-                    loadFailedOnBlockStages(pipeline, i);
+                var pipelineNum = pipeline.version.substring(1);
+                var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                var buildNum = pipeline.version.substring(1);
+
+                // Only update failed on blocking stages if every stage is completed
+                var allStagesComplete = true;
+                for (var j = 0; j < pipeline.stages.length; j++) {
+                    var stage = pipeline.stages[j];
+                    var buildStatus = stage.tasks[0].status;
+                    if (buildStatus.queued || buildStatus.running) {
+                        allStagesComplete = false;
+                        break;
+                    }
+                }
+
+                if (allStagesComplete) {
+                    getGlobalDisplayValues(displayArguments, pipeline, jobName, buildNum);
+                    if (!JSON.parse(sessionStorage.blockedOnFailedMap).hasOwnProperty(pipeline.stages[0].name + "-" + pipelineNum)) {
+                        updateFailedOnBlockStages(pipeline, i);    
+                    } else {
+                        loadFailedOnBlockStages(pipeline, i);
+                    }
                 }
             }
 
@@ -593,8 +623,11 @@ function pipelineUtils() {
                     var id = getStageId(stage.id + "", i);
                     stageIds[id] = "true";
 
-                    // We can update specific stage display values here as well
-                    getStageDisplayValues(displayArguments, jobName, stage.name, stage.tasks[0].buildId, id);
+                    // Update specific stage display values here as well -- only for completed jobs
+                    var buildStatus = stage.tasks[0].status;
+                    if (buildStatus.success || buildStatus.failed || buildStatus.unstable || buildStatus.cancelled) {
+                        getStageDisplayValues(displayArguments, jobName, stage.name, stage.tasks[0].buildId, id);
+                    }
                 }
                 pipelineStageIdMap[toggleBuildId] = stageIds;
             }
@@ -607,7 +640,7 @@ function pipelineUtils() {
             var backgroundColor = "rgba(31,35,41,1)";
 
             lastResponse = data;
-            equalheight(".pipeline-row .stage");
+            // equalheight(".pipeline-row .stage");
 
             // use jsPlumb to draw the connections between stages
             Q.each(data.pipelines, function (i, component) {
@@ -1590,7 +1623,7 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
 
                     // Do not search for a previously found value
                     var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
-                    if (savedValues.hasOwnProperty(id)) {
+                    if (savedValues.hasOwnProperty(id) && previousDisplayArgConfig == displayArgs) {
                         continue;
                     }
 
@@ -1889,7 +1922,7 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
             for (var displayKey in mainProjectDisplayConfig) {
 
                 var saveId = stageName + "-" + stageBuildNum + "-" + displayKey.replace(re, '_');
-                if (savedStageDisplayValues.hasOwnProperty(saveId)) {
+                if (savedStageDisplayValues.hasOwnProperty(saveId) && previousDisplayArgConfig == displayArgs) {
                     var id = stageId + "-" + displayKey.replace(re, '_');
                     var ele = document.getElementById(id);
                     ele.innerHTML = savedStageDisplayValues[saveId];
@@ -2186,7 +2219,7 @@ function updateFailedOnBlockStages(pipeline, i) {
         }
 
         if (stage.tasks[0].status.type == "FAILED") {
-            for (var k = 0; k < downstreamStages.size(); k++) {
+            for (var k = 0; k < downstreamStages.length; k++) {
                 if (blockingJobs.split(', ').indexOf(downstreamStages[k]) != -1) {
                     var downstreamEle = document.getElementById(getStageId(downstreamStageIds[k] + "", i));
                     if (downstreamEle != null) {

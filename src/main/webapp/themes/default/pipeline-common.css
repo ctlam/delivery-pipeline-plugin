@@ -179,7 +179,6 @@ div.pipeline-cell {
     margin: 0px;
 }
 
-/*
 div.stage {
     margin-right: 10px;
     width: 120px;
@@ -193,22 +192,6 @@ div.stage a {
 }
 
 div.stage a:visited {
-    color: inherit;
-}
-*/
-
-div.stage-minimalist {
-    margin-right: 10px;
-    /*width: 120px;*/
-    border: none;
-}
-
-div.stage-minimalist a {
-    text-decoration: none;
-    color: inherit;
-}
-
-div.stage-minimalist a:visited {
     color: inherit;
 }
 
