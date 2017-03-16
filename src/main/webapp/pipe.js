@@ -102,6 +102,10 @@ function pipelineUtils() {
             sessionStorage.blockedOnFailedMap = JSON.stringify({});
         }
 
+        if (sessionStorage.markedUrls == null) {
+            sessionStorage.markedUrls = JSON.stringify({});
+        }
+
         // Clear the sessionStorage of values we set if and only if we are loading a different view page
         // This could break if someone loads a view with the same initial job.
         var lastViewedJob;
@@ -139,7 +143,7 @@ function pipelineUtils() {
                     displayArgumentsFromProject = JSON.parse(returnedArguments);
                 }
             } catch (e) {
-                console.log(e);
+                cErrorDiv.html('Error parsing display arguments file!').show();
             }
         }
 
@@ -155,14 +159,14 @@ function pipelineUtils() {
                 }
             }
         } catch (e) {
-            console.log(e);
+            cErrorDiv.html('Error parsing display arguments!').show();
         }
 
         // Hope that jQuery can perform the deep merge
         try {
             displayArguments = Q.extend(true, {}, displayArgumentsFromProject, displayArguments);
         } catch (e) {
-            console.log("Error performing deep merge on display arguments");
+            console.log("Error performing deep merge on display arguments!");
         }
         
         if (lastResponse === null || JSON.stringify(data.pipelines) !== JSON.stringify(lastResponse.pipelines)) {
@@ -190,7 +194,7 @@ function pipelineUtils() {
 
                 html.push("<section class='pipeline-component'>");
                 html.push("<div class=\"pipelineHeader\">");
-                html.push("<h1><a href=\"" + returnUrl + "\">" + component.name + "</a>");
+                html.push("<h1><a href=\"" + returnUrl + "\" class=\"displayTableLink\">" + component.name + "</a>");
                 if (data.allowPipelineStart) {
                     if (component.firstJobParameterized) {
                         html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" onclick="triggerParameterizedBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
@@ -1402,25 +1406,33 @@ function loadBuildArtifacts(buildId) {
  * Get all artifacts for a build.
  */
 function getBuildArtifacts(jobName, buildNum, buildId) {
-    Q.ajax({
-        url: rootURL + "/job/" + jobName + "/" + buildNum + "/api/json?tree=artifacts[*]",
-        type: "GET",
-        dataType: 'json',
-        async: true,
-        cache: true,
-        timeout: 20000,
-        success: function (json) {
-            getBuildArtifactData(jobName, buildNum, buildId, json.artifacts);
-        },
-        error: function (xhr, status, error) {
+    if (!isNullOrEmpty(buildNum)) {
+        // If there are no artifacts and we previously checked this url, don't check it again
+        var markedUrls = JSON.parse(sessionStorage.markedUrls);
+        if (markedUrls.hasOwnProperty(rootURL + "/job/" + jobName + "/" + buildNum + "/api/json?tree=artifacts[*]")) {
+            return;
         }
-    })
+
+        Q.ajax({
+            url: rootURL + "/job/" + jobName + "/" + buildNum + "/api/json?tree=artifacts[*]",
+            type: "GET",
+            dataType: 'json',
+            async: true,
+            cache: true,
+            timeout: 20000,
+            success: function (json) {
+                getBuildArtifactData(this.url, jobName, buildNum, buildId, json.artifacts);
+            },
+            error: function (xhr, status, error) {
+            }
+        })
+    }
 }
 
 /**
  * Callback function to get an artifacts data.
  */
-function getBuildArtifactData(jobName, buildNum, buildId, data) {
+function getBuildArtifactData(url, jobName, buildNum, buildId, data) {
     var artifacts = [];
 
     if (data.length > 0) {
@@ -1445,6 +1457,11 @@ function getBuildArtifactData(jobName, buildNum, buildId, data) {
             })
         }
     }
+
+    // Mark this url so we don't check it again
+    var markedUrls = JSON.parse(sessionStorage.markedUrls);
+    markedUrls[url] = "true";
+    sessionStorage.markedUrls = JSON.stringify(markedUrls);
 }
 
 /**
@@ -1608,25 +1625,25 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
 
                     var url = "";
                     if (artifactName != "") {
-                        url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/artifact/" + artifactName;
+                        url = "/job/" + projectName + "/" + projectNameIdMap[projectName] + "/artifact/" + artifactName;
                         if (projectNameIdMap[projectName] == null) {
                             return;
                         }
                     }
 
                     if (filePath != "") {
-                        url = "job/" + projectName + "/ws/" + filePath;
+                        url = "/job/" + projectName + "/ws/" + filePath;
                     }
 
                     if (envName != "" || paramName != "") {
-                        url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/injectedEnvVars/api/json";
+                        url = "/job/" + projectName + "/" + projectNameIdMap[projectName] + "/injectedEnvVars/api/json";
                         if (projectNameIdMap[projectName] == null) {
                             return;
                         }
                     }
 
                     if (fromConsole == "true" || fromConsole == true) {
-                        url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/consoleText";
+                        url = "/job/" + projectName + "/" + projectNameIdMap[projectName] + "/consoleText";
                         if (projectNameIdMap[projectName] == null) {
                             return;
                         }
@@ -1637,10 +1654,15 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
                         continue;
                     }
 
+                    var markedUrls = JSON.parse(sessionStorage.markedUrls);
+                    if (markedUrls.hasOwnProperty(rootURL + url)) {
+                        continue;
+                    }
+
                     // Upon a configuration change, reload all data
                     if (previousDisplayArgConfig != displayArgs) {
                         Q.ajax({
-                            url: rootURL + "/" + url,
+                            url: rootURL + url,
                             type: "GET",
                             async: true,
                             cache: true,
@@ -1649,6 +1671,9 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
                                 updateGlobalDisplayValues(data, this.url, displayArgs, pipelineName, pipelineNum);
                             },
                             error: function (xhr, status, error) {
+                                var markedUrls = JSON.parse(sessionStorage.markedUrls);
+                                markedUrls[this.url] = "true";
+                                sessionStorage.markedUrls = JSON.stringify(markedUrls);
                             }
                         })
                     }
@@ -1867,8 +1892,6 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
                 if (savedStageDisplayValues.hasOwnProperty(saveId)) {
                     var id = stageId + "-" + displayKey.replace(re, '_');
                     var ele = document.getElementById(id);
-
-                    console.info("previous value found in cache");
                     ele.innerHTML = savedStageDisplayValues[saveId];
                     continue;
                 }
@@ -1904,19 +1927,28 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
 
                 var url = "";
                 if (artifactName != "") {
-                    url = "job/" + stageName + "/" + stageBuildNum + "/artifact/" + artifactName;
+                    url = "/job/" + stageName + "/" + stageBuildNum + "/artifact/" + artifactName;
+                    if (stageBuildNum == null) {
+                        return;
+                    }
                 }
 
                 if (filePath != "") {
-                    url = "job/" + stageName + "/ws/" + filePath;
+                    url = "/job/" + stageName + "/ws/" + filePath;
                 }
 
                 if (envName != "" || paramName != "") {
-                    url = "job/" + stageName + "/" + stageBuildNum + "/injectedEnvVars/api/json";
+                    url = "/job/" + stageName + "/" + stageBuildNum + "/injectedEnvVars/api/json";
+                    if (stageBuildNum == null) {
+                        return;
+                    }
                 }
 
                 if (fromConsole == "true" || fromConsole == true) {
-                    url = "job/" + stageName + "/" + stageBuildNum + "/consoleText";
+                    url = "/job/" + stageName + "/" + stageBuildNum + "/consoleText";
+                    if (stageBuildNum == null) {
+                        return;
+                    }
                 }
 
                 // In the event that somehow we fail to create a URL
@@ -1924,10 +1956,15 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
                     continue;
                 }
 
+                var markedUrls = JSON.parse(sessionStorage.markedUrls);
+                if (markedUrls.hasOwnProperty(rootURL + url)) {
+                    continue;
+                }
+
                 // Upon a configuration change, reload all data
                 if (previousDisplayArgConfig != displayArgs) {
                     Q.ajax({
-                        url: rootURL + "/" + url,
+                        url: rootURL + url,
                         type: "GET",
                         async: true,
                         cache: true,
@@ -1937,6 +1974,9 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
                                 stageBuildNum, stageId);
                         },
                         error: function (xhr, status, error) {
+                            var markedUrls = JSON.parse(sessionStorage.markedUrls);
+                            markedUrls[this.url] = "true";
+                            sessionStorage.markedUrls = JSON.stringify(markedUrls);
                         }
                     })
                 }
