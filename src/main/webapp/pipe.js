@@ -132,19 +132,25 @@ function pipelineUtils() {
         }
 
         // Get the display arguments from a specified project url
-        var displayArgumentsFromProject = {};
-        if (!isNullOrEmpty(data.displayArgumentsProject)) {
-            try {
-                // Attempt to parse the contents
-                var returnedArguments = retrieveDisplayArgumentsFromProject(data.displayArgumentsProject);
-                if (data.useYamlParser) {
-                    displayArgumentsFromProject = jsyaml.safeLoad(returnedArguments);
-                } else {
-                    displayArgumentsFromProject = JSON.parse(returnedArguments);
+        var displayArgumentsFromFile = {};
+        if (!isNullOrEmpty(data.displayArgumentsFileContents)) {
+
+            if (data.displayArgumentsFileContents.indexOf("could not be found in JENKINS_HOME") != -1) {
+                cErrorDiv.html('Error: ' + data.displayArgumentsFileContents).show();
+            } else {
+                try {
+                    // Attempt to parse the contents
+                    console.info(data.displayArgumentsFileContents);
+                    if (data.useYamlParser) {
+                        displayArgumentsFromFile = jsyaml.safeLoad(data.displayArgumentsFileContents);
+                    } else {
+                        displayArgumentsFromFile = JSON.parse(data.displayArgumentsFileContents);
+                    }
+                } catch (e) {
+                    cErrorDiv.html('Error parsing display arguments file!').show();
                 }
-            } catch (e) {
-                cErrorDiv.html('Error parsing display arguments file!').show();
             }
+
         }
 
         // Get the display arguments in either YAML/JSON format.
@@ -164,7 +170,7 @@ function pipelineUtils() {
 
         // Hope that jQuery can perform the deep merge
         try {
-            displayArguments = Q.extend(true, {}, displayArgumentsFromProject, displayArguments);
+            displayArguments = Q.extend(true, {}, displayArgumentsFromFile, displayArguments);
         } catch (e) {
             console.log("Error performing deep merge on display arguments!");
         }
@@ -2232,7 +2238,7 @@ function updateFailedOnBlockStages(pipeline, i) {
 /**
  * Retrieves the display arguments from an existing project
  */
-function retrieveDisplayArgumentsFromProject(projectUrl) {
+function retrieveDisplayArgumentsFromFile(projectUrl) {
     var displayArguments;
     Q.ajax({
         url: rootURL + "/job/" + projectUrl + "/*view*/",

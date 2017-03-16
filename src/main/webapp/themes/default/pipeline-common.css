@@ -293,10 +293,11 @@ div.clear {
 }
 
 div.pipelineerror {
-    background-color: red;
+    background-color: rgba(226,77,66,1);
     font-size: 22px;
     color: #ffffff;
     display: none;
+    padding: 5px;
 }
 
 div.button-start {

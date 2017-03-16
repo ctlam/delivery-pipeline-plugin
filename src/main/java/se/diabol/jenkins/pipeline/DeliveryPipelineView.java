@@ -17,6 +17,7 @@ If not, see <http://www.gnu.org/licenses/>.
 */
 package se.diabol.jenkins.pipeline;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.Sets;
 import hudson.DescriptorExtensionList;
 import hudson.Extension;
@@ -40,6 +41,7 @@ import hudson.util.ListBoxModel;
 import jenkins.model.Jenkins;
 import org.acegisecurity.AuthenticationException;
 import org.acegisecurity.BadCredentialsException;
+import org.apache.commons.io.IOUtils;
 import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
@@ -60,6 +62,8 @@ import se.diabol.jenkins.pipeline.util.JenkinsUtil;
 import se.diabol.jenkins.pipeline.util.PipelineUtils;
 import se.diabol.jenkins.pipeline.util.ProjectUtil;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -125,7 +129,8 @@ public class DeliveryPipelineView extends View {
     private boolean showArtifacts = true;
     private boolean useYamlParser = true;
     private String displayArguments = "";
-    private String displayArgumentsProject = "";
+    private String displayArgumentsFile = "";
+    private String displayArgumentsFileContents;
 
     private transient String error;
 
@@ -485,12 +490,49 @@ public class DeliveryPipelineView extends View {
     }
 
     @Exported
-    public String getDisplayArgumentsProject() {
-        return displayArgumentsProject;
+    public String getDisplayArgumentsFile() {
+        return displayArgumentsFile;
     }
 
-    public void setDisplayArgumentsProject(String displayArgumentsProject) {
-        this.displayArgumentsProject = displayArgumentsProject;
+    public void setDisplayArgumentsFile(String displayArgumentsFile) {
+        this.displayArgumentsFile = displayArgumentsFile;
+        this.displayArgumentsFileContents = readDisplayArgumentsFile(displayArgumentsFile);
+    }
+
+    @Exported
+    public String getDisplayArgumentsFileContents() {
+        return displayArgumentsFileContents;
+    }
+
+    public void setDisplayArgumentsFileContents(String displayArgumentsFileContents) {
+        this.displayArgumentsFileContents = displayArgumentsFileContents;
+    }
+
+    public String readDisplayArgumentsFile(String displayArgumentFile) {
+        // No file specified
+        if (Strings.isNullOrEmpty(displayArgumentFile)) {
+            return "";
+        }
+
+        String fileContents = "";
+        try {
+            String jenkinsHomeDir = System.getenv("JENKINS_HOME").toString();
+        
+            FileInputStream inputStream = new FileInputStream(jenkinsHomeDir + "/" + displayArgumentFile);
+            try {
+                fileContents = IOUtils.toString(inputStream);
+            } finally {
+                inputStream.close();
+            }
+        } catch (FileNotFoundException err) {
+            fileContents = "File \"" + displayArgumentFile + "\" could not be found in JENKINS_HOME";
+            // Eat the exception and move on
+        } catch (IOException err) {
+            fileContents = "File \"" + displayArgumentFile + "\" could not be found in JENKINS_HOME";
+            // Eat the exception and move on
+        }
+
+        return fileContents;
     }
 
     @JavaScriptMethod
