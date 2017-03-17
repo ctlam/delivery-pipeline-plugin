@@ -41,6 +41,7 @@
         </j:default>
     </j:switch>
 
+    <script type="text/javascript" src="${resURL}/plugin/delivery-pipeline-plugin/underscore-min.js"/>
     <script type="text/javascript" src="${resURL}/plugin/delivery-pipeline-plugin/js-yaml.min.js"/>
     <script type="text/javascript" src="${resURL}/plugin/delivery-pipeline-plugin/moment-with-locales.min.js"/>
     <script type="text/javascript" src="${resURL}/plugin/delivery-pipeline-plugin/jsplumb.min.js"/>

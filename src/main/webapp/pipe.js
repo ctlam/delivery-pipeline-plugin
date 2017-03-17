@@ -624,6 +624,11 @@ function pipelineUtils() {
                 pipelineStageIdMap[toggleBuildId] = stageIds;
             }
 
+            // Update the previous display argument configuration after all new values have been found
+            if (!_.isEqual(JSON.parse(sessionStorage.previousDisplayArgConfig), displayArguments)) {
+                sessionStorage.previousDisplayArgConfig = JSON.stringify(displayArguments);
+            }
+
             sessionStorage.pipelineStageIdMap = JSON.stringify(pipelineStageIdMap);
 
             var index = 0, source, target;
@@ -1590,6 +1595,7 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
     var retVal = "";
     var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
     var previousDisplayArgConfig = JSON.parse(sessionStorage.previousDisplayArgConfig);
+    var configNotChanged = _.isEqual(previousDisplayArgConfig, displayArgs);
 
     // Get a mapping of project names to project build ids
     for (var j = 0; j < pipeline.stages.length; j++) {
@@ -1615,7 +1621,7 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
 
                     // Do not search for a previously found value
                     var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
-                    if (savedValues.hasOwnProperty(id)) {
+                    if (savedValues.hasOwnProperty(id) && configNotChanged) {
                         continue;
                     }
 
@@ -1685,7 +1691,7 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
                     }
 
                     // Upon a configuration change, reload all data
-                    if (previousDisplayArgConfig != displayArgs) {
+                    if (!configNotChanged) {
                         Q.ajax({
                             url: rootURL + url,
                             type: "GET",
@@ -1709,10 +1715,6 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
             // We expect a project name for each display value -- otherwise we don't know where to look
             continue;
         }
-    }
-
-    if (JSON.parse(sessionStorage.previousDisplayArgConfig) != displayArgs) {
-        sessionStorage.previousDisplayArgConfig = JSON.stringify(displayArgs);
     }
 }
 
@@ -1902,6 +1904,7 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
     var previousDisplayArgConfig = JSON.parse(sessionStorage.previousDisplayArgConfig);
     var savedStageDisplayValues = JSON.parse(sessionStorage.savedStageDisplayValues);
     var re = new RegExp(' ', 'g');
+    var configNotChanged = _.isEqual(previousDisplayArgConfig, displayArgs);
 
     for (var mainProject in displayArgs) {
         if (mainProject == pipelineName) {
@@ -1914,7 +1917,7 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
             for (var displayKey in mainProjectDisplayConfig) {
 
                 var saveId = stageName + "-" + stageBuildNum + "-" + displayKey.replace(re, '_');
-                if (savedStageDisplayValues.hasOwnProperty(saveId)) {
+                if (savedStageDisplayValues.hasOwnProperty(saveId) && configNotChanged) {
                     var id = stageId + "-" + displayKey.replace(re, '_');
                     var ele = document.getElementById(id);
                     ele.innerHTML = savedStageDisplayValues[saveId];
@@ -1987,7 +1990,7 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
                 }
 
                 // Upon a configuration change, reload all data
-                if (previousDisplayArgConfig != displayArgs) {
+                if (!configNotChanged) {
                     Q.ajax({
                         url: rootURL + url,
                         type: "GET",
