@@ -508,28 +508,37 @@ public class DeliveryPipelineView extends View {
         this.displayArgumentsFileContents = displayArgumentsFileContents;
     }
 
-    public String readDisplayArgumentsFile(String displayArgumentFile) {
+    public String readDisplayArgumentsFile(String displayArgumentsFile) {
         // No file specified
-        if (Strings.isNullOrEmpty(displayArgumentFile)) {
+        if (Strings.isNullOrEmpty(displayArgumentsFile)) {
             return "";
         }
 
         String fileContents = "";
+        String jenkinsHomeDir = "";
         try {
-            String jenkinsHomeDir = System.getenv("JENKINS_HOME").toString();
-        
-            FileInputStream inputStream = new FileInputStream(jenkinsHomeDir + "/" + displayArgumentFile);
             try {
-                fileContents = IOUtils.toString(inputStream);
-            } finally {
-                inputStream.close();
+                jenkinsHomeDir = Jenkins.getInstance().getRootDir().toString();
+            } catch (Exception err) {
+                return "Could not find Jenkins root directory";
             }
+
+            FileInputStream inputStream = new FileInputStream(jenkinsHomeDir + "/timeline-configs/" 
+                + displayArgumentsFile);
+
+            fileContents = IOUtils.toString(inputStream);
+
+            inputStream.close();
+
         } catch (FileNotFoundException err) {
-            fileContents = "File \"" + displayArgumentFile + "\" could not be found in JENKINS_HOME";
+            return "File \"" + displayArgumentsFile + "\" could not be found in JENKINS_HOME/timeline-configs/";
             // Eat the exception and move on
         } catch (IOException err) {
-            fileContents = "File \"" + displayArgumentFile + "\" could not be found in JENKINS_HOME";
+            return "File \"" + displayArgumentsFile + "\" could not be found in JENKINS_HOME/timeline-configs/";
             // Eat the exception and move on
+        } catch (Exception err) {
+            return "An unknown exception occured when attempting to read file \"" + displayArgumentsFile
+                    + "\" from JENKINS_HOME/timeline-configs/";
         }
 
         return fileContents;

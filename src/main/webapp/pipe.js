@@ -135,7 +135,9 @@ function pipelineUtils() {
         var displayArgumentsFromFile = {};
         if (!isNullOrEmpty(data.displayArgumentsFileContents)) {
 
-            if (data.displayArgumentsFileContents.indexOf("could not be found in JENKINS_HOME") != -1) {
+            if (data.displayArgumentsFileContents.indexOf("could not be found in JENKINS_HOME/timeline-configs/") != -1) {
+                cErrorDiv.html('Error: ' + data.displayArgumentsFileContents).show();
+            } else if (data.displayArgumentsFileContents == "Could not find Jenkins root directory") {
                 cErrorDiv.html('Error: ' + data.displayArgumentsFileContents).show();
             } else {
                 try {
@@ -545,9 +547,9 @@ function pipelineUtils() {
                         html.push("</div></div>");
                         column++;
 
-                        // Ensure no cell can be more than 25% of the pipeline-row
-                        if (numColumns < 4 && j == pipeline.stages.length - 1) {
-                            var numAdditionalColumnsToAdd = 4 - numColumns;
+                        // Ensure no cell can be more than 20% of the pipeline-row
+                        if (numColumns < 5 && j == pipeline.stages.length - 1) {
+                            var numAdditionalColumnsToAdd = 5 - numColumns;
 
                             for (var m = 0; m < numAdditionalColumnsToAdd; m++) {
                                 html.push("<div class=\"pipeline-cell\">");
@@ -2233,26 +2235,6 @@ function updateFailedOnBlockStages(pipeline, i) {
         blockedOnFailedMap[pipeline.stages[0].name + "-" + pipelineNum] = failedOnBlockingJobs;
         sessionStorage.blockedOnFailedMap = JSON.stringify(blockedOnFailedMap);
     }
-}
-
-/**
- * Retrieves the display arguments from an existing project
- */
-function retrieveDisplayArgumentsFromFile(projectUrl) {
-    var displayArguments;
-    Q.ajax({
-        url: rootURL + "/job/" + projectUrl + "/*view*/",
-        type: "GET",
-        async: false,
-        cache: true,
-        timeout: 20000,
-        success: function(data) {
-            displayArguments = data;
-        },
-        error: function (xhr, status, error) {
-        }
-    })
-    return displayArguments;
 }
 
 /**
