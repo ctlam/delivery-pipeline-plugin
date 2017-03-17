@@ -1,3 +1,12 @@
+/*
+ * To distinguish header icons from pipeline icons when using jQuery
+ */
+.circle_header {
+    float: left;
+    margin: 0px;
+    padding: 0px;
+}
+
 .circle {
     float: left;
     margin: 0px;
@@ -61,6 +70,10 @@
     background: -moz-linear-gradient(top, rgba(36,66,92,1), rgba(30,50,71,1));
 }
 
+.pipelineHeaderUrl {
+    color: ;
+}
+
 div.hide {
     visibility: hidden;
 }
@@ -74,6 +87,10 @@ div.pipeline-loading-icon {
     display: block;
     margin-left: auto;
     margin-right: auto;
+}
+
+section.pipeline-component {
+    width: 100%;
 }
 
 section.pipeline-component h1 {
@@ -94,7 +111,7 @@ section.pipeline-component h2 {
 
 section.pipeline {
     display: table;
-    border-collapse: separate;
+    border-collapse: collapse;
     width: 100%;
     /*overflow: auto;*/
 }
@@ -152,19 +169,20 @@ div.change-message {
 
 div.pipeline-row {
     display: table-row;
-    padding: 10px 10px 10px 10px;
+    padding: 10px 10px 15px 10px;
 }
 
 div.pipeline-cell {
     display: table-cell;
-    padding-bottom: 5px;
+    vertical-align: bottom;
+    padding: 0px 0px 5px 0px;
+    margin: 0px;
 }
 
 div.stage {
-    margin-right: 60px;
-    min-width: 180px;
-    border: solid 1px #C8C8C8;
-    border-radius: 5px;
+    margin-right: 10px;
+    border: none;
+    height: initial;
 }
 
 div.stage a {
@@ -178,38 +196,18 @@ div.stage a:visited {
 
 div.stage-task {
     white-space: nowrap;
-    margin: 2px 2px 2px 2px;
-}
-/* ------------------------------- */
-div.stage-minimalist {
-    margin-right: 10px;
-    /*width: 120px;*/
-    border: none;
-}
-
-div.stage-minimalist a {
-    text-decoration: none;
-    color: inherit;
-}
-
-div.stage-minimalist a:visited {
-    color: inherit;
-}
-
-div.stage-minimalist-task {
-    white-space: nowrap;
-    min-height: 20px;
     padding: 0;
 }
 
-div.taskname-minimalist {
+div.taskname {
     display: table-cell;
     font-size: 12px;
     font-weight: normal;
     width: 100%;
+    padding: 0;
 }
 
-.stage-minimalist-name {
+.stage-name {
     display: table-cell;
     vertical-align: middle;
     white-space: normal;
@@ -220,11 +218,7 @@ div.taskname-minimalist {
     line-height: 1.3em;
 }
 
-div.minimalist-task-progress {
-    min-height: 20px;
-}
-
-div.stage-minimalist-header {
+div.stage-header {
     background-color: transparent;
     /*font-size: 13px;*/
     font-weight: normal;;
@@ -234,31 +228,9 @@ div.stage-minimalist-header {
     text-align: center;
 }
 
-div.task-content-minimalist {
-    padding: 0;
-    width: 100%;
-}
-
-/* ------------------------------- */
-
 div.task-content {
     padding: 3px 3px 3px 3px;
     width: 100%;
-}
-
-div.stage-header {
-    background: #EEEEEE;
-    font-size: 13px;
-    font-weight: bold;
-    display: table;
-    width: 100%;
-    white-space: nowrap;
-    border-bottom: 1px solid #C8C8C8;
-}
-
-.stage-name {
-    display: table-cell;
-    vertical-align: middle;
 }
 
 .stage-version {
@@ -277,9 +249,10 @@ div.task-header {
 
 div.taskname {
     display: table-cell;
-    background: url("console.png") no-repeat;
-    background-position: left center;
-    padding: 1px, 1px, 1px, 20px;
+    font-size: 12px;
+    font-weight: normal;
+    width: 100%;
+    padding: 0;
 }
 
 div.task-manual {
@@ -305,108 +278,6 @@ div.task-rebuild {
     float: right;
     padding-right: 5px;
     z-index: 100;
-
-}
-
-.console {
-    display: table-cell;
-    background: url("console.png") no-repeat;
-    background-position: left center;
-    padding: 1px 1px 1px 20px;
-}
-
-.timestamp {
-    display: table-cell;
-    background: url("timestamp.png") no-repeat;
-    background-position: left center;
-    padding: 1px 1px 1px 20px;
-}
-
-.duration {
-    display: table-cell;
-    background: url("duration.png") no-repeat;
-    padding: 1px 1px 1px 20px;
-    background-position: left center;
-}
-
-div.task-progress-running {
-    background-color: lightskyblue;
-    animation-duration: 1s;
-    animation-name: bluePulse;
-    animation-iteration-count: infinite;
-
-    -webkit-animation-name: bluePulse;
-    -webkit-animation-duration: 1s;
-    -webkit-animation-iteration-count: infinite;
-
-}
-
-@keyframes bluePulse {
-    0% {
-        background-color: #0197fe;
-    }
-    50% {
-        background-color: #2daebf;
-    }
-    100% {
-        background-color: #0197fe;
-    }
-}
-
-@-webkit-keyframes bluePulse {
-    from {
-        background-color: #0197fe;
-    }
-    50% {
-        background-color: #2daebf;
-    }
-    to {
-        background-color: #0197fe;
-    }
-}
-
-.IDLE {
-    border-left: 6px solid #d3d3d3;
-}
-
-.QUEUED {
-    border-left: 6px solid darkblue;
-}
-
-.FAILED {
-    border-left: 6px solid #8b0000;
-    background-color: #ff6347;
-}
-
-.SUCCESS {
-    border-left: 6px solid #228b22;
-}
-
-.UNSTABLE {
-    border-left: 6px solid #fcae3f;
-    background-color: #fad42e;
-    font-weight: bold;
-}
-
-.CANCELLED {
-    border-left: 6px solid #8b8989;
-    background-color: #d3d3d3;
-    font-weight: bold;
-}
-
-.NOT_BUILT {
-    border-left: 6px solid #8b8989;
-    background-color: #d3d3d3;
-    font-weight: bold;
-}
-
-.DISABLED {
-    border-left: 6px solid transparent;
-    color: #a9a9a9;
-}
-
-.RUNNING {
-    border-left: 6px solid #0092ef;
 }
 
 div.left {
@@ -422,10 +293,11 @@ div.clear {
 }
 
 div.pipelineerror {
-    background-color: red;
+    background-color: rgba(226,77,66,1);
     font-size: 22px;
     color: #ffffff;
     display: none;
+    padding: 5px;
 }
 
 div.button-start {
@@ -435,10 +307,6 @@ div.button-start {
 div.pipeline-message {
     font-size: 15px;
     z-index: -50;
-}
-
-._jsPlumb_connector {
-    z-index: -100;
 }
 
 div.infoPanel {
@@ -576,8 +444,28 @@ div.aggregatedChangesPanelInner > ul {
     color: inherit;
 }
 
+.build_header_STATUS {
+    width: 5%;
+}
+
+.build_header_BUILD_NUM {
+    width: 55%;
+}
+
+.build_header_DURATION {
+    width: 10%;
+}
+
+.build_header_DATE {
+    width: 20%;
+}
+
+.build_header_STARTED_BY {
+    width: 10%;
+}
+
 .build_column {
-    border-top: 1px solid #b3b3b3;
+    border-bottom: 1px solid #b3b3b3;
     text-align:left;
     color: inherit;
 }
@@ -646,6 +534,7 @@ div.aggregatedChangesPanelInner > ul {
     text-align:left;
     border-collapse: collapse;
     color: rgba(200,200,200,1);
+    font-size: 14px;
 }
 
 .displayTableLink {
@@ -654,6 +543,10 @@ div.aggregatedChangesPanelInner > ul {
 
 .displayTableLink:hover {
     color: rgba(85,159,213,1);
+}
+
+.displayTableLink:visited {
+    color: rgba(220,220,220,1);
 }
 
 .displayTableTr {
@@ -675,9 +568,16 @@ div.aggregatedChangesPanelInner > ul {
     border-top: 1px solid rgba(61,69,75,1);
     border-bottom: 1px solid rgba(61,69,75,1);
     font-weight: normal;
-    padding-right: 50px;
     padding: 3px 50px 3px 3px;
     color: inherit;
+}
+
+.displayTableEntryLink {
+}
+
+/* For links in the display table */
+.displayTableEntryLink:hover {
+    color: rgba(85,159,213,1);
 }
 
 .legendRow:nth-child(odd) {
@@ -687,41 +587,73 @@ div.aggregatedChangesPanelInner > ul {
 .legendTh {
     padding: 0px 50px 0px 3px;
     border: none;
+    font-size: 12px;
 }
 
 .legendTd {
     padding: 0px 10px 0px 10px;
     border: none;
+    font-size: 12px;
 }
 
-.hoverTableEntry {
-    text-align: left;
-    color: black;
-    margin-right: 10px;
+.hoverText {
+    color: rgba(200,200,200,1);
+    font-size: 12px;
+}
+
+.hoverTable {
+    text-align:left;
+    border-collapse: collapse;
+    color: rgba(200,200,200,1);
+    font-size: 12px;
+}
+
+.hoverRow:nth-child(odd) {
+    background-color: rgba(45,51,55,1);
+}
+
+.hoverTableTh {
+    color: inherit;
+    border-top: 1px solid rgba(61,69,75,1);
+    border-bottom: 1px solid rgba(61,69,75,1);
+    padding: 1px 25px 1px 1px;
+    font-size: inherit;
+}
+
+.hoverTableTd {
+    color: inherit;
+    border-top: 1px solid rgba(61,69,75,1);
+    border-bottom: 1px solid rgba(61,69,75,1);
+    padding: 1px 5px 1px 1px;
+    font-size: inherit;
 }
 
 a span {
     display: none;
     position: absolute;
-    background-color: #ddd;
-    border: 1px solid black;
-    font-size: 13px;
+    background-color: rgba(37,44,49,1);
+    border-radius: 10px;
+    border: 1px solid #b3b3b3;
     font-weight: normal;
     min-height: 50px;
     min-width: 100px;
     top: 100%;
-    z-index: 5;
+    z-index: 6;
+    padding: 5px;
 }
 
 a {
     position: relative;
-    color: inherit !important;
+    color: inherit;
+}
+
+a:link {
+    color: inherit;
 }
 
 a:hover span {
     display: block;
     text-align: left;
-    color: black;
 }
 
 .label {
@@ -730,7 +662,7 @@ a:hover span {
     font-size: 12px;
     background-color: #ddd;
     color: black;
-    z-index: 4;
+    z-index: 5;
 }
 
 ._jsPlumb_connector {
@@ -743,4 +675,8 @@ a:hover span {
 
 ._jsPlumb_overlay {
     z-index: 3;
+}
+
+.jtk-hover {
+    z-index: 4;
 }

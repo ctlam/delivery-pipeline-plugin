@@ -17,6 +17,7 @@ If not, see <http://www.gnu.org/licenses/>.
 */
 package se.diabol.jenkins.pipeline;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.Sets;
 import hudson.DescriptorExtensionList;
 import hudson.Extension;
@@ -40,6 +41,7 @@ import hudson.util.ListBoxModel;
 import jenkins.model.Jenkins;
 import org.acegisecurity.AuthenticationException;
 import org.acegisecurity.BadCredentialsException;
+import org.apache.commons.io.IOUtils;
 import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
@@ -60,6 +62,8 @@ import se.diabol.jenkins.pipeline.util.JenkinsUtil;
 import se.diabol.jenkins.pipeline.util.PipelineUtils;
 import se.diabol.jenkins.pipeline.util.ProjectUtil;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -125,7 +129,8 @@ public class DeliveryPipelineView extends View {
     private boolean showArtifacts = true;
     private boolean useYamlParser = true;
     private String displayArguments = "";
-    private String displayArgumentProject = "";
+    private String displayArgumentsFile = "";
+    private String displayArgumentsFileContents;
 
     private transient String error;
 
@@ -485,12 +490,58 @@ public class DeliveryPipelineView extends View {
     }
 
     @Exported
-    public String getDisplayArgumentProject() {
-        return displayArgumentProject;
+    public String getDisplayArgumentsFile() {
+        return displayArgumentsFile;
     }
 
-    public void setDisplayArgumentProject(String displayArgumentProject) {
-        this.displayArgumentProject = displayArgumentProject;
+    public void setDisplayArgumentsFile(String displayArgumentsFile) {
+        this.displayArgumentsFile = displayArgumentsFile;
+        this.displayArgumentsFileContents = readDisplayArgumentsFile(displayArgumentsFile);
+    }
+
+    @Exported
+    public String getDisplayArgumentsFileContents() {
+        return displayArgumentsFileContents;
+    }
+
+    public void setDisplayArgumentsFileContents(String displayArgumentsFileContents) {
+        this.displayArgumentsFileContents = displayArgumentsFileContents;
+    }
+
+    public String readDisplayArgumentsFile(String displayArgumentsFile) {
+        // No file specified
+        if (Strings.isNullOrEmpty(displayArgumentsFile)) {
+            return "";
+        }
+
+        String fileContents = "";
+        String jenkinsHomeDir = "";
+        try {
+            try {
+                jenkinsHomeDir = Jenkins.getInstance().getRootDir().toString();
+            } catch (Exception err) {
+                return "Could not find Jenkins root directory";
+            }
+
+            FileInputStream inputStream = new FileInputStream(jenkinsHomeDir + "/timeline-configs/" 
+                + displayArgumentsFile);
+
+            fileContents = IOUtils.toString(inputStream);
+
+            inputStream.close();
+
+        } catch (FileNotFoundException err) {
+            return "File \"" + displayArgumentsFile + "\" could not be found in JENKINS_HOME/timeline-configs/";
+            // Eat the exception and move on
+        } catch (IOException err) {
+            return "File \"" + displayArgumentsFile + "\" could not be found in JENKINS_HOME/timeline-configs/";
+            // Eat the exception and move on
+        } catch (Exception err) {
+            return "An unknown exception occured when attempting to read file \"" + displayArgumentsFile
+                    + "\" from JENKINS_HOME/timeline-configs/";
+        }
+
+        return fileContents;
     }
 
     @JavaScriptMethod
@@ -727,7 +778,8 @@ public class DeliveryPipelineView extends View {
 
         @Override
         public String getDisplayName() {
-            return "Delivery Pipeline View";
+            return "Build Timeline View";
+            // return "Delivery Pipeline View";
         }
     }
 

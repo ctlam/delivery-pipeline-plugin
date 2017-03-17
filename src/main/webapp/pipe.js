@@ -1,10 +1,11 @@
 var instance;
 // Jenkins default view has a "main-panel" whereas full screen mode does not
 var isFullScreen = (document.getElementById("main-panel") == null);
+var numColumns = 0;
 
 function pipelineUtils() {
-     var self = this;
-     this.updatePipelines = function(divNames, errorDiv, view, fullscreen, page, component, showChanges, aggregatedChangesGroupingPattern, timeout, pipelineid, jsplumb) {
+    var self = this;
+    this.updatePipelines = function(divNames, errorDiv, view, fullscreen, page, component, showChanges, aggregatedChangesGroupingPattern, timeout, pipelineid, jsplumb) {
         Q.ajax({
             url: rootURL + "/" + view.viewUrl + 'api/json' + "?page=" + page + "&component=" + component + "&fullscreen=" + fullscreen,
             dataType: 'json',
@@ -30,754 +31,896 @@ function pipelineUtils() {
     var lastResponse = null;
 
     this.refreshPipelines = function(data, divNames, errorDiv, view, showAvatars, showChanges, aggregatedChangesGroupingPattern, pipelineid, jsplumb) {
-                            var lastUpdate = data.lastUpdated,
-                               cErrorDiv = Q("#" + errorDiv),
-                               pipeline,
-                               component,
-                               html,
-                               trigger,
-                               triggered,
-                               contributors,
-                               tasks = [];
+        var lastUpdate = data.lastUpdated,
+           cErrorDiv = Q("#" + errorDiv),
+           pipeline,
+           component,
+           html,
+           trigger,
+           triggered,
+           contributors,
+           tasks = [];
 
-                            window.addEventListener("scroll", storePagePosition);
-                            window.addEventListener("resize", revalidateConnections);
-                            window.addEventListener('webkitfullscreenchange', revalidateConnections);
-                            window.addEventListener('mozfullscreenchange', revalidateConnections);
-                            window.addEventListener('fullscreenchange', revalidateConnections);
+        if (isFullScreen) {
+            document.onkeydown = function(evt) {
+                evt = evt || window.event;
+                if (evt.keyCode == 27) {
+                    var returnUrl = window.location.href.split("?fullscreen=true")[0];
+                    window.location.href = returnUrl;
+                }
+            };
+        }
 
-                            var currentPageY;
-                            try {
-                                currentPageY = sessionStorage.getItem("page_y");
-                                if (currentPageY === undefined) {
-                                    sessionStorage.page_y = 0;
-                                    currentPageY = 0;
-                                }
-                            } catch (e) {
-                                console.info(e);
+        window.addEventListener("scroll", storePagePosition);
+        window.addEventListener("resize", rescaleConnections);
+        window.addEventListener('webkitfullscreenchange', rescaleConnections);
+        window.addEventListener('mozfullscreenchange', rescaleConnections);
+        window.addEventListener('fullscreenchange', rescaleConnections);
+
+        var currentPageY;
+        try {
+            currentPageY = sessionStorage.getItem("page_y");
+            if (currentPageY === undefined) {
+                sessionStorage.page_y = 0;
+                currentPageY = 0;
+            }
+        } catch (e) {
+            console.info(e);
+        }
+
+        // Scroll to the top before drawing in fullscreen mode
+        window.scrollTo( 0 , 0 );
+
+        var blockingMap = {};       // Blocking project mapping
+        var conditionalMap = {};    // Conditional project mapping
+        var downstreamMap = {};     // Downstream project mapping
+        var projectNameIdMap = {};  // Project Name - Project Id mapping
+
+        // Initialize sessionStorage variables if not previously set
+        if (sessionStorage.savedPipelineDisplayValues == null) {
+            sessionStorage.savedPipelineDisplayValues = JSON.stringify({});
+        }
+        var savedPipelineDisplayValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
+
+        if (sessionStorage.savedPipelineArtifacts == null) {
+            sessionStorage.savedPipelineArtifacts = JSON.stringify({});
+        }
+
+        if (sessionStorage.savedStageDisplayValues == null) {
+            sessionStorage.savedStageDisplayValues = JSON.stringify({});
+        }
+
+        if (sessionStorage.previousDisplayArgConfig == null) {
+            sessionStorage.previousDisplayArgConfig = JSON.stringify({});
+        }
+
+        if (sessionStorage.toggleStates == null) {
+            sessionStorage.toggleStates = JSON.stringify({});
+        }
+
+        if (sessionStorage.blockedOnFailedMap == null) {
+            sessionStorage.blockedOnFailedMap = JSON.stringify({});
+        }
+
+        if (sessionStorage.markedUrls == null) {
+            sessionStorage.markedUrls = JSON.stringify({});
+        }
+
+        // Clear the sessionStorage of values we set if and only if we are loading a different view page
+        // This could break if someone loads a view with the same initial job.
+        var lastViewedJob;
+        try {
+            lastViewedJob = sessionStorage.getItem("lastViewedJob");
+            var currentJob = data.pipelines[0].name;
+
+            if (lastViewedJob !== undefined && (currentJob != lastViewedJob)) {
+                sessionStorage.savedPipelineDisplayValues = JSON.stringify({});
+                sessionStorage.savedPipelineArtifacts = JSON.stringify({});
+                sessionStorage.savedStageDisplayValues = JSON.stringify({});
+                sessionStorage.toggleStates = JSON.stringify({});
+                sessionStorage.blockedOnFailedMap = JSON.stringify({});
+            }
+            sessionStorage.lastViewedJob = currentJob;
+        } catch (e) {
+            console.info(e);
+        }
+
+        if (data.error) {
+            cErrorDiv.html('Error: ' + data.error).show();
+        } else {
+            cErrorDiv.hide().html('');
+        }
+
+        // Get the display arguments from a specified project url
+        var displayArgumentsFromFile = {};
+        if (!isNullOrEmpty(data.displayArgumentsFileContents)) {
+
+            if (data.displayArgumentsFileContents.indexOf("could not be found in JENKINS_HOME/timeline-configs/") != -1) {
+                cErrorDiv.html('Error: ' + data.displayArgumentsFileContents).show();
+            } else if (data.displayArgumentsFileContents == "Could not find Jenkins root directory") {
+                cErrorDiv.html('Error: ' + data.displayArgumentsFileContents).show();
+            } else {
+                try {
+                    // Attempt to parse the contents
+                    console.info(data.displayArgumentsFileContents);
+                    if (data.useYamlParser) {
+                        displayArgumentsFromFile = jsyaml.safeLoad(data.displayArgumentsFileContents);
+                    } else {
+                        displayArgumentsFromFile = JSON.parse(data.displayArgumentsFileContents);
+                    }
+                } catch (e) {
+                    cErrorDiv.html('Error parsing display arguments file!').show();
+                }
+            }
+
+        }
+
+        // Get the display arguments in either YAML/JSON format.
+        var displayArguments = {};
+        try {
+            // Attempt to parse the contents
+            if (!isNullOrEmpty(data.displayArguments)) {
+                if (data.useYamlParser) {
+                    displayArguments = jsyaml.safeLoad(data.displayArguments);
+                } else {
+                    displayArguments = JSON.parse(data.displayArguments);
+                }
+            }
+        } catch (e) {
+            cErrorDiv.html('Error parsing display arguments!').show();
+        }
+
+        // Hope that jQuery can perform the deep merge
+        try {
+            displayArguments = Q.extend(true, {}, displayArgumentsFromFile, displayArguments);
+        } catch (e) {
+            console.log("Error performing deep merge on display arguments!");
+        }
+        
+        if (lastResponse === null || JSON.stringify(data.pipelines) !== JSON.stringify(lastResponse.pipelines)) {
+
+            for (var z = 0; z < divNames.length; z++) {
+                Q("#" + divNames[z]).html('');
+            }
+
+            if (!data.pipelines || data.pipelines.length === 0) {
+                Q("#pipeline-message-" + pipelineid).html('No pipelines configured or found. Please review the <a href="configure">configuration</a>')
+            }
+
+            jsplumb.reset();
+            // Keep track of the jsplumb instance so that we can repaint when necessary
+            instance = jsplumb;
+
+            for (var c = 0; c < data.pipelines.length; c++) {
+                html = [];
+                component = data.pipelines[c];
+
+                var returnUrl = window.location.href;
+                if (isFullScreen) {
+                    returnUrl = returnUrl.split("?fullscreen=true")[0];
+                }
+
+                html.push("<section class='pipeline-component'>");
+                html.push("<div class=\"pipelineHeader\">");
+                html.push("<h1><a href=\"" + returnUrl + "\" class=\"displayTableLink\">" + component.name + "</a>");
+                if (data.allowPipelineStart) {
+                    if (component.firstJobParameterized) {
+                        html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" onclick="triggerParameterizedBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
+                    } else {
+                        html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" onclick="triggerBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
+                    }
+                    html.push('<img class="icon-clock icon-md" title="Build now" src="' + resURL + '/images/24x24/clock.png">');
+                    html.push("</a>");
+                }
+                html.push("</h1>");
+                html.push("<h2>Refreshed every " + data.updateInterval + " seconds.");
+                if (isFullScreen) {
+                    html.push("<br/>Press ESC at any time to return to the default view.");
+                }
+                html.push("</h2>");
+                html.push("</div>");
+                if (!showAvatars) {
+                    html.push("<div class='pagination'>");
+                    html.push(component.pagingData);
+                    html.push("</div>");
+                }
+                if (component.pipelines.length === 0) {
+                    html.push("No builds done yet.");
+                }
+
+                html.push("<table class=\"build_table\">");
+                html.push("<tr>");
+                html.push("<th class=\"build_header build_header_STATUS\">Status</th>");
+                html.push("<th class=\"build_header build_header_BUILD_NUM\">Build Number</th>");
+                html.push("<th class=\"build_header build_header_DURATION\">Duration</th>");
+                html.push("<th class=\"build_header build_header_DATE\">Date</th>");
+                html.push("<th class=\"build_header build_header_STARTED_BY\">Started by</th>");
+                html.push("</tr>");
+
+                var isLatestPipeline = true;
+
+                for (var i = 0; i < component.pipelines.length; i++) {
+                    pipeline = component.pipelines[i];
+
+                    var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                    var buildNum = pipeline.version.substring(1);
+                    var statusString = pipeline.stages[0].tasks[0].status.type;
+
+                    var pipelineTimestamp = formatLongDate(pipeline.timestamp);
+                    var pipelineDuration = formatLongDuration(pipeline.stages[0].tasks[0].status.duration);
+                        
+                    if (!data.useFullLocaleTimeStrings) {
+                        pipelineTimestamp = formatDate(pipeline.timestamp);
+                        pipelineDuration = formatDuration(pipeline.stages[0].tasks[0].status.duration);
+                    }
+
+                    if (pipeline.triggeredBy && pipeline.triggeredBy.length > 0) {
+                        triggered = "";
+                        for (var y = 0; y < pipeline.triggeredBy.length; y++) {
+                            trigger = pipeline.triggeredBy[y];
+                            triggered = triggered + trigger.description;
+                            if (y < pipeline.triggeredBy.length - 1) {
+                                triggered = triggered + ", ";
+                            }
+                        }
+                    }
+
+                    contributors = [];
+                    if (pipeline.contributors) {
+                        Q.each(pipeline.contributors, function (index, contributor) {
+                            contributors.push(htmlEncode(contributor.name));
+                        });
+                    }
+
+                    if (contributors.length > 0) {
+                        triggered = triggered + " changes by " + contributors.join(", ");
+                    }
+
+                    var displayBuildId = "display-build-" + jobName + "-" + buildNum;
+                    var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
+                    var toggleRowId = "toggle-row-" + jobName + "-" + buildNum;
+                    var togglePipelineId = "toggle-pipeline-" + jobName + "-" + buildNum;
+                    var shouldToggle = (getToggleState(toggleBuildId, "block", isLatestPipeline) != "none");
+
+                    // Initial CSS class to use
+                    var initClass = shouldToggle ? "toggled_build_header" : "untoggled_build_header";
+                    var initPipelineClass = shouldToggle ? "toggled_pipeline" : "untoggled_pipeline";
+                    var toggleFunction = "javascript:toggle('" + jobName + "','" + buildNum + "');";
+
+                    html.push("<tr id=\"" + toggleRowId + "\" class=\"" + initClass + "\">");    
+                    html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
+                    html.push("<p class=\"circle_header circle_" + statusString + " build_circle\">&nbsp;</p></a></td>");
+
+                    html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
+                    html.push("<p class=\"build_entry\">#" + buildNum + " " + jobName + "</p></a></td>");
+
+                    html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
+                    html.push("<p class=\"build_entry\">" + pipelineDuration + "</p></a></td>");
+
+                    html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
+                    html.push("<p class=\"build_entry\">" + pipelineTimestamp + "</p></a></td>");
+
+                    html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
+                    html.push("<p class=\"build_entry\">" + triggered + "</p></a></td>");
+
+                    html.push("</tr><tr><th id=\"" + togglePipelineId + "\" colspan=\"5\" class=\"" + initPipelineClass + "\">");
+                    html.push("<div id=\"" + toggleBuildId + "\" style=\"display:" + getToggleState(toggleBuildId, "block", isLatestPipeline) + ";\">");
+
+                    // Only expand the latest pipeline
+                    if (isLatestPipeline) {
+                        isLatestPipeline = false;
+                    }
+
+                    if (pipeline.aggregated) {
+                        if (component.pipelines.length > 1) {
+                            html.push('<h3>Aggregated view</h3>');
+                        }
+                    } else {                                            
+                        if (data.showTotalBuildTime) {
+                            html.push('<h3>Total build time: ' + formatDuration(pipeline.totalBuildTime) + '</h3>');
+                        }
+                        
+                        if (showChanges && pipeline.changes && pipeline.changes.length > 0) {
+                            html.push(generateChangeLog(pipeline.changes));
+                        }
+
+                        html.push("<section class=\"pipeline\">");
+                        html.push("<div class=\"pipeline-row\">");
+
+                        //if (displayArguments != "" && displayArguments != null) {
+                        if (JSON.stringify(displayArguments) != JSON.stringify({})) {
+                            var toggleTableId = "toggle-table-" + jobName + "-" + buildNum;
+                            var displayTableId = "display-table-" + jobName + "-" + buildNum;
+                            var artifactId = "artifacts-" + jobName + "-" + buildNum;
+
+                            var toggleTableFunction = "javascript:toggleTable('" + toggleTableId + "','" + displayTableId + "');";
+                            var initDisplayValMessage = (getToggleState(toggleTableId, "table-row-group", true) == "none") ? "Show " : "Hide ";
+                            initDisplayValMessage += "Global Display Values";
+
+                            if (isFullScreen) {
+                                toggleTableFunction = "javascript:toggleTableCompatibleFS('" + toggleTableId + "','" + displayTableId + "');";
                             }
 
-                            // Scroll to the top before drawing in fullscreen mode
-                            window.scrollTo( 0 , 0 );
+                            html.push("<div class=\"pipeline-cell\" style=\"vertical-align: top;\">");
 
-                            var blockingMap = {};       // Blocking project mapping
-                            var conditionalMap = {};    // Conditional project mapping
-                            var downstreamMap = {};     // Downstream project mapping
-                            var projectNameIdMap = {};  // Project Name - Project Id mapping
-
-                            // Initialize sessionStorage variables if not previously set
-                            if (sessionStorage.savedPipelineDisplayValues == null) {
-                                sessionStorage.savedPipelineDisplayValues = JSON.stringify({});
-                            }
-                            var savedPipelineDisplayValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
-
-                            if (sessionStorage.savedPipelineArtifacts == null) {
-                                sessionStorage.savedPipelineArtifacts = JSON.stringify({});
+                            html.push("<table class=\"displayTable\" align=\"left\">");
+                            html.push("<thead><tr><th colspan=\"2\" style=\"text-align: left;\" class=\"displayTableLink\">");
+                            html.push("<a id=\"" + displayTableId + "\" href=\"" + toggleTableFunction + "\">" + initDisplayValMessage + "</a>");
+                            html.push("</th></tr></thead>");
+                            html.push("<tbody id=\"" + toggleTableId + "\" style=\"display: " + getToggleState(toggleTableId, "table-row-group", true) + ";\">");
+                            if (data.showArtifacts) {
+                                html.push("<tr class=\"displayTableTr\">");
+                                html.push("<th class=\"displayTableTh\">Artifacts </th>");
+                                html.push("<td id=\"" + artifactId + "\" class=\"displayTableTd\">" + loadBuildArtifacts(artifactId) + "</td></tr>");
                             }
 
-                            if (sessionStorage.previousDisplayArgConfig == null) {
-                                sessionStorage.previousDisplayArgConfig = JSON.stringify({});
-                            }
-
-                            if (sessionStorage.toggleStates == null) {
-                                sessionStorage.toggleStates = JSON.stringify({});
-                            }
-
-                            if (sessionStorage.blockedOnFailedMap == null) {
-                                sessionStorage.blockedOnFailedMap = JSON.stringify({});
-                            }
-
-                            // Clear the sessionStorage of values we set if and only if we are loading a different view page
-                            // This could break if someone loads a view with the same initial job.
-                            var lastViewedJob;
-                            try {
-                                lastViewedJob = sessionStorage.getItem("lastViewedJob");
-                                var currentJob = data.pipelines[0].name;
-
-                                if (lastViewedJob !== undefined && (currentJob != lastViewedJob)) {
-                                    sessionStorage.savedPipelineDisplayValues = JSON.stringify({});
-                                    sessionStorage.savedPipelineArtifacts = JSON.stringify({});
-                                    sessionStorage.toggleStates = JSON.stringify({});
-                                    sessionStorage.blockedOnFailedMap = JSON.stringify({});
-                                }
-                                sessionStorage.lastViewedJob = currentJob;
-                            } catch (e) {
-                                console.info(e);
-                            }
-
-                            if (data.error) {
-                                cErrorDiv.html('Error: ' + data.error).show();
+                            if (JSON.stringify(savedPipelineDisplayValues) == JSON.stringify({})) {
+                                html.push(generateGlobalDisplayValueTable(displayArguments, jobName, buildNum));
                             } else {
-                                cErrorDiv.hide().html('');
+                                html.push(loadGlobalDisplayValues(displayArguments, jobName, buildNum, savedPipelineDisplayValues));
                             }
 
-                            // Get the display arguments in either YAML/JSON format.
-                            var displayArguments = data.displayArguments;
-                            // Attempt to parse the contents
-                            try {
-                                if (displayArguments != "") {
-                                    if (data.useYamlParser) {
-                                        displayArguments = jsyaml.safeLoad(data.displayArguments);
-                                    } else {
-                                        displayArguments = JSON.parse(data.displayArguments);
-                                    }
-                                }
+                            html.push("</tbody></table>");
+                            html.push("</div>");
+                        }
 
-                                if (displayArguments == null) {
-                                    displayArguments = "";
+                        html.push("<div class=\"pipeline-cell\">");
+
+                        html.push("<table class=\"displayTable\" align=\"right\"><thead><tr>");
+                        html.push("<th colspan=\"2\" style=\"text-align: left; color: inherit;\">Legend</th>");
+                        html.push("</tr></thead>");
+                        html.push("<tbody style=\"display: table-row-group;\">");
+
+                        var idSuffix = jobName + "-" + buildNum;
+
+                        html.push("<tr class=\"displayTableTr legendRow\">");
+                        html.push("<th id=\"nb-" + idSuffix + "\" class=\"displayTableTh legendTh\"></th>");
+                        html.push("<td id=\"nb-" + idSuffix + "-end\" class=\"displayTableTd legendTd\">Non-blocking</td></tr>");
+
+                        html.push("<tr class=\"displayTableTr legendRow\">");
+                        html.push("<th id=\"b-" + idSuffix + "\" class=\"displayTableTh legendTh\"></th>");
+                        html.push("<td id=\"b-" + idSuffix + "-end\" class=\"displayTableTd legendTd\">Blocking</td></tr>");
+
+                        html.push("<tr class=\"displayTableTr legendRow\">");
+                        html.push("<th id=\"nbc-" + idSuffix + "\" class=\"displayTableTh legendTh\"></th>");
+                        html.push("<td id=\"nbc-" + idSuffix + "-end\" class=\"displayTableTd legendTd\">Non-blocking Conditional</td></tr>");
+
+                        html.push("<tr class=\"displayTableTr legendRow\">");
+                        html.push("<th id=\"bc-" + idSuffix + "\" class=\"displayTableTh legendTh\"></th>");
+                        html.push("<td id=\"bc-" + idSuffix + "-end\" class=\"displayTableTd legendTd\">Blocking Conditional</td></tr>");
+
+                        html.push("<tr class=\"displayTableTr legendRow\">");
+                        html.push("<th id=\"d-" + idSuffix + "\" class=\"displayTableTh legendTh\"></th>");
+                        html.push("<td id=\"d-" + idSuffix + "-end\" class=\"displayTableTd legendTd\">Downstream</td></tr>");
+
+                        html.push("</tbody></table>");
+                        html.push("</div></div></section>");
+                    }
+
+                    // 15px padding around main-panel
+                    // 10px padding around pipeline-main
+                    // 1px border left/right around pipeline main
+                    // 1px border left/right around table
+                    // There is also some additional padding elsewhere, so assume 100px in padding to ensure enough room
+                    var maxWidth =  isFullScreen ? window.innerWidth - 100 : document.getElementById("main-panel").offsetWidth - 100;
+                    for (var j = 0; j < pipeline.stages.length; j++) {
+                        stage = pipeline.stages[j];
+                        if (stage.column >= numColumns) {
+                            numColumns = stage.column + 1;
+                        }
+                    }
+
+                    var scaleCondition = (numColumns * 140 > maxWidth);
+
+                    // Default Values
+                    var widthPerCell = 130; // 10px for margin-right
+                    var circleSizePerCell = "26px";
+                    var leftPercentPerCell = "37.5%";
+                    var fontSizePerCell = 12;
+
+                    if (scaleCondition) {
+                        widthPerCell = Math.floor(maxWidth / numColumns) - 10;
+                        circleSizePerCell = (widthPerCell >= 26) ? "26px" : widthPerCell + "px";
+                        leftPercentPerCell = Math.floor(((widthPerCell - parseInt(circleSizePerCell.replace("px", ""))) / 2) / widthPerCell * 100) + "%";
+                        fontSizePerCell = 10; // Set a minimum font-size rather than scaling it down to something unreadable
+                    }
+
+                    var row = 0, column = 0, stage;                                   
+                    html.push("<section class=\"pipeline\">");
+                    html.push('<div class="pipeline-row">');
+
+                    for (var j = 0; j < pipeline.stages.length; j++) {
+                        stage = pipeline.stages[j];
+
+                        if (stage.blockingJobs != "") {
+                            blockingMap[getStageId(stage.id + "", i)] = stage.blockingJobs.split(', ');
+                        }
+
+                        if (stage.conditionalJobs != "") {
+                            conditionalMap[getStageId(stage.id + "", i)] = stage.conditionalJobs.split(', ');
+                        }
+
+                        if (stage.downstreamJobs != "") {
+                            downstreamMap[getStageId(stage.id + "", i)] = stage.downstreamJobs.split(', ');
+                        }
+
+                        projectNameIdMap[getStageId(stage.id + "", i)] = stage.name;
+
+                        if (stage.row > row) {
+                            html.push('</div><div class="pipeline-row">');
+                            column = 0;
+                            row++;
+                        }
+
+                        if (stage.column > column) {
+                            for (var as = column; as < stage.column; as++) {
+                                if (data.viewMode == "Minimalist") {
+                                    html.push("<div class=\"pipeline-cell\">");
+                                    html.push("<div class=\"stage hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
                                 }
-                            } catch (e) {
-                                console.log(e);
+                                column++;
                             }
+                        }
+
+                        html.push("<div class=\"pipeline-cell\">");
+
+                        var link = getLink(data, stage.tasks[0].link);
+                        var buildStatus = stage.tasks[0].status;
+                        if (data.linkToConsoleLog) {
+                            if (buildStatus.success || buildStatus.failed || buildStatus.unstable || buildStatus.cancelled) {
+                                link += "console";
+                            }
+                        }
+
+                        if (data.viewMode == "Minimalist") {
+                            html.push("<div class=\"stage\" style=\"width: " + widthPerCell + "px;\">");    
+                            html.push("<div class=\"stage-header\" style=\"font-size: " + fontSizePerCell + "px;\">");
+                            html.push("<div class=\"stage-name\">");
+                            html.push("<a href=\"" + link + "\" target=\"_blank\">" + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</a></div>");
+                        }
+
+                        if (!pipeline.aggregated) {
+                            html.push('</div>');
+                        } else {
+                            var stageversion = stage.version;
+                            if (!stageversion) {
+                                stageversion = "N/A"
+                            }
+                            html.push(' <div class="stage-version">' + htmlEncode(stageversion) + '</div></div>');
+                        }
+
+                        var task, id, timestamp, progress, progressClass, consoleLogLink = "";
+
+                        for (var k = 0; k < stage.tasks.length; k++) {
+                            task = stage.tasks[k];
+
+                            id = getTaskId(task.id, i);
+                            timestamp = data.useFullLocaleTimeStrings ? formatLongDate(task.status.timestamp) : formatDate(task.status.timestamp, lastUpdate);
                             
-                            if (lastResponse === null || JSON.stringify(data.pipelines) !== JSON.stringify(lastResponse.pipelines)) {
-
-                                for (var z = 0; z < divNames.length; z++) {
-                                    Q("#" + divNames[z]).html('');
-                                }
-
-                                if (!data.pipelines || data.pipelines.length === 0) {
-                                    Q("#pipeline-message-" + pipelineid).html('No pipelines configured or found. Please review the <a href="configure">configuration</a>')
-                                }
-
-                                jsplumb.reset();
-                                // Keep track of the jsplumb instance so that we can repaint when necessary
-                                instance = jsplumb;
-
-                                for (var c = 0; c < data.pipelines.length; c++) {
-                                    html = [];
-                                    component = data.pipelines[c];
-
-                                    var returnUrl = window.location.href;
-                                    if (isFullScreen) {
-                                        returnUrl = returnUrl.split("?fullscreen=true")[0];
-                                    }
-
-                                    html.push("<section class='pipeline-component'>");
-                                    html.push("<div class=\"pipelineHeader\">");
-                                    html.push("<h1><a href=\"" + returnUrl + "\">" + component.name + "</a>");
-                                    if (data.allowPipelineStart) {
-                                        if (component.firstJobParameterized) {
-                                            html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" onclick="triggerParameterizedBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
-                                        } else {
-                                            html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" onclick="triggerBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
-                                        }
-                                        html.push('<img class="icon-clock icon-md" title="Build now" src="' + resURL + '/images/24x24/clock.png">');
-                                        html.push("</a>");
-                                    }
-                                    html.push("</h1>");
-                                    html.push("<h2>Refreshed every " + data.updateInterval + " seconds.</h2>");
-                                    html.push("</div>");
-                                    if (!showAvatars) {
-                                        html.push("<div class='pagination'>");
-                                        html.push(component.pagingData);
-                                        html.push("</div>");
-                                    }
-                                    if (component.pipelines.length === 0) {
-                                        html.push("No builds done yet.");
-                                    }
-
-                                    html.push("<table class=\"build_table\">");
-                                    html.push("<tr>");
-                                    html.push("<th class=\"build_header\" style=\"width:5%;\">Status</th>");
-                                    html.push("<th class=\"build_header\" style=\"width:45%;\">Build Number</th>");
-                                    html.push("<th class=\"build_header\" style=\"width:10%;\">Duration</th>");
-                                    html.push("<th class=\"build_header\" style=\"width:20%;\">Date</th>");
-                                    html.push("<th class=\"build_header\" style=\"width:15%;\">Started by</th>");
-                                    html.push("</tr>");
-
-                                    var isLatestPipeline = true;
-
-                                    for (var i = 0; i < component.pipelines.length; i++) {
-                                        pipeline = component.pipelines[i];
-
-                                        var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                                        var buildNum = pipeline.version.substring(1);
-                                        var statusString = pipeline.stages[0].tasks[0].status.type;
-
-                                        var pipelineTimestamp = formatLongDate(pipeline.timestamp);
-                                        var pipelineDuration = formatLongDuration(pipeline.stages[0].tasks[0].status.duration);
-                                            
-                                        if (!data.useFullLocaleTimeStrings) {
-                                            pipelineTimestamp = formatDate(pipeline.timestamp);
-                                            pipelineDuration = formatDuration(pipeline.stages[0].tasks[0].status.duration);
-                                        }
-
-                                        if (pipeline.triggeredBy && pipeline.triggeredBy.length > 0) {
-                                            triggered = "";
-                                            for (var y = 0; y < pipeline.triggeredBy.length; y++) {
-                                                trigger = pipeline.triggeredBy[y];
-                                                triggered = triggered + trigger.description;
-                                                if (y < pipeline.triggeredBy.length - 1) {
-                                                    triggered = triggered + ", ";
-                                                }
-                                            }
-                                        }
-
-                                        contributors = [];
-                                        if (pipeline.contributors) {
-                                            Q.each(pipeline.contributors, function (index, contributor) {
-                                                contributors.push(htmlEncode(contributor.name));
-                                            });
-                                        }
-
-                                        if (contributors.length > 0) {
-                                            triggered = triggered + " changes by " + contributors.join(", ");
-                                        }
-
-                                        var displayBuildId = "display-build-" + jobName + "-" + buildNum;
-                                        var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
-                                        var toggleRowId = "toggle-row-" + jobName + "-" + buildNum;
-                                        var togglePipelineId = "toggle-pipeline-" + jobName + "-" + buildNum;
-                                        var shouldToggle = (getToggleState(toggleBuildId, "block", isLatestPipeline) != "none");
-
-                                        // Initial CSS class to use
-                                        var initClass = shouldToggle ? "toggled_build_header" : "untoggled_build_header";
-                                        var initPipelineClass = shouldToggle ? "toggled_pipeline" : "untoggled_pipeline";
-                                        var toggleFunction = "javascript:toggle('" + jobName + "','" + buildNum + "');";
-
-                                        html.push("<tr id=\"" + toggleRowId + "\" class=\"" + initClass + "\">");    
-                                        html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
-                                        html.push("<p class=\"circle circle_" + statusString + " build_circle\">&nbsp;</p></a></td>");
-
-                                        html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
-                                        html.push("<p class=\"build_entry\">#" + buildNum + " " + jobName + "</p></a></td>");
-
-                                        html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
-                                        html.push("<p class=\"build_entry\">" + pipelineDuration + "</p></a></td>");
-
-                                        html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
-                                        html.push("<p class=\"build_entry\">" + pipelineTimestamp + "</p></a></td>");
-
-                                        html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
-                                        html.push("<p class=\"build_entry\">" + triggered + "</p></a></td>");
-
-                                        html.push("</tr><tr><th id=\"" + togglePipelineId + "\" colspan=\"5\" class=\"" + initPipelineClass + "\">");
-                                        html.push("<div id=\"" + toggleBuildId + "\" style=\"display:" + getToggleState(toggleBuildId, "block", isLatestPipeline) + ";\">");
-
-                                        // Only expand the latest pipeline
-                                        if (isLatestPipeline) {
-                                            isLatestPipeline = false;
-                                        }
-
-                                        if (pipeline.aggregated) {
-                                            if (component.pipelines.length > 1) {
-                                                html.push('<h3>Aggregated view</h3>');
-                                            }
-                                        } else {                                            
-                                            if (data.showTotalBuildTime) {
-                                                html.push('<h3>Total build time: ' + formatDuration(pipeline.totalBuildTime) + '</h3>');
-                                            }
-                                            
-                                            if (showChanges && pipeline.changes && pipeline.changes.length > 0) {
-                                                html.push(generateChangeLog(pipeline.changes));
-                                            }
-
-                                            html.push("<section class=\"pipeline\">");
-                                            html.push("<div class=\"pipeline-row\">");
-
-                                            if (displayArguments != "" && displayArguments != null) {
-                                                var toggleTableId = "toggle-table-" + jobName + "-" + buildNum;
-                                                var displayTableId = "display-table-" + jobName + "-" + buildNum;
-                                                var artifactId = "artifacts-" + jobName + "-" + buildNum;
-
-                                                var toggleTableFunction = "javascript:toggleTable('" + toggleTableId + "','" + displayTableId + "');";
-                                                var initDisplayValMessage = (getToggleState(toggleTableId, "table-row-group", true) == "none") ? "Show " : "Hide ";
-                                                initDisplayValMessage += "Additional Display Values";
-
-                                                if (isFullScreen) {
-                                                    toggleTableFunction = "javascript:toggleTableCompatibleFS('" + toggleTableId + "','" + displayTableId + "');";
-                                                }
-
-                                                html.push("<div class=\"pipeline-cell\" style=\"vertical-align: top\">");
-
-                                                html.push("<table class=\"displayTable\" align=\"left\">");
-                                                html.push("<thead><tr><th colspan=\"2\" style=\"text-align: left;\" class=\"displayTableLink\">");
-                                                html.push("<a id=\"" + displayTableId + "\" href=\"" + toggleTableFunction + "\">" + initDisplayValMessage + "</a>");
-                                                html.push("</th></tr></thead>");
-                                                html.push("<tbody id=\"" + toggleTableId + "\" style=\"display: " + getToggleState(toggleTableId, "table-row-group", true) + ";\">");
-                                                if (data.showArtifacts) {
-                                                    html.push("<tr class=\"displayTableTr\">");
-                                                    html.push("<th class=\"displayTableTh\">Artifacts </th>");
-                                                    html.push("<td id=\"" + artifactId + "\" class=\"displayTableTd\">" + loadBuildArtifacts(artifactId) + "</td></tr>");
-                                                }
-                                                if (JSON.stringify(savedPipelineDisplayValues) == JSON.stringify({})) {
-                                                    html.push(generateDisplayValueTable(displayArguments, jobName, buildNum));
-                                                } else {
-                                                    html.push(loadDisplayValues(displayArguments, jobName, buildNum, savedPipelineDisplayValues));
-                                                }
-
-                                                html.push("</tbody></table>");
-                                                html.push("</div>");
-                                            }
-
-                                            html.push("<div class=\"pipeline-cell\">");
-
-                                            html.push("<table class=\"displayTable\" align=\"right\"><thead><tr>");
-                                            html.push("<th colspan=\"2\" style=\"text-align: left; color: inherit;\">Legend</th>");
-                                            html.push("</tr></thead>");
-                                            html.push("<tbody style=\"display: table-row-group;\">");
-
-                                            var idSuffix = jobName + "-" + buildNum;
-
-                                            html.push("<tr class=\"displayTableTr legendRow\">");
-                                            html.push("<th id=\"nb-" + idSuffix + "\" class=\"displayTableTh legendTh\"></th>");
-                                            html.push("<td id=\"nb-" + idSuffix + "-end\" class=\"displayTableTd legendTd\">Non-blocking</td></tr>");
-
-                                            html.push("<tr class=\"displayTableTr legendRow\">");
-                                            html.push("<th id=\"b-" + idSuffix + "\" class=\"displayTableTh legendTh\"></th>");
-                                            html.push("<td id=\"b-" + idSuffix + "-end\" class=\"displayTableTd legendTd\">Blocking</td></tr>");
-
-                                            html.push("<tr class=\"displayTableTr legendRow\">");
-                                            html.push("<th id=\"nbc-" + idSuffix + "\" class=\"displayTableTh legendTh\"></th>");
-                                            html.push("<td id=\"nbc-" + idSuffix + "-end\" class=\"displayTableTd legendTd\">Non-blocking Conditional</td></tr>");
-
-                                            html.push("<tr class=\"displayTableTr legendRow\">");
-                                            html.push("<th id=\"bc-" + idSuffix + "\" class=\"displayTableTh legendTh\"></th>");
-                                            html.push("<td id=\"bc-" + idSuffix + "-end\" class=\"displayTableTd legendTd\">Blocking Conditional</td></tr>");
-
-                                            html.push("<tr class=\"displayTableTr legendRow\">");
-                                            html.push("<th id=\"d-" + idSuffix + "\" class=\"displayTableTh legendTh\"></th>");
-                                            html.push("<td id=\"d-" + idSuffix + "-end\" class=\"displayTableTd legendTd\">Downstream</td></tr>");
-
-                                            html.push("</tbody></table>");
-                                            html.push("</div></div></section>");
-                                        }
-
-                                        // 15px padding around main-panel
-                                        // 10px padding around pipeline-main
-                                        // 1px border left/right around pipeline main
-                                        // 1px border left/right around table
-                                        // There is also some additional padding elsewhere, so assume 100px in padding to ensure enough room
-                                        var maxWidth =  isFullScreen ? window.innerWidth - 100 : document.getElementById("main-panel").offsetWidth - 100;
-                                        var numColumns = 0;
-                                        for (var j = 0; j < pipeline.stages.length; j++) {
-                                            stage = pipeline.stages[j];
-                                            if (stage.column >= numColumns) {
-                                                numColumns = stage.column + 1;
-                                            }
-                                        }
-
-                                        var scaleCondition = (numColumns * 140 > maxWidth);
-
-                                        // Default Values
-                                        var widthPerCell = 130; // 10px for margin-right
-                                        var circleSizePerCell = "26px";
-                                        var leftPercentPerCell = "37.5%";
-                                        var fontSizePerCell = 12;
-
-                                        if (scaleCondition) {
-                                            widthPerCell = Math.floor(maxWidth / numColumns) - 10;
-                                            circleSizePerCell = (maxWidth >= 26) ? "26px" : maxWidth + "px";
-                                            leftPercentPerCell = Math.floor(((widthPerCell - 26) / 2) / widthPerCell * 100) + "%";
-                                            fontSizePerCell = 10; // Set a minimum font-size rather than scaling it down to something unreadable
-                                        }
-
-                                        var row = 0, column = 0, stage;                                   
-                                        html.push("<section class=\"pipeline\">");
-                                        html.push('<div class="pipeline-row">');
- 
-                                        for (var j = 0; j < pipeline.stages.length; j++) {
-                                            stage = pipeline.stages[j];
-
-                                            if (stage.blockingJobs != "") {
-                                                blockingMap[getStageId(stage.id + "", i)] = stage.blockingJobs.split(', ');
-                                            }
-
-                                            if (stage.conditionalJobs != "") {
-                                                conditionalMap[getStageId(stage.id + "", i)] = stage.conditionalJobs.split(', ');
-                                            }
-
-                                            if (stage.downstreamJobs != "") {
-                                                downstreamMap[getStageId(stage.id + "", i)] = stage.downstreamJobs.split(', ');
-                                            }
-
-                                            projectNameIdMap[getStageId(stage.id + "", i)] = stage.name;
-
-                                            if (stage.row > row) {
-                                                html.push('</div><div class="pipeline-row">');
-                                                column = 0;
-                                                row++;
-                                            }
-
-                                            if (stage.column > column) {
-                                                for (var as = column; as < stage.column; as++) {
-                                                    if (data.viewMode == "Minimalist") {
-                                                        html.push("<div class=\"pipeline-cell\">");
-                                                        html.push("<div class=\"stage-minimalist hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
-                                                    } else {
-                                                        html.push('<div class="pipeline-cell"><div class="stage hide"></div></div>');
-                                                    }
-                                                    column++;
-                                                }
-                                            }
-
-                                            html.push('<div class="pipeline-cell">');
-
-                                            var link = getLink(data, stage.tasks[0].link);
-                                            var buildStatus = stage.tasks[0].status;
-                                            if (data.linkToConsoleLog) {
-                                                if (buildStatus.success || buildStatus.failed || buildStatus.unstable || buildStatus.cancelled) {
-                                                    link += "console";
-                                                }
-                                            }
-
-                                            if (data.viewMode == "Minimalist") {
-                                                html.push("<div class=\"stage-minimalist " + getStageClassName(stage.name) + "\" style=\"width: " + widthPerCell + "px;\">");
-                                                html.push("<div class=\"stage-minimalist-header\" style=\"font-size: " + fontSizePerCell + "px;\">");
-                                                html.push("<div class=\"stage-minimalist-name\">");
-                                                html.push("<a href=\"" + link + "\" target=\"_blank\">" + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</a></div>");
-                                            } else {
-                                                html.push("<div id=\"" + getStageId(stage.id + "", i) + "\" class=\"stage " + getStageClassName(stage.name) + "\">");
-                                                html.push("<div class=\"stage-header\">");
-                                                html.push("<div class=\"stage-name build_" + buildStatus.type + "\">" + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</div>");
-                                            }
-
-                                            if (!pipeline.aggregated) {
-                                                html.push('</div>');
-                                            } else {
-                                                var stageversion = stage.version;
-                                                if (!stageversion) {
-                                                    stageversion = "N/A"
-                                                }
-                                                html.push(' <div class="stage-version">' + htmlEncode(stageversion) + '</div></div>');
-                                            }
-
-                                            var task, id, timestamp, progress, progressClass, consoleLogLink = "";
-
-                                            for (var k = 0; k < stage.tasks.length; k++) {
-                                                task = stage.tasks[k];
-
-                                                id = getTaskId(task.id, i);
-                                                timestamp = data.useFullLocaleTimeStrings ? formatLongDate(task.status.timestamp) : formatDate(task.status.timestamp, lastUpdate);
-                                                
-                                                tasks.push({id: id, taskId: task.id, buildId: task.buildId});
-
-                                                progress = 100;
-                                                progressClass = "task-progress-notrunning";
-                                                var taskHeader = task.name + "/" + task.buildId;
-
-                                                if (task.status.percentage) {
-                                                    progress = task.status.percentage;
-                                                    progressClass = "task-progress-running";
-                                                } else if (data.linkToConsoleLog) {
-                                                    if (task.status.success ||
-                                                       task.status.failed ||
-                                                       task.status.unstable ||
-                                                       task.status.cancelled) {
-                                                       consoleLogLink = "console";
-                                                       taskHeader = "Console";
-                                                   }
-                                                }
-
-                                                if (data.viewMode == "Minimalist") {
-                                                    var toolTipStyle = Math.round(column / numColumns) < 0.5 ? "left: 0%;" : "right: 0%;"
-                                                    var hoverTable = "<table><tr>";
-                                                    hoverTable += "<th class=\"hoverTableEntry\">Status:</th>";
-                                                    hoverTable += "<td class=\"hoverTableEntry\">" + task.status.type + "</td></tr><tr>"
-                                                    hoverTable += "<th class=\"hoverTableEntry\">Timestamp:</th>";
-                                                    hoverTable += "<td class=\"hoverTableEntry\">" + timestamp + "</td></tr><tr>";
-                                                    hoverTable += "<th class=\"hoverTableEntry\">Duration:</th>";
-                                                    hoverTable += "<td class=\"hoverTableEntry\">" + formatLongDuration(task.status.duration) + "</td></tr>";
-                                                    hoverTable += "</table>";
-
-                                                    html.push("<div id=\"" + id + "\" class=\"stage-minimalist-task\">");
-                                                    html.push("<div class=\"task-content-minimalist\">");
-                                                    html.push("<div class=\"task-header\">");
-                                                    html.push("<div class=\"taskname-minimalist\">");
-                                                    html.push("<a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle circle_" + task.status.type + "\" ");
-                                                    html.push("href=\"" + getLink(data, task.link) + consoleLogLink + "\" target=\"_blank\" ");
-                                                    html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; ");
-                                                    html.push("background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
-                                                    html.push("<br/><span class=\"tooltip\" style=\"" + toolTipStyle + "\">" + hoverTable + "</span></a>");
-                                                    html.push("</div></div></div></div>");
-                                                } else {
-                                                    html.push("<div id=\"" + id + "\" class=\"status stage-task\">");
-                                                    html.push("<div class=\"task-progress " + progressClass + "\" style=\"width: " + progress + "%;\">");
-                                                    html.push("<div class=\"task-content\">");
-                                                    html.push("<div class=\"task-header\">");
-                                                    html.push("<div class=\"taskname\"></div>");
-
-                                                    if (data.allowManualTriggers && task.manual && task.manualStep.enabled && task.manualStep.permission) {
-                                                        html.push('<div class="task-manual" id="manual-' + id + '" title="Trigger manual build" onclick="triggerManual(\'' + id + '\', \'' + task.id + '\', \'' + task.manualStep.upstreamProject + '\', \'' + task.manualStep.upstreamId + '\', \'' + view.viewUrl + '\');">');
-                                                        html.push("</div>");
-                                                    } else {
-                                                        if (!pipeline.aggregated && data.allowRebuild && task.rebuildable) {
-                                                            html.push('<div class="task-rebuild" id="rebuild-' + id + '" title="Trigger rebuild" onclick="triggerRebuild(\'' + id + '\', \'' + task.id + '\', \'' + task.buildId + '\', \'' + view.viewUrl + '\');">');
-                                                            html.push("</div>");
-                                                        }
-                                                    }
-
-                                                    html.push('</div><div class="task-details">');
-                                                    if (timestamp != "") {
-                                                        html.push("<div class='console'><a href=\"" + getLink(data, task.link) + consoleLogLink + "\">" + taskHeader + "</a></div>");
-                                                    }
-
-                                                    html.push('</div><div class="task-details">');
-                                                    if (timestamp != "") {
-                                                        html.push("<div id=\"" + id + ".timestamp\" class='timestamp'>" + timestamp + "</div>");
-                                                    }
-
-                                                    html.push('</div><div class="task-details">');
-                                                    if (task.status.duration >= 0) {
-                                                        html.push("<div class='duration'>" + formatDuration(task.status.duration) + "</div>");
-                                                    }
-
-                                                    html.push("</div></div></div></div>");
-
-                                                    html.push(generateDescription(data, task));
-                                                    html.push(generateTestInfo(data, task));
-                                                    html.push(generateStaticAnalysisInfo(data, task));
-                                                    html.push(generatePromotionsInfo(data, task));
-                                                }
-                                            }
-
-                                            if (pipeline.aggregated && stage.changes && stage.changes.length > 0) {
-                                                html.push(generateAggregatedChangelog(stage.changes, aggregatedChangesGroupingPattern));
-                                            }
-
-                                            html.push("</div></div>");
-                                            column++;
-                                        }
-
-                                        if (!pipeline.aggregated) {
-                                            var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                                            var buildNum = pipeline.version.substring(1);
-
-                                            if (data.showArtifacts) {
-                                                var artifactValues = JSON.parse(sessionStorage.savedPipelineArtifacts);
-                                                var artifactId = "artifacts-" + jobName + "-" + buildNum;
-
-                                                if (!artifactValues.hasOwnProperty(artifactId)) {
-                                                    getBuildArtifacts(jobName, buildNum, artifactId);    
-                                                }
-                                            }
-
-                                            getDisplayValues(displayArguments, pipeline, jobName, buildNum);
-                                        }
-
-                                        html.push('</div></section></div></th></tr>');
-                                    }
-
-                                    html.push("</table>")
-                                    html.push("</section>");
-                                    Q("#" + divNames[c % divNames.length]).append(html.join(""));
-                                    Q("#pipeline-message-" + pipelineid).html('');
-                                }
-
-                                // Mark the stages that failed on a blocking call
-                                for (var i = 0; i < component.pipelines.length; i++) {
-                                    pipeline = component.pipelines[i];
-                                    var pipelineNum = pipeline.version.substring(1);
-
-                                    if (!JSON.parse(sessionStorage.blockedOnFailedMap).hasOwnProperty(pipeline.stages[0].name + "-" + pipelineNum)) {
-                                        updateFailedOnBlockStages(pipeline, i);    
-                                    } else {
-                                        loadFailedOnBlockStages(pipeline, i);
-                                    }
-                                }
-
-                                var pipelineStageIdMap = {};
+                            tasks.push({id: id, taskId: task.id, buildId: task.buildId});
+
+                            progress = 100;
+                            progressClass = "task-progress-notrunning";
+                            var taskHeader = task.name + "/" + task.buildId;
+
+                            if (task.status.percentage) {
+                                progress = task.status.percentage;
+                                progressClass = "task-progress-running";
+                            } else if (data.linkToConsoleLog) {
+                                if (task.status.success ||
+                                   task.status.failed ||
+                                   task.status.unstable ||
+                                   task.status.cancelled) {
+                                   consoleLogLink = "console";
+                                   taskHeader = "Console";
+                               }
+                            }
+
+                            if (data.viewMode == "Minimalist") {
+                                var toolTipStyle = Math.round(column / numColumns) < 0.5 ? "left: 0%;" : "right: 0%;"
+                                var hoverTable = "<table class=\"hoverTable\"><tr class=\"hoverRow\">";
+                                hoverTable += "<th class=\"hoverTableTh\">Status:</th>";
+                                hoverTable += "<td class=\"hoverTableTd\">" + task.status.type + "</td></tr><tr class=\"hoverRow\">"
+                                hoverTable += "<th class=\"hoverTableTh\">Timestamp:</th>";
+                                hoverTable += "<td class=\"hoverTableTd\">" + timestamp + "</td></tr><tr class=\"hoverRow\">";
+                                hoverTable += "<th class=\"hoverTableTh\">Duration:</th>";
+                                hoverTable += "<td class=\"hoverTableTd\">" + formatLongDuration(task.status.duration) + "</td></tr>";
+                                hoverTable += generateStageDisplayValueTable(displayArguments, jobName, stage.name, getStageId(stage.id + "", i));
+                                hoverTable += "</table>";
+
+                                html.push("<div id=\"" + id + "\" class=\"stage-task\">");
+                                html.push("<div class=\"task-header\">");
+                                html.push("<div class=\"taskname\">");
+                                html.push("<a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle circle_" + task.status.type + "\" ");
+                                html.push("href=\"" + getLink(data, task.link) + consoleLogLink + "\" target=\"_blank\" ");
+                                html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; ");
+                                html.push("background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
+                                html.push("<br/><span class=\"tooltip\" style=\"" + toolTipStyle + "\">" + hoverTable + "</span></a>");
+                                html.push("</div></div></div>");
+                            }
+                        }
+
+                        if (pipeline.aggregated && stage.changes && stage.changes.length > 0) {
+                            html.push(generateAggregatedChangelog(stage.changes, aggregatedChangesGroupingPattern));
+                        }
+
+                        html.push("</div></div>");
+                        column++;
+
+                        // Ensure no cell can be more than 20% of the pipeline-row
+                        if (numColumns < 5 && j == pipeline.stages.length - 1) {
+                            var numAdditionalColumnsToAdd = 5 - numColumns;
+
+                            for (var m = 0; m < numAdditionalColumnsToAdd; m++) {
+                                html.push("<div class=\"pipeline-cell\">");
+                                html.push("<div class=\"stage hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
+                            }
+                        }
+                    }
+                    html.push('</div></section></div></th></tr>');
+                }
+
+                html.push("</table>")
+                html.push("</section>");
+                Q("#" + divNames[c % divNames.length]).append(html.join(""));
+                Q("#pipeline-message-" + pipelineid).html('');
+            }
+
+            // Update pipeline data if every stage in the pipeline has run to completion.
+            for (var i = 0; i < component.pipelines.length; i++) {
+                var pipeline = component.pipelines[i];
+                var pipelineNum = pipeline.version.substring(1);
+                var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                var buildNum = pipeline.version.substring(1);
+                var allStagesComplete = true;
+
+                for (var j = 0; j < pipeline.stages.length; j++) {
+                    var stage = pipeline.stages[j];
+                    var stageStatus = stage.tasks[0].status.type;
+
+                    if (stageStatus == "QUEUED" || stageStatus == "RUNNING") {
+                        allStagesComplete = false;
+                    }
+                }
+
+                if (allStagesComplete) {
+                    if (data.showArtifacts) {
+                        var artifactValues = JSON.parse(sessionStorage.savedPipelineArtifacts);
+                        var artifactId = "artifacts-" + jobName + "-" + buildNum;
+
+                        // Update top level artifacts
+                        if (!artifactValues.hasOwnProperty(artifactId)) {
+                            getBuildArtifacts(jobName, buildNum, artifactId);    
+                        }
+                    }
+
+                    // Update global display values
+                    getGlobalDisplayValues(displayArguments, pipeline, jobName, buildNum);
+
+                    // Mark the stages that failed on a blocking call
+                    if (!JSON.parse(sessionStorage.blockedOnFailedMap).hasOwnProperty(pipeline.stages[0].name + "-" + pipelineNum)) {
+                        updateFailedOnBlockStages(pipeline, i);    
+                    } else {
+                        loadFailedOnBlockStages(pipeline, i);
+                    }
+                }
+            }
+
+            var pipelineStageIdMap = {};
+            
+            // Create a pipeline - stage id mapping
+            for (var i = 0; i < component.pipelines.length; i++) {
+                var pipeline = component.pipelines[i];
+                var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                var buildNum = pipeline.version.substring(1);
+                var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
+                var stageIds = {};
+
+                for (var j = 0; j < pipeline.stages.length; j++) {
+                    var stage = pipeline.stages[j];
+                    var stageStatus = stage.tasks[0].status;
+
+                    var id = getStageId(stage.id + "", i);
+                    stageIds[id] = "true";
+
+                    // Update specific stage display values if the stage has finished
+                    if (stageStatus.success || stageStatus.failed || stageStatus.unstable || stageStatus.cancelled) {
+                        getStageDisplayValues(displayArguments, jobName, stage.name, stage.tasks[0].buildId, id);
+                    }
+                }
+                pipelineStageIdMap[toggleBuildId] = stageIds;
+            }
+
+            sessionStorage.pipelineStageIdMap = JSON.stringify(pipelineStageIdMap);
+
+            var index = 0, source, target;
+            var anchors = [[1, 0, 1, 0, 0, 13], [0, 0, -1, 0, 0, 13]];
+            var downstreamAnchors = [[0.5, 1, 0, 1, 0, 1], [0, 0, -1, 0, -0.5, 13]];
+            var backgroundColor = "rgba(31,35,41,1)";
+
+            lastResponse = data;
+            // equalheight(".pipeline-row .stage");
+
+            // use jsPlumb to draw the connections between stages
+            Q.each(data.pipelines, function (i, component) {
+                Q.each(component.pipelines, function (j, pipeline) {
+                    index = j;
+                    Q.each(pipeline.stages, function (k, stage) {
+                        if (stage.downstreamStages) {
+                            Q.each(stage.downstreamStageIds, function (l, value) {
+                                source = getStageId(stage.id + "", index);
+                                target = getStageId(value + "", index);
                                 
-                                // Create a pipeline - stage id mapping
-                                for (var i = 0; i < component.pipelines.length; i++) {
-                                    pipeline = component.pipelines[i];
-                                    var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                                    var buildNum = pipeline.version.substring(1);
-                                    var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
-                                    var stageIds = {};
+                                var color = "rgba(0,122,195,1)";    // Default blue
+                                var label = "Non-blocking";         // Default non-blocking
+                                var dashstyle = "2 2";              // Default dashed line
+                                var strokeWidth = 3.5;              // Default line width of 3.5
+                                var stub = scaleCondition ? 30 : 80;
+                                var lastBlockingJob;
 
-                                    for (var j = 0; j < pipeline.stages.length; j++) {
-                                        stage = pipeline.stages[j];
-                                        stageIds[getStageId(stage.id + "", i)] = "true";
-                                    }
-                                    pipelineStageIdMap[toggleBuildId] = stageIds;
+                                var blockedProjects = conditionalProjects = downstreamProjects = [];
+                                var targetName;
+                                if (blockingMap.hasOwnProperty(source)) {
+                                    blockedProjects = blockingMap[source];
+                                    lastBlockingJob = blockedProjects[blockedProjects.length - 1];
                                 }
 
-                                sessionStorage.pipelineStageIdMap = JSON.stringify(pipelineStageIdMap);
+                                if (conditionalMap.hasOwnProperty(source)) {
+                                    conditionalProjects = conditionalMap[source];
+                                }
 
-                                var index = 0, source, target;
-                                var anchors = [[1, 0, 1, 0, 0, 13], [0, 0, -1, 0, -1, 13]];
-                                var downstreamAnchors = [[0.5, 1, 0, 1, 0, 1], [0, 0, -1, 0, -1, 13]];
+                                if (downstreamMap.hasOwnProperty(source)) {
+                                    downstreamProjects = downstreamMap[source];
+                                }
 
-                                lastResponse = data;
-                                equalheight(".pipeline-row .stage");
+                                if (projectNameIdMap.hasOwnProperty(target)) {
+                                    var targetName = projectNameIdMap[target];
 
-                                // use jsPlumb to draw the connections between stages
-                                Q.each(data.pipelines, function (i, component) {
-                                    Q.each(component.pipelines, function (j, pipeline) {
-                                        index = j;
-                                        Q.each(pipeline.stages, function (k, stage) {
-                                            if (stage.downstreamStages) {
-                                                Q.each(stage.downstreamStageIds, function (l, value) {
-                                                    source = getStageId(stage.id + "", index);
-                                                    target = getStageId(value + "", index);
+                                    if (blockedProjects.indexOf(targetName) != -1 && 
+                                        conditionalProjects.indexOf(targetName) != -1) {
+                                        color = "rgba(255,121,52,1)";   // Orange
+                                        label = "Blocking Conditional";
+                                        dashstyle = "0 0";
+                                    } else if (blockedProjects.indexOf(targetName) != -1) {
+                                        color = "rgba(0,122,195,1)";    // Blue
+                                        label = "Blocking";
+                                        dashstyle = "0 0";
+                                    } else if (conditionalProjects.indexOf(targetName) != -1) {
+                                        color = "rgba(255,121,52,1)";   // Orange
+                                        label = "Non-blocking Conditional";
+                                    }
 
-                                                    // Blue
-                                                    var color = "rgba(0,122,195,1)";
-                                                    var label = "Non-blocking";
-                                                    var dashstyle = "2 2";
-                                                    var stub = scaleCondition ? 30 : 80;
+                                    if (downstreamProjects.indexOf(targetName) != -1) {
+                                        color = "rgba(118,91,161,1)";   // Purple
+                                        label = "Downstream";
+                                        stub = 10;
+                                    }
+                                }
 
-                                                    var blockedProjects = conditionalProjects = downstreamProjects = [];
-                                                    var targetName;
-                                                    if (blockingMap.hasOwnProperty(source)) {
-                                                        blockedProjects = blockingMap[source];
-                                                    }
+                                var isDownstreamProject = (downstreamProjects.indexOf(targetName) != -1);
+                                var connector = ["Flowchart", {
+                                    stub: stub,
+                                    gap: 0,
+                                    midpoint: 0,
+                                    alwaysRespectStubs: false,
+                                    cornerRadius: 20
+                                }];
 
-                                                    if (conditionalMap.hasOwnProperty(source)) {
-                                                        conditionalProjects = conditionalMap[source];
-                                                    }
+                                // Draw a hidden connection hide the bad line overlapping
+                                // Only do it if there is a mix of conditional and blocking jobs however as having all
+                                // blocking jobs (or blue lines) looks visually ok
+                                if (lastBlockingJob == projectNameIdMap[target] &&
+                                    conditionalMap.hasOwnProperty(source)) {
 
-                                                    if (downstreamMap.hasOwnProperty(source)) {
-                                                        downstreamProjects = downstreamMap[source];
-                                                    }
-
-                                                    if (projectNameIdMap.hasOwnProperty(target)) {
-                                                        var targetName = projectNameIdMap[target];
-
-                                                        if (blockedProjects.indexOf(targetName) != -1 && conditionalProjects.indexOf(targetName) != -1) {
-                                                            // Orange
-                                                            color = "rgba(255,121,52,1)";
-                                                            label = "Blocking Conditional";
-                                                            dashstyle = "0 0";
-                                                        } else if (blockedProjects.indexOf(targetName) != -1) {
-                                                            // Blue
-                                                            color = "rgba(0,122,195,1)";
-                                                            label = "Blocking";
-                                                            dashstyle = "0 0";
-                                                        } else if (conditionalProjects.indexOf(targetName) != -1) {
-                                                            // Orange
-                                                            color = "rgba(255,121,52,1)";
-                                                            label = "Non-blocking Conditional";
-                                                        }
-
-                                                        if (downstreamProjects.indexOf(targetName) != -1) {
-                                                            // Purple
-                                                            color = "rgba(118,91,161,1)";
-                                                            label = "Downstream";
-                                                            stub = 10;
-                                                        }
-                                                    }
-
-                                                    var connection = jsplumb.connect({
-                                                        source: source,
-                                                        target: target,
-                                                        anchors: (downstreamProjects.indexOf(targetName) != -1) ? downstreamAnchors : anchors, // allow boxes to increase in height but keep anchor lines on the top
-                                                        overlays: [
-                                                            [ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12 }]
-                                                        ],
-                                                        connector: ["Flowchart", { stub: stub, gap: 0, midpoint: 0, alwaysRespectStubs: true, cornerRadius: 20 } ],
-                                                        paintStyle: { stroke: color, strokeWidth: 3, dashstyle: dashstyle },
-                                                        hoverPaintStyle: { strokeWidth: 6 },
-                                                        endpoint: "Blank"
-                                                    });
-
-                                                    connection.bind("mouseover", function(conn) {
-                                                        conn.addOverlay([ "Label", { label: label, id: (target + "-label"), location: 0.6, cssClass: "label" }]);
-                                                        conn.addOverlay([ "Arrow", { id: (target + "-arrow"), location: 1, foldback: 0.9, width: 18, length: 18 }]);
-                                                    }); 
-
-                                                    connection.bind("mouseout", function(conn) {
-                                                        conn.removeOverlay((target + "-label"));
-                                                        conn.removeOverlay((target + "-arrow"));
-                                                    });
-                                                });
-                                            }
-                                        });
+                                    var hideBadOverlapConn = jsplumb.connect({
+                                        source: source,
+                                        target: target,
+                                        anchors: anchors,
+                                        connector: connector,
+                                        paintStyle: { 
+                                            stroke: backgroundColor,
+                                            strokeWidth: strokeWidth,
+                                            outlineStroke: backgroundColor,
+                                            outlineWidth: 0.5
+                                        },
+                                        endpoint: "Blank"
                                     });
+
+                                    hideBadOverlapConn.bind("mouseover", function(conn) {
+                                        conn.setHover(false);
+                                    });
+                                }
+
+                                // Add a hidden connection behind the actual connection
+                                // Due to the nature of dashed lines, hovering over the gaps in the line
+                                // will not be considered "hovering". We can remedy this by setting a mouseover/out
+                                // event on this hidden connection.
+                                var hiddenConn;
+                                if (dashstyle != "0 0") {
+                                    hiddenConn = jsplumb.connect({
+                                        source: source,
+                                        target: target,
+                                        anchors: isDownstreamProject ? downstreamAnchors : anchors,
+                                        connector: connector,
+                                        paintStyle: {
+                                            stroke: "rgba(31,35,41,1)",
+                                            strokeWidth: strokeWidth
+                                        },
+                                        endpoint: "Blank"
+                                    });
+                                }
+
+                                var connection = jsplumb.connect({
+                                    source: source,
+                                    target: target,
+                                    // allow boxes to increase in height but keep anchor lines on the top
+                                    anchors: isDownstreamProject ? downstreamAnchors : anchors, 
+                                    overlays: [
+                                        [ "Arrow", { location: 1, foldback: 0.9, width: 12, length: 12 }]
+                                    ],
+                                    connector: connector,
+                                    paintStyle: { stroke: color, strokeWidth: strokeWidth, dashstyle: dashstyle },
+                                    hoverPaintStyle: { strokeWidth: (strokeWidth * 1.5) },
+                                    endpoint: "Blank"
                                 });
 
-                                var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
-                                // Hide all connectors in untoggled rows
-                                for (var a = 0; a < data.pipelines.length; a++) {
-                                    var component = data.pipelines[a];
-                                    var isLatestPipeline = true;
+                                connection.bind("mouseover", function(conn) {
+                                    conn.addOverlay([ "Label", { 
+                                        label: label,
+                                        id: (target + "-label"),
+                                        location: 0.6,
+                                        cssClass: "label"
+                                    }]);
+                                    conn.addOverlay([ "Arrow", {
+                                        id: (target + "-arrow"),
+                                        location: 1,
+                                        foldback: 0.9,
+                                        width: 18,
+                                        length: 18
+                                    }]);
+                                }); 
 
-                                    for (var i = 0; i < component.pipelines.length; i++) {
-                                        pipeline = component.pipelines[i];
+                                connection.bind("mouseout", function(conn) {
+                                    conn.removeOverlay((target + "-label"));
+                                    conn.removeOverlay((target + "-arrow"));
+                                });
 
-                                        var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                                        var buildNum = pipeline.version.substring(1);
-                                        var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
+                                // Add the hidden connection mouse events
+                                if (dashstyle != "0 0") {
+                                    hiddenConn.bind("mouseover", function(conn) {
+                                        // Always false
+                                        conn.setHover(false);
+                                        connection.setHover(true);
+                                        connection.addOverlay([ "Label", {
+                                            label: label,
+                                            id: (target + "-label"),
+                                            location: 0.6,
+                                            cssClass: "label"
+                                        }]);
+                                        connection.addOverlay([ "Arrow", {
+                                            id: (target + "-arrow"),
+                                            location: 1,
+                                            foldback: 0.9,
+                                            width: 18,
+                                            length: 18
+                                        }]);
+                                    }); 
 
-                                        if (getToggleState(toggleBuildId, "block", isLatestPipeline) == "none") {
-                                            var stageIds = pipelineStageIdMap[toggleBuildId];
-
-                                            for (var key in stageIds) {
-                                                jsplumb.hide(key);
-                                            }
-                                        }
-                                        if (isLatestPipeline) {
-                                            isLatestPipeline = false;
-                                        }
-                                    }
+                                    hiddenConn.bind("mouseout", function(conn) {
+                                        conn.setHover(false);
+                                        connection.setHover(false);
+                                        connection.removeOverlay((target + "-label"));
+                                        connection.removeOverlay((target + "-arrow"));
+                                    });
                                 }
-
-                                for (var a = 0; a < data.pipelines.length; a++) {
-                                    var component = data.pipelines[a];
-                                    var isLatestPipeline = true;
-
-                                    for (var i = 0; i < component.pipelines.length; i++) {
-                                        pipeline = component.pipelines[i];
-
-                                        var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                                        var buildNum = pipeline.version.substring(1);
-
-                                        var legendMap = {};
-
-                                        legendMap["b-" + jobName + "-" + buildNum] = ["rgba(0,122,195,1)", "0 0"];
-                                        legendMap["nb-" + jobName + "-" + buildNum] = ["rgba(0,122,195,1)", "2 2"];
-                                        legendMap["nbc-" + jobName + "-" + buildNum] = ["rgba(255,121,52,1)", "2 2"];
-                                        legendMap["bc-" + jobName + "-" + buildNum] = ["rgba(255,121,52,1)", "0 0"];
-                                        legendMap["d-" + jobName + "-" + buildNum] = ["rgba(118,91,161,1)", "2 2"];
-
-                                        for (var key in legendMap) {
-                                            jsplumb.connect({
-                                                source: key,
-                                                target: key + "-end",
-                                                anchors: [[0, 0.5, 1, 0, 1, 0], [0, 0.5, -1, 0, 2, 0]],
-                                                connector: ["Flowchart", { stub: 0, gap: 0, midpoint: 0, alwaysRespectStubs: false, cornerRadius: 0 } ],
-                                                paintStyle: { stroke: legendMap[key][0], strokeWidth: 3, dashstyle: legendMap[key][1] },
-                                                endpoint: "Blank"
-                                            });
-                                        }
-                                    }
-                                }
-                            } else {
-                                var comp, pipe, head, st, ta, time;
-
-                                for (var p = 0; p < data.pipelines.length; p++) {
-                                    comp = data.pipelines[p];
-                                    for (var d = 0; d < comp.pipelines.length; d++) {
-                                        pipe = comp.pipelines[d];
-                                        head = document.getElementById(pipe.id);
-                                        if (head) {
-                                            head.innerHTML = formatDate(pipe.timestamp, lastUpdate)
-                                        }
-
-                                        for (var l = 0; l < pipe.stages.length; l++) {
-                                            st = pipe.stages[l];
-                                            for (var m = 0; m < st.tasks.length; m++) {
-                                                ta = st.tasks[m];
-                                                time = document.getElementById(getTaskId(ta.id, d) + ".timestamp");
-                                                if (time) {
-                                                    time.innerHTML = formatDate(ta.status.timestamp, lastUpdate);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            jsplumb.repaintEverything();
-                            window.scrollTo( 0, currentPageY );
+                            });
                         }
+                    });
+                });
+            });
+
+            var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
+            // Hide all connectors in untoggled rows
+            for (var a = 0; a < data.pipelines.length; a++) {
+                var component = data.pipelines[a];
+                var isLatestPipeline = true;
+
+                for (var i = 0; i < component.pipelines.length; i++) {
+                    pipeline = component.pipelines[i];
+
+                    var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                    var buildNum = pipeline.version.substring(1);
+                    var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
+
+                    if (getToggleState(toggleBuildId, "block", isLatestPipeline) == "none") {
+                        var stageIds = pipelineStageIdMap[toggleBuildId];
+
+                        for (var key in stageIds) {
+                            jsplumb.hide(key);
+                        }
+                    }
+                    if (isLatestPipeline) {
+                        isLatestPipeline = false;
+                    }
+                }
+            }
+
+            for (var a = 0; a < data.pipelines.length; a++) {
+                var component = data.pipelines[a];
+                var isLatestPipeline = true;
+
+                for (var i = 0; i < component.pipelines.length; i++) {
+                    pipeline = component.pipelines[i];
+
+                    var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                    var buildNum = pipeline.version.substring(1);
+
+                    var legendMap = {};
+
+                    legendMap["b-" + jobName + "-" + buildNum] = ["rgba(0,122,195,1)", "0 0"];
+                    legendMap["nb-" + jobName + "-" + buildNum] = ["rgba(0,122,195,1)", "2 2"];
+                    legendMap["nbc-" + jobName + "-" + buildNum] = ["rgba(255,121,52,1)", "2 2"];
+                    legendMap["bc-" + jobName + "-" + buildNum] = ["rgba(255,121,52,1)", "0 0"];
+                    legendMap["d-" + jobName + "-" + buildNum] = ["rgba(118,91,161,1)", "2 2"];
+
+                    for (var key in legendMap) {
+                        jsplumb.connect({
+                            source: key,
+                            target: key + "-end",
+                            anchors: [[0, 0.5, 1, 0, 1, 0], [0, 0.5, -1, 0, 2, 0]],
+                            connector: ["Flowchart", {
+                                stub: 0,
+                                gap: 0,
+                                midpoint: 0,
+                                alwaysRespectStubs: false,
+                                cornerRadius: 0
+                            }],
+                            paintStyle: { stroke: legendMap[key][0], strokeWidth: 3, dashstyle: legendMap[key][1] },
+                            endpoint: "Blank"
+                        });
+                    }
+                }
+            }
+        } else {
+            var comp, pipe, head, st, ta, time;
+
+            for (var p = 0; p < data.pipelines.length; p++) {
+                comp = data.pipelines[p];
+                for (var d = 0; d < comp.pipelines.length; d++) {
+                    pipe = comp.pipelines[d];
+                    head = document.getElementById(pipe.id);
+                    if (head) {
+                        head.innerHTML = formatDate(pipe.timestamp, lastUpdate)
+                    }
+
+                    for (var l = 0; l < pipe.stages.length; l++) {
+                        st = pipe.stages[l];
+                        for (var m = 0; m < st.tasks.length; m++) {
+                            ta = st.tasks[m];
+                            time = document.getElementById(getTaskId(ta.id, d) + ".timestamp");
+                            if (time) {
+                                time.innerHTML = formatDate(ta.status.timestamp, lastUpdate);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        jsplumb.repaintEverything();
+        window.scrollTo( 0, currentPageY );
+    }
 }
 
+/**
+ * Redraws all the connections.
+ */
 function redrawConnections() {
     instance.repaintEverything();
 }
 
+/**
+ * Revalidates all the connections, recalculates the offsets and redraws all the connections.
+ */
 function revalidateConnections() {
     if (isFullScreen) {
         var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
@@ -797,6 +940,39 @@ function revalidateConnections() {
     } else {
         redrawConnections();
     }    
+}
+
+/**
+ * Rescales and redraws the pipeline.
+ */
+function rescaleConnections() {
+    var maxWidth =  isFullScreen ? window.innerWidth - 100 : document.getElementById("main-panel").offsetWidth - 100;
+    var scaleCondition = (numColumns * 140 > maxWidth);
+
+    // Default Values
+    var widthPerCell = 130; // 10px for margin-right
+    var circleSizePerCell = "26px";
+    var leftPercentPerCell = "37.5%";
+    var fontSizePerCell = 12;
+
+    if (scaleCondition) {
+        widthPerCell = Math.floor(maxWidth / numColumns) - 10;
+        circleSizePerCell = (widthPerCell >= 26) ? "26px" : widthPerCell + "px";
+        leftPercentPerCell = Math.floor(((widthPerCell - parseInt(circleSizePerCell.replace("px", ""))) / 2) / widthPerCell * 100) + "%";
+        fontSizePerCell = 10; // Set a minimum font-size rather than scaling it down to something unreadable
+    }
+
+    Q(".stage").css("width", widthPerCell);
+    Q(".circle").css("left", leftPercentPerCell);
+    Q(".circle").css("height", circleSizePerCell);
+    Q(".circle").css("width", circleSizePerCell);
+    Q(".circle").css("background-size", circleSizePerCell + " " + circleSizePerCell);
+
+    revalidateConnections();
+}
+
+function isNullOrEmpty(strValue) {
+    return ((strValue == null) || (strValue == ""));
 }
 
 function getLink(data, link) {
@@ -1029,16 +1205,16 @@ Date.prototype.dst = function() {
 /**
  * For the 4 primary US timezones
  */
-function getUSTimezone(timezone) {
+function getUSTimezone(timestamp, timezone) {
     var timezones = '{}';
-    var today = new Date();
+    var today = new Date(timestamp);
 
     // Account for daylight savings time
     if (today.dst()) {
-        timezones = JSON.parse('{"GMT-0700": "PDT", "GMT-0600": "MDT", "GMT-0500": "CDT","GMT-0400": "EDT"}');
+        timezones = JSON.parse('{"-07:00": "PDT", "-06:00": "MDT", "-05:00": "CDT","-04:00": "EDT"}');
     }
     else {
-        timezones = JSON.parse('{"GMT-0800": "PST", "GMT-0700": "MST", "GMT-0600": "CST","GMT-0500": "EST"}');
+        timezones = JSON.parse('{"-08:00": "PST", "-07:00": "MST", "-06:00": "CST","-05:00": "EST"}');
     }
 
     // For other parts in the world
@@ -1049,29 +1225,15 @@ function getUSTimezone(timezone) {
     return timezones[timezone];
 }
 
-function formatLongDate(date) {
-  if (date != null) {
-    // No moment method to get the timezone so we'll do it ourselves
-    var dateString = moment(date, "YYYY-MM-DDTHH:mm:ss").toString();
-    var timezoneString = getUSTimezone(dateString.split(' ')[5]);
-    var hourString = dateString.split(' ')[4];
-    var hour = hourString.split(':')[0];
-    var timeOfDayString = "AM";
+/**
+ * Returns a human readable date string using the browsers time zone.
+ */
+function formatLongDate(timestamp) {
+  if (timestamp != null) {
+    var dateString = moment.unix(parseInt(timestamp) / 1000).format("ddd MMM Do YYYY h:mm:ss A Z");
+    var timezoneString = getUSTimezone(parseInt(timestamp), dateString.split(' ')[6]);
 
-    if (parseInt(hour) > 12) {
-        timeOfDayString = "PM";
-        hourString = (parseInt(hour) - 12).toString() + ':' + hourString.split(':').slice(1).join(':');
-    }
-
-    dateString = moment(date, "YYYY-MM-DDTHH:mm:ss").toString().split(' ').slice(0, 4).join(' ') + " " + hourString + " " + timeOfDayString + " " + timezoneString;
-    return dateString;
-  }
-  return "Never started";
-}
-
-function formatCardLongDate(date) {
-  if (date != null) {
-    return moment(date, "YYYY-MM-DDTHH:mm:ss").toString().split(' ').slice(1, 5).join(' ');
+    return dateString.split(' ').slice(0, 6).join(' ') + " " + timezoneString;
   }
   return "Never started";
 }
@@ -1276,25 +1438,33 @@ function loadBuildArtifacts(buildId) {
  * Get all artifacts for a build.
  */
 function getBuildArtifacts(jobName, buildNum, buildId) {
-    Q.ajax({
-        url: rootURL + "/job/" + jobName + "/" + buildNum + "/api/json?tree=artifacts[*]",
-        type: "GET",
-        dataType: 'json',
-        async: true,
-        cache: true,
-        timeout: 20000,
-        success: function (json) {
-            getBuildArtifactData(jobName, buildNum, buildId, json.artifacts);
-        },
-        error: function (xhr, status, error) {
+    if (!isNullOrEmpty(buildNum)) {
+        // If there are no artifacts and we previously checked this url, don't check it again
+        var markedUrls = JSON.parse(sessionStorage.markedUrls);
+        if (markedUrls.hasOwnProperty(rootURL + "/job/" + jobName + "/" + buildNum + "/api/json?tree=artifacts[*]")) {
+            return;
         }
-    })
+
+        Q.ajax({
+            url: rootURL + "/job/" + jobName + "/" + buildNum + "/api/json?tree=artifacts[*]",
+            type: "GET",
+            dataType: 'json',
+            async: true,
+            cache: true,
+            timeout: 20000,
+            success: function (json) {
+                getBuildArtifactData(this.url, jobName, buildNum, buildId, json.artifacts);
+            },
+            error: function (xhr, status, error) {
+            }
+        })
+    }
 }
 
 /**
  * Callback function to get an artifacts data.
  */
-function getBuildArtifactData(jobName, buildNum, buildId, data) {
+function getBuildArtifactData(url, jobName, buildNum, buildId, data) {
     var artifacts = [];
 
     if (data.length > 0) {
@@ -1319,6 +1489,11 @@ function getBuildArtifactData(jobName, buildNum, buildId, data) {
             })
         }
     }
+
+    // Mark this url so we don't check it again
+    var markedUrls = JSON.parse(sessionStorage.markedUrls);
+    markedUrls[url] = "true";
+    sessionStorage.markedUrls = JSON.stringify(markedUrls);
 }
 
 /**
@@ -1329,10 +1504,13 @@ function getBuildArtifactLinks(url, json, buildId) {
     var ele = document.getElementById(buildId);
     var artifact = url.split("/artifact/")[1];
 
+    var eleString = "<a href=\"" + url + "\" class=\"displayTableEntryLink\">" + artifact + 
+                    "<span class=\"tooltip hoverText\">" + json + "</span></a>";
+
     if (ele.innerHTML != "No artifacts found") {
-        ele.innerHTML += ", <a href=\"" + url + "\" style=\"color: inherit;\">" + artifact + "<span class=\"tooltip\">" + json + "</span></a>";
+        ele.innerHTML += ", " + eleString;
     } else {
-        ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" + artifact + "<span class=\"tooltip\">" + json + "</span></a>";
+        ele.innerHTML = eleString;
     }
 
     savedValues[buildId] = ele.innerHTML;
@@ -1342,12 +1520,16 @@ function getBuildArtifactLinks(url, json, buildId) {
 /**
  * Generate an table of specified display values
  */
-function generateDisplayValueTable(displayArgs, pipelineName, pipelineNum) {
+function generateGlobalDisplayValueTable(displayArgs, pipelineName, pipelineNum) {
     var retVal = "";
 
     for (var mainProject in displayArgs) {
         if (mainProject == pipelineName) {
-            var mainProjectDisplayConfig = displayArgs[mainProject];
+            // Check for global display arguments
+            if (!displayArgs[mainProject].hasOwnProperty("Global")) {
+                return "";
+            }
+            var mainProjectDisplayConfig = displayArgs[mainProject].Global;
 
             for (var displayKey in mainProjectDisplayConfig) {
                 var displayKeyConfig = mainProjectDisplayConfig[displayKey];
@@ -1357,8 +1539,8 @@ function generateDisplayValueTable(displayArgs, pipelineName, pipelineNum) {
                 }
 
                 var id = mainProject + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
-                retVal += "<tr class=\"displayTableTr\"><th class=\"displayTableTh\">" + displayKey + "</th>";
-                retVal += "<td id=\"" + id + "\" class=\"displayTableTd\">Value not found across pipeline</td></tr>";    
+                retVal += "<tr class=\"displayTableTr\"><th class=\"displayTableTh\">" + displayKey + "</th>" + 
+                          "<td id=\"" + id + "\" class=\"displayTableTd\">Value not found across pipeline</td></tr>";    
             }    
         }
     }
@@ -1368,12 +1550,16 @@ function generateDisplayValueTable(displayArgs, pipelineName, pipelineNum) {
 /**
  * Load the displayed values
  */
-function loadDisplayValues(displayArgs, pipelineName, pipelineNum, savedPipelineDisplayValues) {
+function loadGlobalDisplayValues(displayArgs, pipelineName, pipelineNum, savedPipelineDisplayValues) {
     var retVal = "";
 
     for (var mainProject in displayArgs) {
         if (mainProject == pipelineName) {
-            var mainProjectDisplayConfig = displayArgs[mainProject];
+            // Check for global display arguments
+            if (!displayArgs[mainProject].hasOwnProperty("Global")) {
+                return "";
+            }
+            var mainProjectDisplayConfig = displayArgs[mainProject].Global;
 
             for (var displayKey in mainProjectDisplayConfig) {
                 var displayKeyConfig = mainProjectDisplayConfig[displayKey];
@@ -1385,11 +1571,15 @@ function loadDisplayValues(displayArgs, pipelineName, pipelineNum, savedPipeline
                 var id = mainProject + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
 
                 if (savedPipelineDisplayValues.hasOwnProperty(id)) {
-                    retVal += "<tr class=\"displayTableTr\"><th class=\"displayTableTh\">" + displayKey + "</th>";
-                    retVal += "<td id=\"" + id + "\" class=\"displayTableTd\">" + savedPipelineDisplayValues[id] + "</td></tr>";
+                    retVal += "<tr class=\"displayTableTr\">" + 
+                              "<th class=\"displayTableTh\">" + displayKey + "</th>" +
+                              "<td id=\"" + id + "\" class=\"displayTableTd\">" + savedPipelineDisplayValues[id] +
+                              "</td></tr>";
                 } else {
-                    retVal += "<tr class=\"displayTableTr\"><th class=\"displayTableTh\">" + displayKey + "</th>";
-                    retVal += "<td id=\"" + id + "\" class=\"displayTableTd\">Value not found across pipeline</td></tr>";
+                    retVal += "<tr class=\"displayTableTr\">" + 
+                              "<th class=\"displayTableTh\">" + displayKey + "</th>" +
+                              "<td id=\"" + id + "\" class=\"displayTableTd\">Value not found across pipeline</td>" +
+                              "</tr>";
                 }
             }
         }
@@ -1400,7 +1590,7 @@ function loadDisplayValues(displayArgs, pipelineName, pipelineNum, savedPipeline
 /**
  * Retrieve desired values from any projects along a pipeline
  */
-function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
+function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
     var stage;
     var projectNameIdMap = {};
     var updateString = "";
@@ -1416,7 +1606,11 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
 
     for (var mainProject in displayArgs) {
         if (mainProject == pipelineName) {
-            var mainProjectDisplayConfig = displayArgs[mainProject];
+            // Check for global display arguments
+            if (!displayArgs[mainProject].hasOwnProperty("Global")) {
+                return;
+            }
+            var mainProjectDisplayConfig = displayArgs[mainProject].Global;
 
             for (var displayKey in mainProjectDisplayConfig) {
                 var displayKeyConfig = mainProjectDisplayConfig[displayKey];
@@ -1463,25 +1657,25 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
 
                     var url = "";
                     if (artifactName != "") {
-                        url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/artifact/" + artifactName;
+                        url = "/job/" + projectName + "/" + projectNameIdMap[projectName] + "/artifact/" + artifactName;
                         if (projectNameIdMap[projectName] == null) {
                             return;
                         }
                     }
 
                     if (filePath != "") {
-                        url = "job/" + projectName + "/ws/" + filePath;
+                        url = "/job/" + projectName + "/ws/" + filePath;
                     }
 
                     if (envName != "" || paramName != "") {
-                        url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/injectedEnvVars/api/json";
+                        url = "/job/" + projectName + "/" + projectNameIdMap[projectName] + "/injectedEnvVars/api/json";
                         if (projectNameIdMap[projectName] == null) {
                             return;
                         }
                     }
 
-                    if (fromConsole == "true") {
-                        url = "job/" + projectName + "/" + projectNameIdMap[projectName] + "/consoleText";
+                    if (fromConsole == "true" || fromConsole == true) {
+                        url = "/job/" + projectName + "/" + projectNameIdMap[projectName] + "/consoleText";
                         if (projectNameIdMap[projectName] == null) {
                             return;
                         }
@@ -1492,18 +1686,26 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
                         continue;
                     }
 
+                    var markedUrls = JSON.parse(sessionStorage.markedUrls);
+                    if (markedUrls.hasOwnProperty(rootURL + url)) {
+                        continue;
+                    }
+
                     // Upon a configuration change, reload all data
                     if (previousDisplayArgConfig != displayArgs) {
                         Q.ajax({
-                            url: rootURL + "/" + url,
+                            url: rootURL + url,
                             type: "GET",
                             async: true,
                             cache: true,
                             timeout: 20000,
                             success: function(data) {
-                                updateDisplayValues(data, this.url, displayArgs, pipelineName, pipelineNum);
+                                updateGlobalDisplayValues(data, this.url, displayArgs, pipelineName, pipelineNum);
                             },
                             error: function (xhr, status, error) {
+                                var markedUrls = JSON.parse(sessionStorage.markedUrls);
+                                markedUrls[this.url] = "true";
+                                sessionStorage.markedUrls = JSON.stringify(markedUrls);
                             }
                         })
                     }
@@ -1522,16 +1724,20 @@ function getDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum) {
 }
 
  /**
-  * Callback function to update the specified display values
+  * Callback function to update the global display values
   */
-function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) {
+function updateGlobalDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) {
     var projectName = (url.split("/job/")[1]).split("/")[0];
 
     // Environment Variable / Parameter
     if (url.indexOf("/injectedEnvVars/") != -1) {
         for (var mainProject in displayArgs) {
             if (mainProject == pipelineName) {
-                var mainProjectDisplayConfig = displayArgs[mainProject];
+                // Check for global display arguments
+                if (!displayArgs[mainProject].hasOwnProperty("Global")) {
+                    return;
+                }
+                var mainProjectDisplayConfig = displayArgs[mainProject].Global;
 
                 for (var displayKey in mainProjectDisplayConfig) {
                     var displayKeyConfig = mainProjectDisplayConfig[displayKey];
@@ -1570,13 +1776,18 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
     } else if (url.indexOf("/consoleText") != -1) {
         for (var mainProject in displayArgs) {
             if (mainProject == pipelineName) {
-                var mainProjectDisplayConfig = displayArgs[mainProject];
+                // Check for global display arguments
+                if (!displayArgs[mainProject].hasOwnProperty("Global")) {
+                    return;
+                }
+                var mainProjectDisplayConfig = displayArgs[mainProject].Global;
 
                 for (var displayKey in mainProjectDisplayConfig) {
                     var displayKeyConfig = mainProjectDisplayConfig[displayKey];
 
                     if (displayKeyConfig.hasOwnProperty("projectName") && displayKeyConfig.projectName == projectName) {
-                        if (displayKeyConfig.hasOwnProperty("fromConsole") && (displayKeyConfig.fromConsole == "true" || displayKeyConfig.fromConsole == true)) {
+                        if (displayKeyConfig.hasOwnProperty("fromConsole") && 
+                            (displayKeyConfig.fromConsole == "true" || displayKeyConfig.fromConsole == true)) {
                             var toolTipData = data.replace(/-/g, '&#x2011;');
 
                             if (displayKeyConfig.hasOwnProperty("grepPattern")) {
@@ -1589,8 +1800,12 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                             var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
                             var ele = document.getElementById(id);
 
-                            if (displayKeyConfig.hasOwnProperty("useLink") && (displayKeyConfig.useLink == "true" || displayKeyConfig.useLink == true)) {
-                                ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";
+                            if (displayKeyConfig.hasOwnProperty("useLink") && 
+                                (displayKeyConfig.useLink == "true" || displayKeyConfig.useLink == true)) {
+
+                                ele.innerHTML = "<a href=\"" + url + "\" class=\"displayTableEntryLink\">" + 
+                                                url.split("/job/")[1] + "<span class=\"tooltip hoverText\">" + toolTipData +
+                                                "</span></a>";
                             } else {
                                 ele.innerHTML = toolTipData;
                                 redrawConnections();
@@ -1619,7 +1834,11 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
 
         for (var mainProject in displayArgs) {
             if (mainProject == pipelineName) {
-                var mainProjectDisplayConfig = displayArgs[mainProject];
+                // Check for global display arguments
+                if (!displayArgs[mainProject].hasOwnProperty("Global")) {
+                    return;
+                }
+                var mainProjectDisplayConfig = displayArgs[mainProject].Global;
 
                 for (var displayKey in mainProjectDisplayConfig) {
                     var displayKeyConfig = mainProjectDisplayConfig[displayKey];
@@ -1638,8 +1857,11 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                             var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
                             var ele = document.getElementById(id);
 
-                            if (displayKeyConfig.hasOwnProperty("useLink") && (displayKeyConfig.useLink == "true" || displayKeyConfig.useLink == true)) {
-                                ele.innerHTML = "<a href=\"" + url + "\" style=\"color: inherit;\">" + url.split("/job/")[1] + "<span class=\"tooltip\">" + toolTipData + "</span></a>";    
+                            if (displayKeyConfig.hasOwnProperty("useLink") && 
+                                (displayKeyConfig.useLink == "true" || displayKeyConfig.useLink == true)) {
+                                ele.innerHTML = "<a href=\"" + url + "\" class=\"displayTableEntryLink\">" +
+                                                url.split("/job/")[1] + "<span class=\"tooltip hoverText\">" + toolTipData +
+                                                "</span></a>";    
                             } else {
                                 ele.innerHTML = toolTipData;
                                 redrawConnections();
@@ -1649,6 +1871,278 @@ function updateDisplayValues(data, url, displayArgs, pipelineName, pipelineNum) 
                             savedValues[id] = ele.innerHTML;
                             sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Generate an table of stage specific display values
+ */
+function generateStageDisplayValueTable(displayArgs, pipelineName, stageName, stageId) {
+    var retVal = "";
+
+    for (var mainProject in displayArgs) {
+        if (mainProject == pipelineName) {
+            // Check for stage specific display arguments
+            if (!displayArgs[mainProject].hasOwnProperty(stageName)) {
+                return "";
+            }
+            var mainProjectDisplayConfig = (displayArgs[mainProject])[stageName];
+            var re = new RegExp(' ', 'g');
+
+            for (var displayKey in mainProjectDisplayConfig) {
+                retVal += "<tr class=\"hoverRow\"><th class=\"hoverTableTh\">" + displayKey + ":</th>";
+                retVal += "<td id=\"" + stageId + "-" + displayKey.replace(re, '_') + "\" class=\"hoverTableTd\">Value not found across pipeline</td></tr>";  
+            }    
+        }
+    }
+    return retVal;
+}
+
+/**
+ * Retrieve desired values for a specific project along a pipeline
+ */
+function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildNum, stageId) {
+    var previousDisplayArgConfig = JSON.parse(sessionStorage.previousDisplayArgConfig);
+    var savedStageDisplayValues = JSON.parse(sessionStorage.savedStageDisplayValues);
+    var re = new RegExp(' ', 'g');
+
+    for (var mainProject in displayArgs) {
+        if (mainProject == pipelineName) {
+            // Check for stage specific display arguments
+            if (!displayArgs[mainProject].hasOwnProperty(stageName)) {
+                return;
+            }
+            var mainProjectDisplayConfig = (displayArgs[mainProject])[stageName];
+
+            for (var displayKey in mainProjectDisplayConfig) {
+
+                var saveId = stageName + "-" + stageBuildNum + "-" + displayKey.replace(re, '_');
+                if (savedStageDisplayValues.hasOwnProperty(saveId)) {
+                    var id = stageId + "-" + displayKey.replace(re, '_');
+                    var ele = document.getElementById(id);
+                    ele.innerHTML = savedStageDisplayValues[saveId];
+                    continue;
+                }
+
+                var displayKeyConfig = mainProjectDisplayConfig[displayKey];
+                var filePath, artifactName, envName, paramName, fromConsole, grepPattern;
+                filePath = artifactName = envName = paramName = fromConsole = grepPattern = "";
+
+                if (displayKeyConfig.hasOwnProperty("filePath")) {
+                    filePath = displayKeyConfig.filePath;
+                }
+
+                if (displayKeyConfig.hasOwnProperty("artifactName")) {
+                    artifactName = displayKeyConfig.artifactName;
+                }
+
+                if (displayKeyConfig.hasOwnProperty("envName")) {
+                    envName = displayKeyConfig.envName;
+                }
+
+                if (displayKeyConfig.hasOwnProperty("paramName")) {
+                    paramName = displayKeyConfig.paramName;
+                }
+
+                if (displayKeyConfig.hasOwnProperty("fromConsole")) {
+                    fromConsole = displayKeyConfig.fromConsole;
+                }
+
+                // We expect one of the following to be populated so we know where to look
+                if (filePath == "" && artifactName == "" && envName == "" && paramName == "" && fromConsole == "") {
+                    continue;
+                }
+
+                var url = "";
+                if (artifactName != "") {
+                    url = "/job/" + stageName + "/" + stageBuildNum + "/artifact/" + artifactName;
+                    if (stageBuildNum == null) {
+                        return;
+                    }
+                }
+
+                if (filePath != "") {
+                    url = "/job/" + stageName + "/ws/" + filePath;
+                }
+
+                if (envName != "" || paramName != "") {
+                    url = "/job/" + stageName + "/" + stageBuildNum + "/injectedEnvVars/api/json";
+                    if (stageBuildNum == null) {
+                        return;
+                    }
+                }
+
+                if (fromConsole == "true" || fromConsole == true) {
+                    url = "/job/" + stageName + "/" + stageBuildNum + "/consoleText";
+                    if (stageBuildNum == null) {
+                        return;
+                    }
+                }
+
+                // In the event that somehow we fail to create a URL
+                if (url == "") {
+                    continue;
+                }
+
+                var markedUrls = JSON.parse(sessionStorage.markedUrls);
+                if (markedUrls.hasOwnProperty(rootURL + url)) {
+                    continue;
+                }
+
+                // Upon a configuration change, reload all data
+                if (previousDisplayArgConfig != displayArgs) {
+                    Q.ajax({
+                        url: rootURL + url,
+                        type: "GET",
+                        async: true,
+                        cache: true,
+                        timeout: 20000,
+                        success: function(data) {
+                            updateStageDisplayValues(this.url, data, displayArgs, pipelineName, stageName, 
+                                stageBuildNum, stageId);
+                        },
+                        error: function (xhr, status, error) {
+                            var markedUrls = JSON.parse(sessionStorage.markedUrls);
+                            markedUrls[this.url] = "true";
+                            sessionStorage.markedUrls = JSON.stringify(markedUrls);
+                        }
+                    })
+                }
+            }
+        }
+    }
+}
+
+ /**
+  * Callback function to update the stage specific display values
+  */
+function updateStageDisplayValues(url, data, displayArgs, pipelineName, stageName, stageBuildNum, stageId) {
+    var projectName = (url.split("/job/")[1]).split("/")[0];
+    var re = new RegExp(' ', 'g');
+
+    // Environment Variable / Parameter
+    if (url.indexOf("/injectedEnvVars/") != -1) {
+        for (var mainProject in displayArgs) {
+            if (mainProject == pipelineName) {
+                // Check for stage specific display arguments
+                if (!displayArgs[mainProject].hasOwnProperty(stageName)) {
+                    return;
+                }
+                var mainProjectDisplayConfig = (displayArgs[mainProject])[stageName];
+
+                for (var displayKey in mainProjectDisplayConfig) {
+                    var displayKeyConfig = mainProjectDisplayConfig[displayKey];
+                    var envName = "";
+
+                    if (displayKeyConfig.hasOwnProperty("envName") || displayKeyConfig.hasOwnProperty("paramName")) {
+                        envName = displayKeyConfig.hasOwnProperty("envName") ? displayKeyConfig.envName : displayKeyConfig.paramName;
+                        
+                        if (data.hasOwnProperty("envMap")) {
+                            var envMap = data.envMap;
+
+                            if (envMap.hasOwnProperty(envName)) {
+                                var id = stageId + "-" + displayKey.replace(re, '_');
+                                var ele = document.getElementById(id);
+
+                                if (displayKeyConfig.hasOwnProperty("grepPattern")) {
+                                    var grepPattern = displayKeyConfig.grepPattern;
+                                    var grepFlag = displayKeyConfig.hasOwnProperty("grepFlag") ? displayKeyConfig.grepFlag : 'g';
+                                    ele.innerHTML = grepRegexp(grepPattern, grepFlag, envMap[envName]);
+                                } else {
+                                    ele.innerHTML = envMap[envName];    
+                                }
+
+                                var saveId = stageName + "-" + stageBuildNum + "-" + displayKey.replace(re, '_');
+                                var savedValues = JSON.parse(sessionStorage.savedStageDisplayValues);
+                                savedValues[saveId] = ele.innerHTML;
+                                sessionStorage.savedStageDisplayValues = JSON.stringify(savedValues);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    // Console Log
+    } else if (url.indexOf("/consoleText") != -1) {
+        for (var mainProject in displayArgs) {
+            if (mainProject == pipelineName) {
+                // Check for stage specific display arguments
+                if (!displayArgs[mainProject].hasOwnProperty(stageName)) {
+                    return;
+                }
+                var mainProjectDisplayConfig = (displayArgs[mainProject])[stageName];
+
+                for (var displayKey in mainProjectDisplayConfig) {
+                    var displayKeyConfig = mainProjectDisplayConfig[displayKey];
+
+                    if (displayKeyConfig.hasOwnProperty("fromConsole") && (displayKeyConfig.fromConsole == "true" || displayKeyConfig.fromConsole == true)) {
+                        var toolTipData = data.replace(/-/g, '&#x2011;');
+
+                        if (displayKeyConfig.hasOwnProperty("grepPattern")) {
+                            var grepPattern = displayKeyConfig.grepPattern;
+                            var grepFlag = displayKeyConfig.hasOwnProperty("grepFlag") ? displayKeyConfig.grepFlag : 'g';
+                            toolTipData = grepRegexp(grepPattern, grepFlag, toolTipData);
+                        }
+                        toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br/>');
+
+                        var id = stageId + "-" + displayKey.replace(re, '_');
+                        var ele = document.getElementById(id);
+                        ele.innerHTML = toolTipData;
+
+                        var saveId = stageName + "-" + stageBuildNum + "-" + displayKey.replace(re, '_');
+                        var savedValues = JSON.parse(sessionStorage.savedStageDisplayValues);
+                        savedValues[saveId] = ele.innerHTML;
+                        sessionStorage.savedStageDisplayValues = JSON.stringify(savedValues);
+                    }
+                }
+            }
+        }
+    // File Path or Artifact Name
+    } else {
+        var file;
+        var propertyType;
+
+        if (url.indexOf("/ws/") != -1) {
+            file = url.split("/ws/")[1];
+            propertyType = "filePath";
+        } else {
+            file = url.split("/artifact/")[1];
+            propertyType = "artifactName";
+        }
+
+        for (var mainProject in displayArgs) {
+            if (mainProject == pipelineName) {
+                // Check for stage specific display arguments
+                if (!displayArgs[mainProject].hasOwnProperty(stageName)) {
+                    return;
+                }
+                var mainProjectDisplayConfig = (displayArgs[mainProject])[stageName];
+
+                for (var displayKey in mainProjectDisplayConfig) {
+                    var displayKeyConfig = mainProjectDisplayConfig[displayKey];
+
+                    if (displayKeyConfig.hasOwnProperty(propertyType) && displayKeyConfig[propertyType] == file) {
+                        var toolTipData = data.replace(/-/g, '&#x2011;');
+
+                        if (displayKeyConfig.hasOwnProperty("grepPattern")) {
+                            var grepPattern = displayKeyConfig.grepPattern;
+                            var grepFlag = displayKeyConfig.hasOwnProperty("grepFlag") ? displayKeyConfig.grepFlag : 'g';
+                            toolTipData = grepRegexp(grepPattern, grepFlag, toolTipData);
+                        }
+                        toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br/>');
+
+                        var id = stageId + "-" + displayKey.replace(re, '_');
+                        var ele = document.getElementById(id);
+                        ele.innerHTML = toolTipData;
+
+                        var saveId = stageName + "-" + stageBuildNum + "-" + displayKey.replace(re, '_');
+                        var savedValues = JSON.parse(sessionStorage.savedStageDisplayValues);
+                        savedValues[saveId] = ele.innerHTML;
+                        sessionStorage.savedStageDisplayValues = JSON.stringify(savedValues);
                     }
                 }
             }
@@ -1719,7 +2213,7 @@ function updateFailedOnBlockStages(pipeline, i) {
 
         var stageNum = stage.tasks[0].buildId;
 
-        if (downstreamStages.size() == 0) {
+        if (downstreamStages.length == 0) {
             continue;
         }
 
@@ -1780,6 +2274,9 @@ function getToggleState(toggleId, toggleType, defaultToggleOn) {
                 }
                 return "none";
             }
+
+            toggleStates[toggleId] = "block";
+            sessionStorage.toggleStates = JSON.stringify(toggleStates);
             return "block";
         } else {
             if (toggleStates.hasOwnProperty(toggleId)) {
@@ -1803,7 +2300,6 @@ function getToggleState(toggleId, toggleType, defaultToggleOn) {
 
 // Toggle method
 function toggle(jobName, buildNum) {
-    console.info("Hi");
     var toggleStates = JSON.parse(sessionStorage.toggleStates);
     var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
     
@@ -1861,11 +2357,11 @@ function toggleTable(toggleTableId, displayTableId) {
 
     if (ele.style.display == "table-row-group") {
         ele.style.display = "none";
-        displayEle.innerHTML = "Show Additional Display Values";
+        displayEle.innerHTML = "Show Global Display Values";
         toggleStates[toggleTableId] = "none";
     } else {
         ele.style.display = "table-row-group";
-        displayEle.innerHTML = "Hide Additional Display Values";
+        displayEle.innerHTML = "Hide Global Display Values";
         toggleStates[toggleTableId] = "table-row-group";
     }
 
@@ -1983,11 +2479,11 @@ function toggleTableCompatibleFS(toggleTableId, displayTableId) {
 
     if (ele.style.display == "table-row-group") {
         ele.style.display = "none";
-        displayEle.innerHTML = "Show Additional Display Values";
+        displayEle.innerHTML = "Show Global Display Values";
         toggleStates[toggleTableId] = "none";
     } else {
         ele.style.display = "table-row-group";
-        displayEle.innerHTML = "Hide Additional Display Values";
+        displayEle.innerHTML = "Hide Global Display Values";
         toggleStates[toggleTableId] = "table-row-group";
     }
 

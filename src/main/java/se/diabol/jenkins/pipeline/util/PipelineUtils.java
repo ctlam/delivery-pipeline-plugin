@@ -29,9 +29,21 @@ public final class PipelineUtils {
     private PipelineUtils() {
     }
 
+    /*
+     * Converts the timestamp into a Date object. While this is great,
+     * it prevents the ability to provide localized timestamps for other users
+     * who are in a different timezone relative to the Jenkins server.
+     */
     public static String formatTimestamp(long timestamp) {
         DateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
         return format.format(new Date(timestamp));
+    }
+
+    /*
+     * Convert the timestamp into a string.
+     */
+    public static String timestampToString(long timestamp) {
+        return Long.toString(timestamp);
     }
 
     public static long getRandom() {

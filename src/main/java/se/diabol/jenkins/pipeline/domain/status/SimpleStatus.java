@@ -91,7 +91,8 @@ public class SimpleStatus implements Status {
     @Exported
     public String getTimestamp() {
         if (lastActivity != -1) {
-            return PipelineUtils.formatTimestamp(lastActivity);
+            // return PipelineUtils.formatTimestamp(lastActivity);
+            return PipelineUtils.timestampToString(lastActivity);
         } else {
             return null;
         }
