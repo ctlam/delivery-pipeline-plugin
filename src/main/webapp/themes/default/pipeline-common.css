@@ -614,16 +614,12 @@ div.aggregatedChangesPanelInner > ul {
 
 .hoverTableTh {
     color: inherit;
-    border-top: 1px solid rgba(61,69,75,1);
-    border-bottom: 1px solid rgba(61,69,75,1);
     padding: 1px 25px 1px 1px;
     font-size: inherit;
 }
 
 .hoverTableTd {
     color: inherit;
-    border-top: 1px solid rgba(61,69,75,1);
-    border-bottom: 1px solid rgba(61,69,75,1);
     padding: 1px 5px 1px 1px;
     font-size: inherit;
 }

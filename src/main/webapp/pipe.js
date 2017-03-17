@@ -198,9 +198,11 @@ function pipelineUtils() {
                 html.push("<h1><a href=\"" + returnUrl + "\" class=\"displayTableLink\">" + component.name + "</a>");
                 if (data.allowPipelineStart) {
                     if (component.firstJobParameterized) {
-                        html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" onclick="triggerParameterizedBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
+                        html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" ');
+                        html.push('onclick="triggerParameterizedBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
                     } else {
-                        html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" onclick="triggerBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
+                        html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" ');
+                        html.push('onclick="triggerBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
                     }
                     html.push('<img class="icon-clock icon-md" title="Build now" src="' + resURL + '/images/24x24/clock.png">');
                     html.push("</a>");
@@ -326,12 +328,12 @@ function pipelineUtils() {
                             var displayTableId = "display-table-" + jobName + "-" + buildNum;
                             var artifactId = "artifacts-" + jobName + "-" + buildNum;
 
-                            var toggleTableFunction = "javascript:toggleTable('" + toggleTableId + "','" + displayTableId + "');";
+                            var toggleTableFunction = "javascript:toggleTable('" + jobName + "','" + buildNum + "');";
                             var initDisplayValMessage = (getToggleState(toggleTableId, "table-row-group", true) == "none") ? "Show " : "Hide ";
                             initDisplayValMessage += "Global Display Values";
 
                             if (isFullScreen) {
-                                toggleTableFunction = "javascript:toggleTableCompatibleFS('" + toggleTableId + "','" + displayTableId + "');";
+                                toggleTableFunction = "javascript:toggleTableCompatibleFS('" + jobName + "','" + buildNum + "');";
                             }
 
                             html.push("<div class=\"pipeline-cell\" style=\"vertical-align: top;\">");
@@ -469,7 +471,8 @@ function pipelineUtils() {
                             html.push("<div class=\"stage\" style=\"width: " + widthPerCell + "px;\">");    
                             html.push("<div class=\"stage-header\" style=\"font-size: " + fontSizePerCell + "px;\">");
                             html.push("<div class=\"stage-name\">");
-                            html.push("<a href=\"" + link + "\" target=\"_blank\">" + htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</a></div>");
+                            html.push("<a href=\"javascript:void(0)\" onclick=\"openNewTabInBackground('" + link + "')\">");
+                            html.push(htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</a></div>");
                         }
 
                         if (!pipeline.aggregated) {
@@ -525,7 +528,7 @@ function pipelineUtils() {
                                 html.push("<div class=\"task-header\">");
                                 html.push("<div class=\"taskname\">");
                                 html.push("<a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle circle_" + task.status.type + "\" ");
-                                html.push("href=\"" + getLink(data, task.link) + consoleLogLink + "\" target=\"_blank\" ");
+                                html.push("href=\"javascript:void(0)\" onclick=\"openNewTabInBackground('" + getLink(data, task.link) + consoleLogLink + "');\" ");
                                 html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; ");
                                 html.push("background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
                                 html.push("<br/><span class=\"tooltip\" style=\"" + toolTipStyle + "\">" + hoverTable + "</span></a>");
@@ -969,6 +972,18 @@ function rescaleConnections() {
     revalidateConnections();
 }
 
+/**
+ * Opens the link in a new tab, keeping focus on the current tab.
+ */
+function openNewTabInBackground(href) {
+    var a = document.createElement("a");    
+    a.href = href;  
+    var evt = document.createEvent("MouseEvents");    
+
+    evt.initMouseEvent("click", true, true, window, 0, 0, 0, 0, 0,true, false, false, false, 0, null);    
+    a.dispatchEvent(evt);
+}
+
 function isNullOrEmpty(strValue) {
     return ((strValue == null) || (strValue == ""));
 }
@@ -1371,6 +1386,7 @@ function triggerBuild(url, taskId) {
         timeout: 20000,
         success: function (data, textStatus, jqXHR) {
             console.info("Triggered build of " + taskId + " successfully!")
+            window.location.reload();
         },
         error: function (jqXHR, textStatus, errorThrown) {
             window.alert("Could not trigger build! error: " + errorThrown + " status: " + textStatus)
@@ -2346,7 +2362,10 @@ function toggle(jobName, buildNum) {
 }
 
 // For showing and hiding the display values table
-function toggleTable(toggleTableId, displayTableId) {
+function toggleTable(jobName, buildNum) {
+    var toggleTableId = "toggle-table-" + jobName + "-" + buildNum;
+    var displayTableId = "display-table-" + jobName + "-" + buildNum;
+                            
     var toggleStates = JSON.parse(sessionStorage.toggleStates);
     var ele = document.getElementById(toggleTableId);
     var displayEle = document.getElementById(displayTableId);
@@ -2467,7 +2486,10 @@ function toggleCompatibleFs(jobName, buildNum) {
 /**
  * Toggle method for Full Screen. Used to toggle the display values table.
  */
-function toggleTableCompatibleFS(toggleTableId, displayTableId) {
+function toggleTableCompatibleFS(jobName, buildNum) {
+    var toggleTableId = "toggle-table-" + jobName + "-" + buildNum;
+    var displayTableId = "display-table-" + jobName + "-" + buildNum;
+
     var currentPageY = sessionStorage.getItem("page_y");
     var toggleStates = JSON.parse(sessionStorage.toggleStates);
     var ele = document.getElementById(toggleTableId);
