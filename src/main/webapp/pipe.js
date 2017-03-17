@@ -57,6 +57,19 @@ function pipelineUtils() {
         window.addEventListener('mozfullscreenchange', rescaleConnections);
         window.addEventListener('fullscreenchange', rescaleConnections);
 
+        // Upon navigating away, delete the session storage resources set by this script
+        window.onbeforeunload = function(){
+            sessionStorage.removeItem("savedPipelineDisplayValues");
+            sessionStorage.removeItem("savedPipelineArtifacts");
+            sessionStorage.removeItem("savedStageDisplayValues");
+            sessionStorage.removeItem("previousDisplayArgConfig");
+            sessionStorage.removeItem("toggleStates");
+            sessionStorage.removeItem("blockedOnFailedMap");
+            sessionStorage.removeItem("markedUrls");
+            sessionStorage.removeItem("pipelineStageIdMap");
+            sessionStorage.removeItem("page_y");
+        };
+
         var currentPageY;
         try {
             currentPageY = sessionStorage.getItem("page_y");
@@ -106,25 +119,6 @@ function pipelineUtils() {
             sessionStorage.markedUrls = JSON.stringify({});
         }
 
-        // Clear the sessionStorage of values we set if and only if we are loading a different view page
-        // This could break if someone loads a view with the same initial job.
-        var lastViewedJob;
-        try {
-            lastViewedJob = sessionStorage.getItem("lastViewedJob");
-            var currentJob = data.pipelines[0].name;
-
-            if (lastViewedJob !== undefined && (currentJob != lastViewedJob)) {
-                sessionStorage.savedPipelineDisplayValues = JSON.stringify({});
-                sessionStorage.savedPipelineArtifacts = JSON.stringify({});
-                sessionStorage.savedStageDisplayValues = JSON.stringify({});
-                sessionStorage.toggleStates = JSON.stringify({});
-                sessionStorage.blockedOnFailedMap = JSON.stringify({});
-            }
-            sessionStorage.lastViewedJob = currentJob;
-        } catch (e) {
-            console.info(e);
-        }
-
         if (data.error) {
             cErrorDiv.html('Error: ' + data.error).show();
         } else {
@@ -142,7 +136,6 @@ function pipelineUtils() {
             } else {
                 try {
                     // Attempt to parse the contents
-                    console.info(data.displayArgumentsFileContents);
                     if (data.useYamlParser) {
                         displayArgumentsFromFile = jsyaml.safeLoad(data.displayArgumentsFileContents);
                     } else {
