@@ -1706,30 +1706,23 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
                         continue;
                     }
 
-                    // Upon a configuration change, reload all data
-                    if (!configNotChanged) {
-                        Q.ajax({
-                            url: rootURL + url,
-                            type: "GET",
-                            async: true,
-                            cache: true,
-                            timeout: 20000,
-                            success: function(data) {
-                                updateGlobalDisplayValues(data, this.url, displayArgs, pipelineName, pipelineNum);
-                            },
-                            error: function (xhr, status, error) {
-                                var markedUrls = JSON.parse(sessionStorage.markedUrls);
-                                markedUrls[this.url] = "true";
-                                sessionStorage.markedUrls = JSON.stringify(markedUrls);
-                            }
-                        })
-                    }
+                    Q.ajax({
+                        url: rootURL + url,
+                        type: "GET",
+                        async: true,
+                        cache: true,
+                        timeout: 20000,
+                        success: function(data) {
+                            updateGlobalDisplayValues(data, this.url, displayArgs, pipelineName, pipelineNum);
+                        },
+                        error: function (xhr, status, error) {
+                            var markedUrls = JSON.parse(sessionStorage.markedUrls);
+                            markedUrls[this.url] = "true";
+                            sessionStorage.markedUrls = JSON.stringify(markedUrls);
+                        }
+                    })
                 }
             }
-        }
-        else {
-            // We expect a project name for each display value -- otherwise we don't know where to look
-            continue;
         }
     }
 }
@@ -2005,25 +1998,22 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
                     continue;
                 }
 
-                // Upon a configuration change, reload all data
-                if (!configNotChanged) {
-                    Q.ajax({
-                        url: rootURL + url,
-                        type: "GET",
-                        async: true,
-                        cache: true,
-                        timeout: 20000,
-                        success: function(data) {
-                            updateStageDisplayValues(this.url, data, displayArgs, pipelineName, stageName, 
-                                stageBuildNum, stageId);
-                        },
-                        error: function (xhr, status, error) {
-                            var markedUrls = JSON.parse(sessionStorage.markedUrls);
-                            markedUrls[this.url] = "true";
-                            sessionStorage.markedUrls = JSON.stringify(markedUrls);
-                        }
-                    })
-                }
+                Q.ajax({
+                    url: rootURL + url,
+                    type: "GET",
+                    async: true,
+                    cache: true,
+                    timeout: 20000,
+                    success: function(data) {
+                        updateStageDisplayValues(this.url, data, displayArgs, pipelineName, stageName, 
+                            stageBuildNum, stageId);
+                    },
+                    error: function (xhr, status, error) {
+                        var markedUrls = JSON.parse(sessionStorage.markedUrls);
+                        markedUrls[this.url] = "true";
+                        sessionStorage.markedUrls = JSON.stringify(markedUrls);
+                    }
+                })
             }
         }
     }
