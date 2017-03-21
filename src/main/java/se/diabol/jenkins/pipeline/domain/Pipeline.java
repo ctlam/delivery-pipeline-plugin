@@ -265,6 +265,20 @@ public class Pipeline extends AbstractItem {
                                                boolean pagingEnabled,
                                                boolean showChanges,
                                                Component component) {
+        return createPipelineLatest(noOfPipelines, context, pagingEnabled, showChanges, component, 0);
+    }
+
+    /**
+     * Populates and return pipelines for the supplied pipeline prototype with the current status.
+     *
+     * @param noOfPipelines number of pipeline instances
+     */
+    public List<Pipeline> createPipelineLatest(int noOfPipelines,
+                                               ItemGroup context,
+                                               boolean pagingEnabled,
+                                               boolean showChanges,
+                                               Component component,
+                                               int maxNumOfPages) {
         List<Pipeline> result = new ArrayList<Pipeline>();
         int no = noOfPipelines;
         if (firstProject.isInQueue()) {
@@ -279,7 +293,9 @@ public class Pipeline extends AbstractItem {
             result.add(pipelineLatest);
             no--;
         }
-        int totalNoOfPipelines = firstProject.getBuilds().size();
+        // int totalNoOfPipelines = firstProject.getBuilds().size();
+        int totalNoOfPipelines = (maxNumOfPages > 0) ? Math.min(firstProject.getBuilds().size(), 
+                maxNumOfPages * noOfPipelines) : firstProject.getBuilds().size();
         component.setTotalNoOfPipelines(totalNoOfPipelines);
         int startIndex = 0;
         int retrieveSize = noOfPipelines;

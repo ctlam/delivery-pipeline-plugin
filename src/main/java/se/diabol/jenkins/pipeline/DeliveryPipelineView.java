@@ -110,13 +110,14 @@ public class DeliveryPipelineView extends View {
     private boolean allowManualTriggers = false;
     private boolean showTotalBuildTime = false;
     private boolean allowRebuild = false;
-    private boolean allowPipelineStart = false;
+    private boolean allowPipelineStart = true;
     private boolean showDescription = false;
     private boolean showPromotions = false;
     private boolean showTestResults = false;
     private boolean showStaticAnalysisResults = false;
     private boolean linkRelative = false;
     private boolean pagingEnabled = true;
+    private int maxNoOfPages = 5;
     private boolean showAggregatedChanges = false;
     private String aggregatedChangesGroupingPattern = null;
     private String theme = DEFAULT_THEME;
@@ -508,6 +509,15 @@ public class DeliveryPipelineView extends View {
         this.displayArgumentsFileContents = displayArgumentsFileContents;
     }
 
+    @Exported
+    public int getMaxNoOfPages() {
+        return maxNoOfPages;
+    }
+
+    public void setMaxNoOfPages(int maxNoOfPages) {
+        this.maxNoOfPages = maxNoOfPages;
+    }
+
     public String readDisplayArgumentsFile(String displayArgumentsFile) {
         // No file specified
         if (Strings.isNullOrEmpty(displayArgumentsFile)) {
@@ -660,11 +670,11 @@ public class DeliveryPipelineView extends View {
             pipelines.add(pipeline.createPipelineAggregated(getOwnerItemGroup(), showAggregatedChanges));
         }
         if (isFullScreenView()) {
-            pipelines.addAll(pipeline
-                    .createPipelineLatest(noOfPipelines, getOwnerItemGroup(), false, showChanges, component));
+            pipelines.addAll(pipeline.createPipelineLatest(noOfPipelines, getOwnerItemGroup(), 
+                    false, showChanges, component, maxNoOfPages));
         } else {
             pipelines.addAll(pipeline.createPipelineLatest(noOfPipelines, getOwnerItemGroup(),
-                    pagingEnabled, showChanges, component));
+                    pagingEnabled, showChanges, component, maxNoOfPages));
         }
         component.setPipelines(pipelines);
         return component;

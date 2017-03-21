@@ -28,7 +28,28 @@ section.pipeline-component h2 {
 }
 
 .pipelineHeader {
-    margin: 20px 0px 40px 0px;
+    margin: 20px 0px 0px 0px;
+}
+
+.pipelineSecondaryHeader {
+    margin: 0px 0px 50px 0px;
+    padding: 5px 0px 5px 0px;
+}
+
+.buttonText {
+    line-height: 1.5em;
+}
+
+.buttonTrigger {
+    margin-left: 10px;
+}
+
+.buttonTriggerTextBox {
+    min-width: 450px;
+}
+
+.buttonRefreshTextBox {
+    min-width: 260px
 }
 
 div.changes h1 {

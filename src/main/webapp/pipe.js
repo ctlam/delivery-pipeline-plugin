@@ -2,10 +2,18 @@ var instance;
 // Jenkins default view has a "main-panel" whereas full screen mode does not
 var isFullScreen = (document.getElementById("main-panel") == null);
 var numColumns = 0;
+var pipelineutilsData = [];
+var pipelineutils;
 
 function pipelineUtils() {
     var self = this;
     this.updatePipelines = function(divNames, errorDiv, view, fullscreen, page, component, showChanges, aggregatedChangesGroupingPattern, timeout, pipelineid, jsplumb) {
+
+        pipelineutils = this;
+        pipelineutilsData.push(divNames, errorDiv, view, fullscreen, page, component, showChanges, aggregatedChangesGroupingPattern, timeout, pipelineid, jsplumb);
+        // Keep track of the jsplumb instance so that we can repaint when necessary
+        instance = jsplumb;
+
         Q.ajax({
             url: rootURL + "/" + view.viewUrl + 'api/json' + "?page=" + page + "&component=" + component + "&fullscreen=" + fullscreen,
             dataType: 'json',
@@ -32,14 +40,14 @@ function pipelineUtils() {
 
     this.refreshPipelines = function(data, divNames, errorDiv, view, showAvatars, showChanges, aggregatedChangesGroupingPattern, pipelineid, jsplumb) {
         var lastUpdate = data.lastUpdated,
-           cErrorDiv = Q("#" + errorDiv),
-           pipeline,
-           component,
-           html,
-           trigger,
-           triggered,
-           contributors,
-           tasks = [];
+            cErrorDiv = Q("#" + errorDiv),
+            pipeline,
+            component,
+            html,
+            trigger,
+            triggered,
+            contributors,
+            tasks = [];
 
         if (isFullScreen) {
             document.onkeydown = function(evt) {
@@ -181,8 +189,6 @@ function pipelineUtils() {
             }
 
             jsplumb.reset();
-            // Keep track of the jsplumb instance so that we can repaint when necessary
-            instance = jsplumb;
 
             for (var c = 0; c < data.pipelines.length; c++) {
                 html = [];
@@ -193,32 +199,27 @@ function pipelineUtils() {
                     returnUrl = returnUrl.split("?fullscreen=true")[0];
                 }
 
-                html.push("<section class='pipeline-component'>");
+                html.push("<section class=\"pipeline-component\">");
                 html.push("<div class=\"pipelineHeader\">");
-                html.push("<h1><a href=\"" + returnUrl + "\" class=\"displayTableLink\">" + component.name + "</a>");
-                if (data.allowPipelineStart) {
-                    if (component.firstJobParameterized) {
-                        html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" ');
-                        html.push('onclick="triggerParameterizedBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
-                    } else {
-                        html.push('&nbsp;<a id=\'startpipeline-' + c  +'\' class="task-icon-link" href="#" ');
-                        html.push('onclick="triggerBuild(\'' + component.firstJobUrl + '\', \'' + data.name + '\');">');
-                    }
-                    html.push('<img class="icon-clock icon-md" title="Build now" src="' + resURL + '/images/24x24/clock.png">');
-                    html.push("</a>");
-                }
-                html.push("</h1>");
+                html.push("<h1><a href=\"" + returnUrl + "\" class=\"displayTableLink\">" + component.name + "</a></h1>");
                 html.push("<h2>Refreshed every " + data.updateInterval + " seconds.");
                 if (isFullScreen) {
                     html.push("<br/>Press ESC at any time to return to the default view.");
                 }
-                html.push("</h2>");
-                html.push("</div>");
+                html.push("</h2></div>");
+
+                html.push("<div class=\"pipelineSecondaryHeader\">");
                 if (!showAvatars) {
                     html.push("<div class='pagination'>");
                     html.push(component.pagingData);
                     html.push("</div>");
                 }
+
+                if (data.allowPipelineStart) {
+                    html.push(generateButtons(c, component.firstJobParameterized, component.firstJobUrl, data.name));
+                }
+                html.push("</div>");
+                
                 if (component.pipelines.length === 0) {
                     html.push("No builds done yet.");
                 }
@@ -471,7 +472,7 @@ function pipelineUtils() {
                             html.push("<div class=\"stage\" style=\"width: " + widthPerCell + "px;\">");    
                             html.push("<div class=\"stage-header\" style=\"font-size: " + fontSizePerCell + "px;\">");
                             html.push("<div class=\"stage-name\">");
-                            html.push("<a href=\"javascript:void(0)\" onclick=\"openNewTabInBackground('" + link + "')\">");
+                            html.push("<a href=\"javascript:void(0);\" onclick=\"openNewTabInBackground('" + link + "')\">");
                             html.push(htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</a></div>");
                         }
 
@@ -528,7 +529,7 @@ function pipelineUtils() {
                                 html.push("<div class=\"task-header\">");
                                 html.push("<div class=\"taskname\">");
                                 html.push("<a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle circle_" + task.status.type + "\" ");
-                                html.push("href=\"javascript:void(0)\" onclick=\"openNewTabInBackground('" + getLink(data, task.link) + consoleLogLink + "');\" ");
+                                html.push("href=\"javascript:void(0);\" onclick=\"openNewTabInBackground('" + getLink(data, task.link) + consoleLogLink + "');\" ");
                                 html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; ");
                                 html.push("background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
                                 html.push("<br/><span class=\"tooltip\" style=\"" + toolTipStyle + "\">" + hoverTable + "</span></a>");
@@ -629,6 +630,7 @@ function pipelineUtils() {
 
             // Update the previous display argument configuration after all new values have been found
             if (!_.isEqual(JSON.parse(sessionStorage.previousDisplayArgConfig), displayArguments)) {
+                console.info("Timeline config has been changed -- Reloading display values!")
                 sessionStorage.previousDisplayArgConfig = JSON.stringify(displayArguments);
             }
 
@@ -640,7 +642,6 @@ function pipelineUtils() {
             var backgroundColor = "rgba(31,35,41,1)";
 
             lastResponse = data;
-            // equalheight(".pipeline-row .stage");
 
             // use jsPlumb to draw the connections between stages
             Q.each(data.pipelines, function (i, component) {
@@ -975,13 +976,79 @@ function rescaleConnections() {
 /**
  * Opens the link in a new tab, keeping focus on the current tab.
  */
-function openNewTabInBackground(href) {
-    var a = document.createElement("a");    
-    a.href = href;  
-    var evt = document.createEvent("MouseEvents");    
+function openNewTabInBackground(url) {
+    var ele = document.createElement("a");
+    ele.href = url;
+    ele.target = "_blank";
+    ele.style.visibility = "hidden";
+    document.body.appendChild(ele);
 
-    evt.initMouseEvent("click", true, true, window, 0, 0, 0, 0, 0,true, false, false, false, 0, null);    
-    a.dispatchEvent(evt);
+    var event = document.createEvent('MouseEvents');
+    var opts = { // These are the default values, set up for un-modified left clicks
+        type: 'click',
+        canBubble: true,
+        cancelable: true,
+        view: window,
+        detail: 1,
+        screenX: 0, //The coordinates within the entire page
+        screenY: 0,
+        clientX: 0, //The coordinates within the viewport
+        clientY: 0,
+        ctrlKey: true,
+        altKey: false,
+        shiftKey: false,
+        metaKey: false, //I *think* 'meta' is 'Cmd/Apple' on Mac, and 'Windows key' on Win. Not sure, though!
+        button: 0, //0 = left, 1 = middle, 2 = right
+        relatedTarget: null,
+    };
+
+    event.initMouseEvent(
+        opts.type,
+        opts.canBubble,
+        opts.cancelable,
+        opts.view,
+        opts.detail,
+        opts.screenX,
+        opts.screenY,
+        opts.clientX,
+        opts.clientY,
+        opts.ctrlKey,
+        opts.altKey,
+        opts.shiftKey,
+        opts.metaKey,
+        opts.button,
+        opts.relatedTarget
+    );
+
+    var is_chrome = navigator.userAgent.toLowerCase().indexOf('chrome') > -1;
+    
+    if(!is_chrome)
+    {
+        console.info("Using firefox!");
+        // ele.dispatchEvent(event);
+        ele.click();
+        // window.open(url, '_blank');
+    } 
+    else {
+        console.info("Using chrome!");
+        ele.dispatchEvent(event);
+        // var a = document.createElement("a");
+        // a.href = url;
+
+        // var evt = document.createEvent("MouseEvents");
+        // evt.initMouseEvent("click", true, true, window, 0, 0, 0, 0, 0, true, false, false, false, 0, null);
+
+        // var clickEvent = new MouseEvent("click", {
+        //     "view": window,
+        //     "bubbles": true,
+        //     "cancelable": false,
+        //     "ctrlKey": true,
+        //     "button": 0
+        // });
+        
+        // a.dispatchEvent(evt);
+        // a.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}));
+    }
 }
 
 function isNullOrEmpty(strValue) {
@@ -994,6 +1061,37 @@ function getLink(data, link) {
     } else {
         return rootURL + "/" + link;
     }
+}
+
+function generateButtons(c, firstJobParameterized, firstJobUrl, name) {
+    var retVal = "";
+    var buildTriggerMessage = firstJobParameterized ? "Trigger New Parameterized Build" : "Trigger New Build";
+    var triggerFunction = firstJobParameterized ? "triggerParameterizedBuild" : "triggerBuild";
+    var buildTriggerHoverMessage = "Triggers a new build.<br/><br/>" 
+        + "Auto-refreshes the page for unparameterized jobs.<br/><br/>"
+        + "If the top project is parameterized, a new tab will be opened.<br/>"
+        + "Please either manually refresh the page once you have kicked off the parameterized job, "
+        + "or wait until this page is updated on the next refresh cycle.";
+
+    var html = ["<div class=\"buttonTrigger\">"];
+    html.push("<a id=\"startpipeline-" + c  + "\" class=\"task-icon-link\" href=\"javascript:void(0);\" onclick=\"" + triggerFunction 
+        + "('" + firstJobUrl + "', '" + name + "');\" style=\"text-decoration:none;\">");
+        // html.push("<p class=\"buttonText\">");
+        //     html.push("<img class=\"icon-clock icon-md\" src=\"" + resURL + "/images/24x24/clock.png\">&nbsp;" + buildTriggerMessage);
+        // html.push("</p>");
+        html.push("<p class=\"buttonText\">" + buildTriggerMessage + "</p>");
+            html.push("<span class=\"tooltip buttonTriggerTextBox\">" + buildTriggerHoverMessage);
+            html.push("</span>");
+        html.push("</a>");
+    html.push("</div>");
+
+    html.push("<div class=\"buttonRefresh\">");
+    html.push("<a id=\"refreshpipeline-" + c  + "\" class=\"task-icon-link\" href=\"javascript:void(0);\" onclick=\"refreshFn();\" style=\"text-decoration:none;\">");
+        html.push("<p class=\"buttonText\">Refresh Pipeline</p>");
+            html.push("<span class=\"tooltip buttonRefreshTextBox\">Refreshes the current pipeline</span>");
+        html.push("</a>");
+    html.push("</div>");
+    return html.join("");
 }
 
 function generateDescription(data, task) {
@@ -1366,7 +1464,8 @@ function triggerRebuild(taskId, project, buildId, viewUrl) {
 
 function triggerParameterizedBuild(url, taskId) {
     console.info("Job is parameterized");
-    window.location.href = rootURL + "/" + url + 'build?delay=0sec';
+    // window.location.href = rootURL + "/" + url + 'build?delay=0sec';
+    openNewTabInBackground(rootURL + "/" + url + 'build?delay=0sec');
 }
 
 function triggerBuild(url, taskId) {
@@ -1386,12 +1485,31 @@ function triggerBuild(url, taskId) {
         timeout: 20000,
         success: function (data, textStatus, jqXHR) {
             console.info("Triggered build of " + taskId + " successfully!")
-            window.location.reload();
+            // window.location.reload();
+            refreshFn();
         },
         error: function (jqXHR, textStatus, errorThrown) {
             window.alert("Could not trigger build! error: " + errorThrown + " status: " + textStatus)
         }
     });
+}
+ 
+function refreshFn() {
+    pipelineutils.updatePipelines(
+        pipelineutilsData[0],
+        pipelineutilsData[1],
+        pipelineutilsData[2],
+        pipelineutilsData[3],
+        pipelineutilsData[4],
+        pipelineutilsData[5],
+        pipelineutilsData[6],
+        pipelineutilsData[7],
+        pipelineutilsData[8],
+        pipelineutilsData[9],
+        pipelineutilsData[10]
+    );
+    // Clear all toggle states
+    sessionStorage.toggleStates = JSON.stringify({});
 }
 
 function htmlEncode(html) {
