@@ -104,6 +104,10 @@
             <f:checkbox/>
         </f:entry>
 
+        <f:entry title="Max number of pages" field="maxNoOfPages">
+            <f:textbox/>
+        </f:entry>
+
         <f:entry name="theme" title="Theme" field="theme">
             <select name="theme" class="setting-input  select">
                 <option value="default" selected="${instance.getTheme().equals('default')? 'true':null}">Default</option>
