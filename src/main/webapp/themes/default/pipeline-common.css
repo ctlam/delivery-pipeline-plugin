@@ -81,19 +81,19 @@
     background-color: rgba(31,35,41,1);
 }
 
-.buttonTrigger {
+.button {
     display: inline-block;
     vertical-align: middle;
     margin-left: 15px;
     padding: 2px;
     border: 1px solid black;
     border-radius: 3px;
+}
+
+.buttonTrigger {
+    /* Blue */
     background-color: rgba(81,156,181,1);
-
-    /* Safari 5.1+, Chrome 10+ */
     background: -webkit-linear-gradient(top, rgba(81,156,181,1), rgba(66,132,153,1));
-
-    /* Firefox 3.6+ */
     background: -moz-linear-gradient(top, rgba(81,156,181,1), rgba(66,132,153,1));
 }
 
@@ -104,18 +104,9 @@
 }
 
 .buttonRefresh {
-    display: inline-block;
-    vertical-align: middle;
-    margin-left: 15px;
-    padding: 2px;
-    border: 1px solid black;
-    border-radius: 3px;
+    /* Blue */
     background-color: rgba(61,161,114,1);
-
-    /* Safari 5.1+, Chrome 10+ */
     background: -webkit-linear-gradient(top, rgba(61,161,114,1), rgba(49,130,91,1));
-
-    /* Firefox 3.6+ */
     background: -moz-linear-gradient(top, rgba(61,161,114,1), rgba(49,130,91,1));
 }
 
@@ -123,6 +114,32 @@
     background-color: rgba(67,175,124,1);
     background: -webkit-linear-gradient(top, rgba(67,175,124,1), rgba(55,145,102,1));
     background: -moz-linear-gradient(top, rgba(67,175,124,1), rgba(55,145,102,1));
+}
+
+.buttonEdit {
+    /* Space-Gray */
+    background-color: rgba(71,91,102,1);
+    background: -webkit-linear-gradient(top, rgba(71,91,102,1), rgba(61,69,78,1));
+    background: -moz-linear-gradient(top, rgba(71,91,102,1), rgba(61,69,78,1));
+}
+
+.buttonEdit:hover {
+    background-color: rgba(80,102,114,1);
+    background: -webkit-linear-gradient(top, rgba(80,102,114,1), rgba(62,80,89,1));
+    background: -moz-linear-gradient(top, rgba(80,102,114,1), rgba(62,80,89,1));
+}
+
+.buttonFullscreen {
+    /* Orange */
+    background-color: rgba(230,147,24,1);
+    background: -webkit-linear-gradient(top, rgba(230,147,24,1), rgba(192,123,20,1));
+    background: -moz-linear-gradient(top, rgba(230,147,24,1), rgba(192,123,20,1));
+}
+
+.buttonFullscreen:hover {
+    background-color: rgba(233,157,44,1);
+    background: -webkit-linear-gradient(top, rgba(233,157,44,1), rgba(211,136,22,1));
+    background: -moz-linear-gradient(top, rgba(233,157,44,1), rgba(211,136,22,1));
 }
 
 .buttonText {
@@ -349,10 +366,6 @@ div.task-rebuild {
     float: right;
     padding-right: 5px;
     z-index: 100;
-}
-
-.task-icon-link {
-    text-decoration: none;
 }
 
 div.left {

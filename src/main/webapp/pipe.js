@@ -1073,22 +1073,44 @@ function generateButtons(c, firstJobParameterized, firstJobUrl, name) {
         + "Please either manually refresh the page once you have kicked off the parameterized job, "
         + "or wait until this page is updated on the next refresh cycle.";
 
-    var html = ["<div class=\"buttonTrigger\">"];
-    html.push("<a id=\"startpipeline-" + c  + "\" class=\"task-icon-link\" href=\"javascript:void(0);\" onclick=\"" + triggerFunction 
+    var html = ["<div class=\"button buttonTrigger\">"];
+    html.push("<a id=\"startpipeline-" + c  + "\" href=\"javascript:void(0);\" onclick=\"" + triggerFunction 
         + "('" + firstJobUrl + "', '" + name + "');\" style=\"text-decoration:none;\">");
-        // html.push("<p class=\"buttonText\">");
-        //     html.push("<img class=\"icon-clock icon-md\" src=\"" + resURL + "/images/24x24/clock.png\">&nbsp;" + buildTriggerMessage);
-        // html.push("</p>");
         html.push("<p class=\"buttonText\">" + buildTriggerMessage + "</p>");
-            html.push("<span class=\"tooltip buttonTriggerTextBox\">" + buildTriggerHoverMessage);
-            html.push("</span>");
+            // html.push("<span class=\"tooltiptext buttonTriggerTextBox\">" + buildTriggerHoverMessage);
+            // html.push("</span>");
         html.push("</a>");
     html.push("</div>");
 
-    html.push("<div class=\"buttonRefresh\">");
-    html.push("<a id=\"refreshpipeline-" + c  + "\" class=\"task-icon-link\" href=\"javascript:void(0);\" onclick=\"refreshFn();\" style=\"text-decoration:none;\">");
-        html.push("<p class=\"buttonText\">Refresh Pipeline</p>");
-            html.push("<span class=\"tooltip buttonRefreshTextBox\">Refreshes the current pipeline</span>");
+    html.push("<div class=\"button buttonRefresh\">");
+        html.push("<a id=\"refreshpipeline-" + c  + "\" href=\"javascript:void(0);\" onclick=\"refreshFn();\" style=\"text-decoration:none;\">");
+            html.push("<p class=\"buttonText\">Refresh Pipeline</p>");
+        html.push("</a>");
+    html.push("</div>");
+
+    var editConfigUrl = window.location.href + "configure";
+
+    if (isFullScreen) {
+        editConfigUrl = window.location.href.split("?fullscreen=true")[0] + "configure";
+    }
+
+    html.push("<div class=\"button buttonEdit\">");
+        html.push("<a id=\"refreshpipeline-" + c  + "\" href=\"" + editConfigUrl + "\" style=\"text-decoration:none;\">");
+            html.push("<p class=\"buttonText\">Edit View Configuration</p>");
+        html.push("</a>");
+    html.push("</div>");
+
+    var fullscreenMsg = "View Fullscreen";
+    var fullscreenUrl = window.location.href + "?fullscreen=true";
+
+    if (isFullScreen) {
+        fullscreenMsg = "Exit Fullscreen";
+        fullscreenUrl = window.location.href.split("?fullscreen=true")[0];
+    }
+
+    html.push("<div class=\"button buttonFullscreen\">");
+        html.push("<a id=\"refreshpipeline-" + c  + "\" href=\"" + fullscreenUrl + "\" style=\"text-decoration:none;\">");
+            html.push("<p class=\"buttonText\">" + fullscreenMsg + "</p>");
         html.push("</a>");
     html.push("</div>");
     return html.join("");
@@ -1464,7 +1486,6 @@ function triggerRebuild(taskId, project, buildId, viewUrl) {
 
 function triggerParameterizedBuild(url, taskId) {
     console.info("Job is parameterized");
-    // window.location.href = rootURL + "/" + url + 'build?delay=0sec';
     openNewTabInBackground(rootURL + "/" + url + 'build?delay=0sec');
 }
 
@@ -1485,7 +1506,6 @@ function triggerBuild(url, taskId) {
         timeout: 20000,
         success: function (data, textStatus, jqXHR) {
             console.info("Triggered build of " + taskId + " successfully!")
-            // window.location.reload();
             refreshFn();
         },
         error: function (jqXHR, textStatus, errorThrown) {
