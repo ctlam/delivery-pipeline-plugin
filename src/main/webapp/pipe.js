@@ -135,19 +135,26 @@ function pipelineUtils() {
 
         // Get the display arguments from a specified project url
         var displayArgumentsFromFile = {};
-        if (!isNullOrEmpty(data.displayArgumentsFileContents)) {
+        var firstComponent = null;
 
-            if (data.displayArgumentsFileContents.indexOf("could not be found in JENKINS_HOME/timeline-configs/") != -1) {
-                cErrorDiv.html('Error: ' + data.displayArgumentsFileContents).show();
-            } else if (data.displayArgumentsFileContents == "Could not find Jenkins root directory") {
-                cErrorDiv.html('Error: ' + data.displayArgumentsFileContents).show();
+        if (data != null) {
+            if (data.pipelines[0] != null) {
+                firstComponent = data.pipelines[0];    
+            }
+        }
+        if (firstComponent != null && !isNullOrEmpty(firstComponent.displayArgumentsFileContents)) {
+
+            if (firstComponent.displayArgumentsFileContents.indexOf("could not be found in JENKINS_HOME/timeline-configs/") != -1) {
+                cErrorDiv.html('Error: ' + firstComponent.displayArgumentsFileContents).show();
+            } else if (firstComponent.displayArgumentsFileContents == "Could not find Jenkins root directory") {
+                cErrorDiv.html('Error: ' + firstComponent.displayArgumentsFileContentss).show();
             } else {
                 try {
                     // Attempt to parse the contents
                     if (data.useYamlParser) {
-                        displayArgumentsFromFile = jsyaml.safeLoad(data.displayArgumentsFileContents);
+                        displayArgumentsFromFile = jsyaml.safeLoad(firstComponent.displayArgumentsFileContents);
                     } else {
-                        displayArgumentsFromFile = JSON.parse(data.displayArgumentsFileContents);
+                        displayArgumentsFromFile = JSON.parse(firstComponent.displayArgumentsFileContents);
                     }
                 } catch (e) {
                     cErrorDiv.html('Error parsing display arguments file!').show();
@@ -185,7 +192,7 @@ function pipelineUtils() {
             }
 
             if (!data.pipelines || data.pipelines.length === 0) {
-                Q("#pipeline-message-" + pipelineid).html('No pipelines configured or found. Please review the <a href="configure">configuration</a>')
+                Q("#pipeline-message-" + pipelineid).html('No pipelines configured or found! Please review the <a href="configure">configuration</a>')
             }
 
             jsplumb.reset();

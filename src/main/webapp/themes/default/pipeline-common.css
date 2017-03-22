@@ -395,6 +395,7 @@ div.button-start {
 div.pipeline-message {
     font-size: 15px;
     z-index: -50;
+    color: white;
 }
 
 div.infoPanel {

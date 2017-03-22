@@ -19,8 +19,11 @@ package se.diabol.jenkins.pipeline.domain;
 
 import static com.google.common.base.Objects.toStringHelper;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 
+import jenkins.model.Jenkins;
+import org.apache.commons.io.IOUtils;
 import org.kohsuke.stapler.Stapler;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.export.Exported;
@@ -28,6 +31,9 @@ import org.kohsuke.stapler.export.ExportedBean;
 
 import se.diabol.jenkins.pipeline.PipelinePagination;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.List;
 
 @ExportedBean(defaultVisibility = AbstractItem.VISIBILITY)
@@ -40,6 +46,7 @@ public class Component extends AbstractItem {
     private int componentNumber = 0;
     private boolean pagingEnabled = false;
     private int totalNoOfPipelines = 0;
+    private String displayArgumentsFileContents;
 
     public Component(String name, String firstJob, String firstJobUrl, boolean firstJobParameterized,
                      int noOfPipelines, boolean pagingEnabled, int componentNumber) {
@@ -50,6 +57,18 @@ public class Component extends AbstractItem {
         this.noOfPipelines = noOfPipelines;
         this.pagingEnabled = pagingEnabled;
         this.componentNumber = componentNumber;
+    }
+
+    public Component(String name, String firstJob, String firstJobUrl, boolean firstJobParameterized,
+                     int noOfPipelines, boolean pagingEnabled, int componentNumber, String displayArgumentsFile) {
+        super(name);
+        this.firstJob = firstJob;
+        this.firstJobUrl = firstJobUrl;
+        this.firstJobParameterized = firstJobParameterized;
+        this.noOfPipelines = noOfPipelines;
+        this.pagingEnabled = pagingEnabled;
+        this.componentNumber = componentNumber;
+        this.displayArgumentsFileContents = readDisplayArgumentsFile(displayArgumentsFile);
     }
 
     @Exported
@@ -128,5 +147,50 @@ public class Component extends AbstractItem {
 
     public void setTotalNoOfPipelines(int totalNoOfPipelines) {
         this.totalNoOfPipelines = totalNoOfPipelines;
+    }
+
+    @Exported
+    public String getDisplayArgumentsFileContents() {
+        return displayArgumentsFileContents;
+    }
+
+    public void setDisplayArgumentsFileContents(String displayArgumentsFileContents) {
+        this.displayArgumentsFileContents = displayArgumentsFileContents;
+    }
+
+    public String readDisplayArgumentsFile(String displayArgumentsFile) {
+        // No file specified
+        if (Strings.isNullOrEmpty(displayArgumentsFile)) {
+            return "";
+        }
+
+        String fileContents = "";
+        String jenkinsHomeDir = "";
+        try {
+            try {
+                jenkinsHomeDir = Jenkins.getInstance().getRootDir().toString();
+            } catch (Exception err) {
+                return "Could not find Jenkins root directory";
+            }
+
+            FileInputStream inputStream = new FileInputStream(jenkinsHomeDir + "/timeline-configs/" 
+                + displayArgumentsFile);
+
+            fileContents = IOUtils.toString(inputStream);
+
+            inputStream.close();
+
+        } catch (FileNotFoundException err) {
+            return "File \"" + displayArgumentsFile + "\" could not be found in JENKINS_HOME/timeline-configs/";
+            // Eat the exception and move on
+        } catch (IOException err) {
+            return "File \"" + displayArgumentsFile + "\" could not be found in JENKINS_HOME/timeline-configs/";
+            // Eat the exception and move on
+        } catch (Exception err) {
+            return "An unknown exception occured when attempting to read file \"" + displayArgumentsFile
+                    + "\" from JENKINS_HOME/timeline-configs/";
+        }
+
+        return fileContents;
     }
 }
