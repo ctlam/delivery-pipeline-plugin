@@ -5,7 +5,7 @@
     ${h.initPageVariables(context)}
 
     <div>
-        <img src="${resURL}/plugin/delivery-pipeline-plugin/help/stage.png"/>
+        <img src="${resURL}/plugin/timeline-view-plugin/help/stage.png"/>
         <p>In a delivery pipeline view this job will be shown as a task in a stage. Enter the name for the stage.</p>
     </div>
 </j:jelly>
