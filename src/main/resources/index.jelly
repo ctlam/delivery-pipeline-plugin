@@ -2,5 +2,5 @@
   This view is used to render the installed plugins page.
 -->
 <div>
-    This plugin visualize Delivery Pipelines (Jobs with upstream/downstream dependencies)
+    This plugin is used to visualize piplines with upstream/downstream dependencies in a timeline-esque view.
 </div>
