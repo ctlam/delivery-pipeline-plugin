@@ -656,8 +656,10 @@ function pipelineUtils() {
                 Q.each(component.pipelines, function (j, pipeline) {
                     index = j;
 
-                    // Nightmarish Hack... Draw a connector from and to the single stage in a single stage pipeline
-                    // Single stage pipelines result in the legend not being drawn correctly if nothing is drawn here
+                    // Temporary Hack in place... 
+                    // The legend for single stage pipelines is not being drawn properly if nothing is drawn here
+                    // For now, draw an "invisible" line to fix the legend issue
+                    // TODO: Determine root cause and rip out this block of code
                     if (pipeline.stages.length == 1) {
                         stage = pipeline.stages[0];
                         jsplumb.connect({
