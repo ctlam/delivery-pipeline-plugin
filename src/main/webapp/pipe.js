@@ -566,6 +566,7 @@ function pipelineUtils() {
 
                 html.push("</table>")
                 html.push("</section>");
+                html.push("<br/>");
                 Q("#" + divNames[c % divNames.length]).append(html.join(""));
                 Q("#pipeline-message-" + pipelineid).html('');
             }

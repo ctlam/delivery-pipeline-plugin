@@ -79,6 +79,7 @@
     text-decoration: none;
     display: block;
     background-color: rgba(31,35,41,1);
+    vertical-align: middle;
 }
 
 .button {
@@ -86,7 +87,7 @@
     vertical-align: middle;
     margin-left: 15px;
     padding: 2px;
-    border: 1px solid black;
+    border: 2px solid black;
     border-radius: 3px;
 }
 
@@ -149,7 +150,10 @@
     margin: 0px;
     height: 24px;
     padding: 0px 5px 0px 5px;
-    line-height: 1.7em;
+    line-height: 2em;
+    font-family: sans-serif;
+    font-weight: bold;
+    font-size: 12px;
 }
 
 .buttonTriggerTextBox {
@@ -464,6 +468,7 @@ div.aggregatedChangesPanelInner > ul {
 .pagination {
 	/*display:block;*/
     display:inline-block;
+    vertical-align: middle;
 	text-align:left;
 	height:26px;
 	line-height:25px;

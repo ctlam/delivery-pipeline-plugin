@@ -4,7 +4,7 @@
     <!-- instead of JSP functions -->
     ${h.initPageVariables(context)}
     <div>
-        <img src="${resURL}/plugin/timeline-view-plugin/help/description.png"/>
+        <img src="${resURL}/plugin/delivery-pipeline-plugin/help/description.png"/>
         <p>
             In a build Delivery Pipeline View this description will be shown as an description for the task. Description can be customized with all environment and <a href="http://ci.jenkins-ci.org/env-vars.html">build variables</a> using <a href="https://wiki.jenkins-ci.org/display/JENKINS/Token+Macro+Plugin">Token Macro Plugin</a>
         </p>

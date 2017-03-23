@@ -3,11 +3,11 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>se.diabol.jenkins.pipeline</groupId>
-    <artifactId>timeline-view-plugin</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <artifactId>delivery-pipeline-plugin</artifactId>
+    <version>0.10.3-SNAPSHOT</version>
     <packaging>hpi</packaging>
-    <name>Timeline View Plugin</name>
-<!--     <url>https://wiki.jenkins-ci.org/display/JENKINS/Delivery+Pipeline+Plugin</url> -->
+    <name>Delivery Pipeline Plugin</name>
+    <url>https://wiki.jenkins-ci.org/display/JENKINS/Delivery+Pipeline+Plugin</url>
 
     <licenses>
         <license>
