@@ -479,7 +479,8 @@ function pipelineUtils() {
                             html.push("<div class=\"stage\" style=\"width: " + widthPerCell + "px;\">");    
                             html.push("<div class=\"stage-header\" style=\"font-size: " + fontSizePerCell + "px;\">");
                             html.push("<div class=\"stage-name\">");
-                            html.push("<a href=\"javascript:void(0);\" onclick=\"openNewTabInBackground('" + link + "')\">");
+                            html.push("<a href=\"" + link + "\" target=\"_blank\">");
+                            // html.push("<a href=\"javascript:void(0);\" onclick=\"openNewTabInBackground('" + link + "')\">");
                             html.push(htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</a></div>");
                         }
 
@@ -536,7 +537,8 @@ function pipelineUtils() {
                                 html.push("<div class=\"task-header\">");
                                 html.push("<div class=\"taskname\">");
                                 html.push("<a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle circle_" + task.status.type + "\" ");
-                                html.push("href=\"javascript:void(0);\" onclick=\"openNewTabInBackground('" + getLink(data, task.link) + consoleLogLink + "');\" ");
+                                // html.push("href=\"javascript:void(0);\" onclick=\"openNewTabInBackground('" + getLink(data, task.link) + consoleLogLink + "');\" ");
+                                html.push("href=\"" + getLink(data, task.link) + consoleLogLink + "\" target=\"_blank\" ");
                                 html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; ");
                                 html.push("background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
                                 html.push("<br/><span class=\"tooltip\" style=\"" + toolTipStyle + "\">" + hoverTable + "</span></a>");
