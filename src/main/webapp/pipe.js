@@ -655,6 +655,21 @@ function pipelineUtils() {
             Q.each(data.pipelines, function (i, component) {
                 Q.each(component.pipelines, function (j, pipeline) {
                     index = j;
+
+                    // Nightmarish Hack... Draw a connector from and to the single stage in a single stage pipeline
+                    // Single stage pipelines result in the legend not being drawn correctly if nothing is drawn here
+                    if (pipeline.stages.length == 1) {
+                        stage = pipeline.stages[0];
+                        jsplumb.connect({
+                            source: getStageId(stage.id + "", index),
+                            target: getStageId(stage.id + "", index),
+                            anchors: [[1, 0, 1, 0, 0, 13], [1, 0, 1, 0, 0, 13]],
+                            connector: ["Flowchart", { stub: 20, gap: 1, midpoint: 0, alwaysRespectStubs: true }],
+                            paintStyle: { stroke: "rgba(31,35,41,1)", strokeWidth: 1 },
+                            endpoint: "Blank"
+                        });
+                    }
+
                     Q.each(pipeline.stages, function (k, stage) {
                         if (stage.downstreamStages) {
                             Q.each(stage.downstreamStageIds, function (l, value) {
