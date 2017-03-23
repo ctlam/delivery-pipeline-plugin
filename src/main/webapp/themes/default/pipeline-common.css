@@ -527,13 +527,13 @@ div.aggregatedChangesPanelInner > ul {
 /**
  * Main table entry
  */
-
 .build_table {
     width: 100%;
     text-align: left;
     vertical-align: middle;
     border-collapse: collapse;
     color: rgba(220,220,220,1);
+    border-bottom: 1px solid #b3b3b3;
 }
 
 .build_header {
@@ -563,7 +563,7 @@ div.aggregatedChangesPanelInner > ul {
 }
 
 .build_column {
-    border-bottom: 1px solid #b3b3b3;
+    border-top: 1px solid #b3b3b3;
     text-align:left;
     color: inherit;
 }
@@ -622,6 +622,10 @@ div.aggregatedChangesPanelInner > ul {
 .untoggled_pipeline {
     background-color: transparent;
     border: none;
+}
+
+.untoggled_pipeline:last-child {
+    border-bottom: 1px solid #b3b3b3;
 }
 
 /**

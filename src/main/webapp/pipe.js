@@ -829,32 +829,7 @@ function pipelineUtils() {
                 });
             });
 
-            var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
-            // Hide all connectors in untoggled rows
-            for (var a = 0; a < data.pipelines.length; a++) {
-                var component = data.pipelines[a];
-                var isLatestPipeline = true;
-
-                for (var i = 0; i < component.pipelines.length; i++) {
-                    pipeline = component.pipelines[i];
-
-                    var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                    var buildNum = pipeline.version.substring(1);
-                    var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
-
-                    if (getToggleState(toggleBuildId, "block", isLatestPipeline) == "none") {
-                        var stageIds = pipelineStageIdMap[toggleBuildId];
-
-                        for (var key in stageIds) {
-                            jsplumb.hide(key);
-                        }
-                    }
-                    if (isLatestPipeline) {
-                        isLatestPipeline = false;
-                    }
-                }
-            }
-
+            // Draw the legend for every row
             for (var a = 0; a < data.pipelines.length; a++) {
                 var component = data.pipelines[a];
                 var isLatestPipeline = true;
@@ -888,6 +863,41 @@ function pipelineUtils() {
                             paintStyle: { stroke: legendMap[key][0], strokeWidth: 3, dashstyle: legendMap[key][1] },
                             endpoint: "Blank"
                         });
+                    }
+                }
+            }
+
+            var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
+            // Hide all connectors in untoggled rows
+            for (var a = 0; a < data.pipelines.length; a++) {
+                var component = data.pipelines[a];
+                var isLatestPipeline = true;
+
+                for (var i = 0; i < component.pipelines.length; i++) {
+                    pipeline = component.pipelines[i];
+
+                    var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                    var buildNum = pipeline.version.substring(1);
+                    var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
+                    var legendSuffix = jobName + "-" + buildNum;
+
+                    if (getToggleState(toggleBuildId, "block", isLatestPipeline) == "none") {
+                        var stageIds = pipelineStageIdMap[toggleBuildId];
+
+                        // Hide the stage connectors
+                        for (var key in stageIds) {
+                            jsplumb.hide(key);
+                        }
+
+                        // Hide the legend connectors
+                        jsplumb.hide("b-" + legendSuffix);
+                        jsplumb.hide("nb-" + legendSuffix);
+                        jsplumb.hide("nbc-" + legendSuffix);
+                        jsplumb.hide("bc-" + legendSuffix);
+                        jsplumb.hide("d-" + legendSuffix);
+                    }
+                    if (isLatestPipeline) {
+                        isLatestPipeline = false;
                     }
                 }
             }
@@ -2386,6 +2396,27 @@ function updateFailedOnBlockStages(pipeline, i) {
 }
 
 /**
+ * Show/hides the legend
+ */
+function toggleLegend(jobName, buildNum, showLegend) {
+    var legendSuffix = jobName + "-" + buildNum;
+    if (showLegend) {
+        instance.show("b-" + legendSuffix);
+        instance.show("nb-" + legendSuffix);
+        instance.show("nbc-" + legendSuffix);
+        instance.show("bc-" + legendSuffix);
+        instance.show("d-" + legendSuffix);
+    } else {
+        instance.hide("b-" + legendSuffix);
+        instance.hide("nb-" + legendSuffix);
+        instance.hide("nbc-" + legendSuffix);
+        instance.hide("bc-" + legendSuffix);
+        instance.hide("d-" + legendSuffix);
+    }
+    
+}
+
+/**
  * Check if any row has been toggled. If no row is toggled, we'll toggle the first row.
  * Could differ from a user's expectation, but in most cases users will only be interested
  * in the latest run of the pipeline anyway.
@@ -2470,6 +2501,7 @@ function toggle(jobName, buildNum) {
         for (var key in stageIds) {
             instance.hide(key);
         }
+        toggleLegend(jobName, buildNum, false);
     } else {
         ele.style.display = "block";
         rowEle.className = "toggled_build_header";
@@ -2480,6 +2512,7 @@ function toggle(jobName, buildNum) {
         for (var key in stageIds) {
             instance.show(key);
         }
+        toggleLegend(jobName, buildNum, true);
     }
 
     window.scrollTo(0, 0);
@@ -2560,7 +2593,8 @@ function toggleCompatibleFs(jobName, buildNum) {
             // Hide all the connectors
             for (var key in stageIds) {
                 instance.hide(key);
-            }  
+            }
+            toggleLegend(jobName, buildNum, false);
         }
     }
 
@@ -2596,7 +2630,8 @@ function toggleCompatibleFs(jobName, buildNum) {
             // Show all the connectors
             for (var key in stageIds) {
                 instance.show(key);
-            }  
+            }
+            toggleLegend(jobName, buildNum, true);
         }
 
         orderedString = orderedString.split(",").slice(1).join(",");
