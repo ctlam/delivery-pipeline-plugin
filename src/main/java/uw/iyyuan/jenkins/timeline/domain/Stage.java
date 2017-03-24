@@ -351,19 +351,22 @@ public class Stage extends AbstractItem {
         int lastRowDiscovered = 0;
         int lastColumnDiscovered = 0;
         int nextBlockingColumn = -1;
+        int numAllSkipped = 0;
 
         // The number of rows to offset by due to a project only having one downstream stage that is also
         // a downstream project
-        int singleDownstreamJobOffset = 0;
+        int onlyDownstreamJobOffset = 0;
         boolean pushNextDown = false;
 
         for (int row = 0; row < allPaths.size(); row++) {
             List<Stage> path = allPaths.get(row);
+            boolean allSkipped = true;
             for (int column = 0; column < path.size(); column++) {
                 Stage stage = path.get(column);
 
                 //skip processed stage since the row/column has already been set
                 if (!processedStages.contains(stage)) {
+                    allSkipped = false;
                     stage.setColumn(Math.max(Math.max(stage.getColumn(), column), nextBlockingColumn));
 
                     final int effectiveColumn = stage.getColumn();
@@ -380,9 +383,11 @@ public class Stage extends AbstractItem {
 
                         processedStages.add(stage);
 
-                        if (stage.getDownstreamStages().size() == 1 && stage.getDownstreamJobs() != "") {
+                        // Check if there are ONLY downstream jobs
+                        if (stage.getDownstreamJobs() != ""
+                            && stage.getDownstreamStages().size() == stage.getDownstreamJobs().split(",").length) {
                             pushNextDown = true;
-                            singleDownstreamJobOffset += 1;
+                            onlyDownstreamJobOffset += 1;
                         } else {
                             pushNextDown = false;
                         }
@@ -390,15 +395,17 @@ public class Stage extends AbstractItem {
                         lastRowDiscovered = lastRowDiscovered + (pushNextDown ? 1 : 0);
                     } else {
                         //update/set row number in the columnRowMap for this effective column
-                        columnRowMap.put(effectiveColumn, currentRowForThisColumn + (pushNextDown ? 1 : 0));
+                        columnRowMap.put(effectiveColumn, currentRowForThisColumn);
 
-                        stage.setRow(currentRowForThisColumn + (pushNextDown ? 1 : 0));
+                        stage.setRow(currentRowForThisColumn);
 
                         processedStages.add(stage);
 
-                        if (stage.getDownstreamStages().size() == 1 && stage.getDownstreamJobs() != "") {
+                        // Check if there are ONLY downstream jobs
+                        if (stage.getDownstreamJobs() != ""
+                            && stage.getDownstreamStages().size() == stage.getDownstreamJobs().split(",").length) {
                             pushNextDown = true;
-                            singleDownstreamJobOffset += 1;
+                            onlyDownstreamJobOffset += 1;
                         } else {
                             pushNextDown = false;
                         }
@@ -412,7 +419,13 @@ public class Stage extends AbstractItem {
                     completedBlockingJobs.add(stage.getName());
                 }
             }
-            lastRowDiscovered = row + 1 + singleDownstreamJobOffset;
+            // lastRowDiscovered = row + onlyDownstreamJobOffset;
+            lastRowDiscovered++;
+            pushNextDown = false;
+            
+            if (allSkipped) {
+                lastRowDiscovered--;
+            }
         }
 
         List<Stage> result = new ArrayList<Stage>(stages);

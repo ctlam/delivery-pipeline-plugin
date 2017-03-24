@@ -1691,19 +1691,22 @@ function getBuildArtifactData(url, jobName, buildNum, buildId, data) {
 function getBuildArtifactLinks(url, json, buildId) {
     var savedValues = JSON.parse(sessionStorage.savedPipelineArtifacts);
     var ele = document.getElementById(buildId);
-    var artifact = url.split("/artifact/")[1];
 
-    var eleString = "<a href=\"" + url + "\" class=\"displayTableEntryLink\">" + artifact + 
-                    "<span class=\"tooltip hoverText\">" + json + "</span></a>";
+    if (ele != null) {
+        var artifact = url.split("/artifact/")[1];
 
-    if (ele.innerHTML != "No artifacts found") {
-        ele.innerHTML += ", " + eleString;
-    } else {
-        ele.innerHTML = eleString;
+        var eleString = "<a href=\"" + url + "\" class=\"displayTableEntryLink\">" + artifact + 
+                        "<span class=\"tooltip hoverText\">" + json + "</span></a>";
+
+        if (ele.innerHTML != "No artifacts found") {
+            ele.innerHTML += ", " + eleString;
+        } else {
+            ele.innerHTML = eleString;
+        }
+
+        savedValues[buildId] = ele.innerHTML;
+        sessionStorage.savedPipelineArtifacts = JSON.stringify(savedValues);
     }
-
-    savedValues[buildId] = ele.innerHTML;
-    sessionStorage.savedPipelineArtifacts = JSON.stringify(savedValues);
 }
 
 /**
