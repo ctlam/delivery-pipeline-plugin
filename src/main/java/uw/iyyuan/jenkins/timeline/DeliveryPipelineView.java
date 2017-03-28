@@ -124,7 +124,7 @@ public class DeliveryPipelineView extends View {
 
     private String viewMode = ViewMode.MINIMALIST;
     private boolean useFullLocaleTimeStrings = true;
-    private boolean showArtifacts = true;
+    private boolean showArtifacts = false;
     private boolean useYamlParser = true;
     private String displayArguments = "";
     private String displayArgumentsFile = "";    

@@ -28,10 +28,13 @@ import hudson.model.Descriptor;
 import hudson.model.ItemGroup;
 import hudson.model.Items;
 import hudson.model.Project;
+import hudson.plugins.parameterizedtrigger.BlockableBuildTriggerConfig;
+import hudson.plugins.parameterizedtrigger.TriggerBuilder;
 import hudson.tasks.BuildStep;
 import hudson.tasks.Publisher;
 import hudson.util.DescribableList;
 import hudson.util.ListBoxModel;
+import org.jenkinsci.plugins.conditionalbuildstep.ConditionalBuilder;
 import org.jenkinsci.plugins.postbuildscript.PostBuildScript;
 import uw.iyyuan.jenkins.timeline.RelationshipResolver;
 
@@ -115,21 +118,34 @@ public final class ProjectUtil {
             result.addAll(resolver.getDownstreamProjects(project));
         }
 
+        DescribableList<Publisher, Descriptor<Publisher>> publishers = 
+            (DescribableList<Publisher, Descriptor<Publisher>>) project.getPublishersList();
 
-        // DescribableList<Publisher, Descriptor<Publisher>> publishers = 
-        //     (DescribableList<Publisher, Descriptor<Publisher>>) project.getPublishersList();
+        if (publishers != null) {
+            for (Publisher publisher : publishers) {
+                if (publisher instanceof PostBuildScript) {
+                    List<BuildStep> postBuildSteps = ((PostBuildScript) publisher).getBuildSteps();
 
-        // if (publishers != null) {
-        //     for (Publisher publisher : publishers) {
-        //         if (publisher instanceof PostBuildScript) {
-        //             List<BuildStep> postBuildSteps = ((PostBuildScript) publisher).getBuildSteps();
+                    for (BuildStep bs : postBuildSteps) {
+                        if (bs instanceof ConditionalBuilder) {
+                            List<BuildStep> cbs = ((ConditionalBuilder) bs).getConditionalbuilders();
 
-        //             for (BuildStep bs : postBuildSteps) {
-        //                 results.add(AbstractProject.findNearest(bs.getProjectActions().getDisplayName()));
-        //             }
-        //         }
-        //     }
-        // }
+                            if (cbs != null) {
+                                for (BuildStep buildStep : cbs) {
+                                    if (TriggerBuilder.class.isInstance(buildStep)) {
+                                        for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(
+                                            buildStep).getConfigs()) {
+                                            result.add(AbstractProject.findNearest(config.getProjects())); 
+                                        }
+                                    }
+                                }
+                            }
+
+                        }
+                    }
+                }
+            }
+        }
 
         return result;
     }

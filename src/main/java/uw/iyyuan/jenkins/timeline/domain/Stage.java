@@ -271,41 +271,6 @@ public class Stage extends AbstractItem {
 
             String allBuilders = "";
 
-            DescribableList<Publisher, Descriptor<Publisher>> publishers = 
-                (DescribableList<Publisher, Descriptor<Publisher>>) project.getPublishersList();
-
-            if (publishers != null) {
-                for (Publisher publisher : publishers) {
-                    if (publisher instanceof PostBuildScript) {
-                        List<BuildStep> postBuildSteps = ((PostBuildScript) publisher).getBuildSteps();
-
-                        // for (TriggerBuilder trigger : (List<TriggerBuilder>) postBuildSteps) {
-                        //     for (BlockableBuildTriggerConfig config : trigger.getConfigs()) {
-                        //         allBuilders += config.getProjects() + ", ";
-                        //     }
-                        // }
-
-                        for (BuildStep bs : postBuildSteps) {
-                            if (bs instanceof ConditionalBuilder) {
-                                List<BuildStep> cbs = ((ConditionalBuilder) bs).getConditionalbuilders();
-
-                                if (cbs != null) {
-                                    for (BuildStep buildStep : cbs) {
-                                        if (TriggerBuilder.class.isInstance(buildStep)) {
-                                            for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(
-                                                buildStep).getConfigs()) {
-                                                allBuilders += config.getProjects() + ", ";    
-                                            }
-                                        }
-                                    }
-                                }
-
-                            }
-                        }
-                    }
-                }
-            }
-
             PipelineProperty property = (PipelineProperty) project.getProperty(PipelineProperty.class);
             if (property == null && project.getParent() instanceof AbstractProject) {
                 property = (PipelineProperty) ((AbstractProject)
