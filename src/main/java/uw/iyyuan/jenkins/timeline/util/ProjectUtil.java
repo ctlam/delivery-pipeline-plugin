@@ -24,9 +24,15 @@ import hudson.Util;
 import hudson.model.AbstractBuild;
 import hudson.model.AbstractProject;
 import hudson.model.Cause;
+import hudson.model.Descriptor;
 import hudson.model.ItemGroup;
 import hudson.model.Items;
+import hudson.model.Project;
+import hudson.tasks.BuildStep;
+import hudson.tasks.Publisher;
+import hudson.util.DescribableList;
 import hudson.util.ListBoxModel;
+import org.jenkinsci.plugins.postbuildscript.PostBuildScript;
 import uw.iyyuan.jenkins.timeline.RelationshipResolver;
 
 import java.util.ArrayList;
@@ -108,6 +114,23 @@ public final class ProjectUtil {
         for (RelationshipResolver resolver : resolvers) {
             result.addAll(resolver.getDownstreamProjects(project));
         }
+
+
+        // DescribableList<Publisher, Descriptor<Publisher>> publishers = 
+        //     (DescribableList<Publisher, Descriptor<Publisher>>) project.getPublishersList();
+
+        // if (publishers != null) {
+        //     for (Publisher publisher : publishers) {
+        //         if (publisher instanceof PostBuildScript) {
+        //             List<BuildStep> postBuildSteps = ((PostBuildScript) publisher).getBuildSteps();
+
+        //             for (BuildStep bs : postBuildSteps) {
+        //                 results.add(AbstractProject.findNearest(bs.getProjectActions().getDisplayName()));
+        //             }
+        //         }
+        //     }
+        // }
+
         return result;
     }
 

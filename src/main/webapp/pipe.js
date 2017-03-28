@@ -433,6 +433,9 @@ function pipelineUtils() {
                     html.push('<div class="pipeline-row">');
 
                     for (var j = 0; j < pipeline.stages.length; j++) {
+
+                        console.info(stage.allBuilders);
+
                         stage = pipeline.stages[j];
 
                         if (stage.blockingJobs != "") {
