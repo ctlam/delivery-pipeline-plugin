@@ -1555,6 +1555,12 @@ function triggerBuild(url, taskId) {
 }
  
 function refreshFn() {
+    // Clear all toggle states
+    sessionStorage.toggleStates = JSON.stringify({});
+
+    // CLear all saved pipeline
+    sessionStorage.pipelineStageIdMap = JSON.stringify({});
+
     pipelineutils.updatePipelines(
         pipelineutilsData[0],
         pipelineutilsData[1],
@@ -1568,8 +1574,6 @@ function refreshFn() {
         pipelineutilsData[9],
         pipelineutilsData[10]
     );
-    // Clear all toggle states
-    sessionStorage.toggleStates = JSON.stringify({});
 }
 
 function htmlEncode(html) {

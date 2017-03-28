@@ -271,6 +271,50 @@ public class Stage extends AbstractItem {
 
             String allBuilders = "";
 
+            // Get the post build script
+            DescribableList<Publisher, Descriptor<Publisher>> publishers = 
+                (DescribableList<Publisher, Descriptor<Publisher>>) project.getPublishersList();
+
+            // Mark the jobs in the post build script as conditional/blocking as needed
+            if (publishers != null) {
+                for (Publisher publisher : publishers) {
+                    if (publisher instanceof PostBuildScript) {
+                        List<BuildStep> postBuildSteps = ((PostBuildScript) publisher).getBuildSteps();
+
+                        for (BuildStep bs : postBuildSteps) {
+                            // Conditional steps (single) or (multiple) 
+                            if (bs instanceof ConditionalBuilder) {
+                                List<BuildStep> cbs = ((ConditionalBuilder) bs).getConditionalbuilders();
+
+                                if (cbs != null) {
+                                    for (BuildStep buildStep : cbs) {
+                                        if (TriggerBuilder.class.isInstance(buildStep)) {
+                                            for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(
+                                                    buildStep).getConfigs()) {
+
+                                                if (config.getBlock() != null) {
+                                                    blockingJobs += ", " + config.getProjects();
+                                                }
+
+                                                conditionalJobs += ", " + config.getProjects();
+                                            }
+                                        }
+                                    }
+                                }
+                            // Trigger/call builds on other projects
+                            } else if (bs instanceof TriggerBuilder) {
+                                for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(bs).getConfigs()) {
+                                    
+                                    if (config.getBlock() != null) {
+                                        blockingJobs += ", " + config.getProjects();
+                                    }                                    
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             PipelineProperty property = (PipelineProperty) project.getProperty(PipelineProperty.class);
             if (property == null && project.getParent() instanceof AbstractProject) {
                 property = (PipelineProperty) ((AbstractProject)

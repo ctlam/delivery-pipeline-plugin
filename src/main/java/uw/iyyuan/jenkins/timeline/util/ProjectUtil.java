@@ -141,6 +141,7 @@ public final class ProjectUtil {
                     List<BuildStep> postBuildSteps = ((PostBuildScript) publisher).getBuildSteps();
 
                     for (BuildStep bs : postBuildSteps) {
+                        // Conditional steps (single) or (multiple) 
                         if (bs instanceof ConditionalBuilder) {
                             List<BuildStep> cbs = ((ConditionalBuilder) bs).getConditionalbuilders();
 
@@ -148,13 +149,17 @@ public final class ProjectUtil {
                                 for (BuildStep buildStep : cbs) {
                                     if (TriggerBuilder.class.isInstance(buildStep)) {
                                         for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(
-                                            buildStep).getConfigs()) {
+                                                buildStep).getConfigs()) {
                                             result.add(AbstractProject.findNearest(config.getProjects())); 
                                         }
                                     }
                                 }
                             }
-
+                        // Trigger/call builds on other projects
+                        } else if (bs instanceof TriggerBuilder) {
+                            for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(bs).getConfigs()) {
+                                result.add(AbstractProject.findNearest(config.getProjects())); 
+                            }
                         }
                     }
                 }
