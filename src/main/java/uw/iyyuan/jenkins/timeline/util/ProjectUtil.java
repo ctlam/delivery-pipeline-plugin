@@ -118,9 +118,23 @@ public final class ProjectUtil {
             result.addAll(resolver.getDownstreamProjects(project));
         }
 
+        // Remove all downstream jobs from the list for now
+        // Readd these jobs AFTER checking and adding any subprojects stored in the post build script
+        List<AbstractProject> downstreamList = new ArrayList<AbstractProject>();
+        int numberOfJobsToRemoveAndReadd = getNumberOfDownstreamJobsForProject(project);
+
+        if (numberOfJobsToRemoveAndReadd > 0) {
+            for (int i = 0; i < numberOfJobsToRemoveAndReadd; i++) {
+                downstreamList.add(result.remove(result.size() - 1));
+            }
+        }
+
+        // Get the post build script
         DescribableList<Publisher, Descriptor<Publisher>> publishers = 
             (DescribableList<Publisher, Descriptor<Publisher>>) project.getPublishersList();
 
+        // Extract AbstractProjects from the post build script
+        // Note: There is likely a better way to do this but this is sufficient for now
         if (publishers != null) {
             for (Publisher publisher : publishers) {
                 if (publisher instanceof PostBuildScript) {
@@ -145,6 +159,13 @@ public final class ProjectUtil {
                     }
                 }
             }
+        }
+
+        if (downstreamList.size() > 0) {
+            // Need to reverse the downstream list first in order to preserve the original order of the downstream
+            // projects before they were removed
+            Collections.reverse(downstreamList);
+            result.addAll(downstreamList);
         }
 
         return result;
@@ -221,5 +242,13 @@ public final class ProjectUtil {
         return projectList;
     }
 
+    private static int getNumberOfDownstreamJobsForProject(AbstractProject project) {
+        int counter = 0;
+        List<AbstractProject> downstreamProjects = project.getDownstreamProjects();
+        for (AbstractProject downstreamProject : downstreamProjects) {
+            counter++;
+        }
+        return counter;
+    }
 
 }
