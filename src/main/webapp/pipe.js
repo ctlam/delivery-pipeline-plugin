@@ -434,7 +434,8 @@ function pipelineUtils() {
 
                     for (var j = 0; j < pipeline.stages.length; j++) {
 
-                        console.info(stage.allBuilders);
+                        console.info(stage.promotionCriteriaJobs);
+                        console.info(stage.promotionTriggerJobs);
 
                         stage = pipeline.stages[j];
 

@@ -37,7 +37,13 @@ import hudson.model.Result;
 import hudson.plugins.parameterizedtrigger.BlockableBuildTriggerConfig;
 import hudson.plugins.parameterizedtrigger.SubProjectsAction;
 import hudson.plugins.parameterizedtrigger.TriggerBuilder;
+import hudson.plugins.promoted_builds.PromotedProjectAction;
+import hudson.plugins.promoted_builds.PromotionCondition;
+import hudson.plugins.promoted_builds.PromotionConditionDescriptor;
+import hudson.plugins.promoted_builds.PromotionProcess;
+import hudson.plugins.promoted_builds.conditions.DownstreamPassCondition;
 import hudson.tasks.BuildStep;
+import hudson.tasks.BuildTrigger;
 import hudson.tasks.Publisher;
 import hudson.util.DescribableList;
 import hudson.util.RunList;
@@ -66,6 +72,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import javax.annotation.CheckForNull;
 
@@ -84,7 +91,8 @@ public class Stage extends AbstractItem {
     private String blockingJobs;
     private String conditionalJobs;
     private String downstreamJobs;
-    private String allBuilders;
+    private String promotionCriteriaJobs;
+    private String promotionTriggerJobs;
 
     public Stage(String name, List<Task> tasks) {
         super(name);
@@ -102,25 +110,28 @@ public class Stage extends AbstractItem {
     }
 
     public Stage(String name, List<Task> tasks, String blockingJobs, String conditionalJobs, String downstreamJobs, 
-                 String allBuilders) {
+                 String promotionCriteriaJobs, String promotionTriggerJobs) {
         super(name);
         this.tasks = ImmutableList.copyOf(tasks);
         this.id = PipelineUtils.getRandom();
         this.blockingJobs = blockingJobs;
         this.conditionalJobs = conditionalJobs;
         this.downstreamJobs = downstreamJobs;
-        this.allBuilders = allBuilders;
+        this.promotionCriteriaJobs = promotionCriteriaJobs;
+        this.promotionTriggerJobs = promotionTriggerJobs;
     }
 
     private Stage(Stage stage, List<Task> tasks, String version, long id) {
         this(stage.getName(), tasks, stage.getDownstreamStages(), stage.getDownstreamStageIds(),
              stage.getTaskConnections(), version, stage.getRow(), stage.getColumn(), id, stage.getBlockingJobs(),
-             stage.getConditionalJobs(), stage.getDownstreamJobs(), stage.getAllBuilders());
+             stage.getConditionalJobs(), stage.getDownstreamJobs(), stage.getPromotionCriteriaJobs(),
+             stage.getPromotionTriggerJobs());
     }
 
     private Stage(String name, List<Task> tasks, List<String> downstreamStages, List<Long> downstreamStageIds,
                   Map<String, List<String>> taskConnections, String version, int row, int column, long id,
-                  String blockingJobs, String conditionalJobs, String downstreamJobs, String allBuilders) {
+                  String blockingJobs, String conditionalJobs, String downstreamJobs, String promotionCriteriaJobs,
+                  String promotionTriggerJobs) {
         super(name);
         this.tasks = tasks;
         this.version = version;
@@ -133,7 +144,8 @@ public class Stage extends AbstractItem {
         this.blockingJobs = blockingJobs;
         this.conditionalJobs = conditionalJobs;
         this.downstreamJobs = downstreamJobs;
-        this.allBuilders = allBuilders;
+        this.promotionCriteriaJobs = promotionCriteriaJobs;
+        this.promotionTriggerJobs = promotionTriggerJobs;
     }
 
     @Exported
@@ -229,12 +241,21 @@ public class Stage extends AbstractItem {
     }
 
     @Exported
-    public String getAllBuilders() {
-        return allBuilders;
+    public String getPromotionCriteriaJobs() {
+        return promotionCriteriaJobs;
     }
 
-    public void setAllBuilders(String allBuilders) {
-        this.allBuilders = allBuilders;
+    public void setPromotionCriteriaJobs(String promotionCriteriaJobs) {
+        this.promotionCriteriaJobs = promotionCriteriaJobs;
+    }
+
+    @Exported
+    public String getPromotionTriggerJobs() {
+        return promotionTriggerJobs;
+    }
+
+    public void setPromotionTriggerJobs(String promotionTriggerJobs) {
+        this.promotionTriggerJobs = promotionTriggerJobs;
     }
 
     public void setTaskConnections(Map<String, List<String>> taskConnections) {
@@ -251,8 +272,10 @@ public class Stage extends AbstractItem {
     }
 
     public static Stage getPrototypeStage(String name, List<Task> tasks, String blockingJobs, String conditionalJobs,
-                                          String downstreamJobs, String allBuilders) {
-        return new Stage(name, tasks, blockingJobs, conditionalJobs, downstreamJobs, allBuilders);
+                                          String downstreamJobs, String promotionCriteriaJobs, 
+                                          String promotionTriggerJobs) {
+        return new Stage(name, tasks, blockingJobs, conditionalJobs, downstreamJobs, promotionCriteriaJobs, 
+                promotionTriggerJobs);
     }
 
     public static List<Stage> extractStages(AbstractProject firstProject, AbstractProject lastProject)
@@ -268,8 +291,40 @@ public class Stage extends AbstractItem {
             String blockingJobs = getBlockingJobsForStage(project);
             String conditionalJobs = getConditionalJobsForStage(project);
             String downstreamJobs = getDownstreamJobsForStage(project);
+            String promotionCriteriaJobs = "";
+            String promotionTriggerJobs = "";
 
-            String allBuilders = "";
+            // Mark the promotion criteria jobs and the builds to trigger upon a promotion
+            for (PromotedProjectAction action : Util.filter(project.getActions(), PromotedProjectAction.class)) {
+                for (PromotionProcess pp : action.getProcesses()) {
+
+                    DescribableList<PromotionCondition,PromotionConditionDescriptor> conditions = pp.conditions;
+
+                    // Check for downstream criteria jobs
+                    for (PromotionCondition pc : conditions) {
+                        if (pc instanceof DownstreamPassCondition) {
+                            promotionCriteriaJobs += ((DownstreamPassCondition) pc).getJobs();
+                        }
+
+                        // if (pc instanceof UpstreamPromotionCondition) {
+                        //     promotionCriteriaJobs += ((UpstreamPromotionCondition) pc).getRequiredPromotionNames();
+                        // }
+                    }
+
+                    for (BuildStep bs : pp.getBuildSteps()) {
+                        if (bs instanceof TriggerBuilder) {
+                            for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(bs).getConfigs()) {
+                                promotionTriggerJobs += config.getProjects() + ", ";
+                            }
+                        } else if (bs instanceof BuildTrigger) {
+                            for (AbstractProject projectToPromote : BuildTrigger.class.cast(bs).getChildProjects(
+                                    project)) {
+                                promotionTriggerJobs += projectToPromote.getFullName() + ", ";
+                            }
+                        }
+                    }
+                }
+            }
 
             // Get the post build script
             DescribableList<Publisher, Descriptor<Publisher>> publishers = 
@@ -325,11 +380,13 @@ public class Stage extends AbstractItem {
             Stage stage = stages.get(stageName);
             if (stage == null) {
                 stage = Stage.getPrototypeStage(stageName, Collections.<Task>emptyList(), blockingJobs, 
-                                                conditionalJobs, downstreamJobs, allBuilders);
+                                                conditionalJobs, downstreamJobs, promotionCriteriaJobs, 
+                                                promotionTriggerJobs);
             }
             stages.put(stageName,
                     Stage.getPrototypeStage(stage.getName(), newArrayList(concat(stage.getTasks(), singleton(task))),
-                                            blockingJobs, conditionalJobs, downstreamJobs, allBuilders));
+                                            blockingJobs, conditionalJobs, downstreamJobs, promotionCriteriaJobs,
+                                            promotionTriggerJobs));
         }
         Collection<Stage> stagesResult = stages.values();
 
@@ -366,6 +423,10 @@ public class Stage extends AbstractItem {
 
     public static List<Stage> placeStages(AbstractProject firstProject, Collection<Stage> stages)
             throws PipelineException {
+
+        Queue<String> promotionCriteriaJobsQueue = new LinkedList<String>();
+        Queue<String> promotionTriggerJobsQueue = new LinkedList<String>();
+
         DirectedGraph<Stage, Edge> graph = new SimpleDirectedGraph<Stage, Edge>(new StageEdgeFactory());
         for (Stage stage : stages) {
             stage.setTaskConnections(getStageConnections(stage, stages));
@@ -381,6 +442,11 @@ public class Stage extends AbstractItem {
             }
             stage.setDownstreamStages(downstreamStageNames);
             stage.setDownstreamStageIds(downstreamStageIds);
+
+            if (stage.getPromotionCriteriaJobs() != "" || stage.getPromotionTriggerJobs() != "") {
+                promotionCriteriaJobsQueue.add(stage.getPromotionCriteriaJobs());
+                promotionTriggerJobsQueue.add(stage.getPromotionTriggerJobs());
+            } 
 
         }
 
@@ -402,6 +468,36 @@ public class Stage extends AbstractItem {
         //         return stages2.size() - stages1.size();
         //     }
         // });
+
+        while (!promotionCriteriaJobsQueue.isEmpty()) {
+
+            final String criteriaJob = promotionCriteriaJobsQueue.poll().replaceAll(", ", "");
+            final String triggerJob = promotionTriggerJobsQueue.poll().replaceAll(", ", "");
+
+            Collections.sort(allPaths, new Comparator<List<Stage>>() {
+                public int compare(List<Stage> stages1, List<Stage> stages2) {
+
+                    List<String> stages1Names = new ArrayList<String>();
+                    List<String> stages2Names = new ArrayList<String>();
+
+                    for (Stage stage : stages1) {
+                        stages1Names.add(stage.getName());
+                    }
+
+                    for (Stage stage : stages2) {
+                        stages2Names.add(stage.getName());
+                    }
+
+                    if (stages1Names.contains(triggerJob) && stages2Names.contains(criteriaJob)) {
+                        return 1;
+                    } else if (stages1Names.contains(criteriaJob) && stages2Names.contains(triggerJob)) {
+                        return -1;
+                    }
+
+                    return 0;
+                }
+            });     
+        }               
 
         Set<String> blockingJobs = new HashSet<String>();
         Set<String> completedBlockingJobs = new HashSet<String>();
@@ -429,7 +525,6 @@ public class Stage extends AbstractItem {
         int lastRowDiscovered = 0;
         int lastColumnDiscovered = 0;
         int nextBlockingColumn = -1;
-        int numAllSkipped = 0;
 
         // The number of rows to offset by due to a project only having one downstream stage that is also
         // a downstream project
@@ -439,13 +534,36 @@ public class Stage extends AbstractItem {
         for (int row = 0; row < allPaths.size(); row++) {
             List<Stage> path = allPaths.get(row);
             boolean allSkipped = true;
+            int lastMergeColumn = 0;
+            int lastMergeColumnNoShift = 0;
+
             for (int column = 0; column < path.size(); column++) {
                 Stage stage = path.get(column);
 
                 //skip processed stage since the row/column has already been set
                 if (!processedStages.contains(stage)) {
                     allSkipped = false;
-                    stage.setColumn(Math.max(Math.max(stage.getColumn(), column), nextBlockingColumn));
+
+                    if (blockingJobs.contains(stage.getName()) && !completedBlockingJobs.contains(stage.getName())) {
+                        stage.setColumn(Math.max(Math.max(stage.getColumn(), column), nextBlockingColumn));
+                        lastMergeColumn = 0;
+                        lastMergeColumnNoShift = 0;
+                    } else {
+
+                        if (lastMergeColumn != 0) {
+                            stage.setColumn(Math.max(Math.max(column, nextBlockingColumn), 
+                                Math.max(nextBlockingColumn - 1 + column - lastMergeColumnNoShift,
+                                    lastMergeColumn + column - lastMergeColumnNoShift)));
+
+                        } else {
+                            stage.setColumn(Math.max(column, nextBlockingColumn));
+                        }
+
+                        // Get the column number of the current stage as well as it's column number
+                        // defined in the for loop above
+                        lastMergeColumn = stage.getColumn();
+                        lastMergeColumnNoShift = column;                        
+                    }
 
                     final int effectiveColumn = stage.getColumn();
                     final Integer previousRowForThisColumn = columnRowMap.get(effectiveColumn);
@@ -490,6 +608,9 @@ public class Stage extends AbstractItem {
 
                         lastRowDiscovered = currentRowForThisColumn + (pushNextDown ? 1 : 0);
                     }
+                } else {
+                    lastMergeColumn = stage.getColumn();
+                    lastMergeColumnNoShift = column;
                 }
                 // Mark each blocking job as completed
                 if (blockingJobs.contains(stage.getName()) && !completedBlockingJobs.contains(stage.getName())) {
