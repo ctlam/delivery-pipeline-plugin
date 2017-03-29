@@ -150,7 +150,15 @@ public final class ProjectUtil {
                                     if (TriggerBuilder.class.isInstance(buildStep)) {
                                         for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(
                                                 buildStep).getConfigs()) {
-                                            result.add(AbstractProject.findNearest(config.getProjects())); 
+                                
+                                            // Find the nearest project and ONLY add it if the name is an exact match
+                                            AbstractProject projectToAdd = 
+                                                AbstractProject.findNearest(config.getProjects().trim());
+
+                                            if (projectToAdd.getFullName().equals(config.getProjects().trim())) {
+                                                result.add(projectToAdd);
+                                            }
+
                                         }
                                     }
                                 }
@@ -158,7 +166,14 @@ public final class ProjectUtil {
                         // Trigger/call builds on other projects
                         } else if (bs instanceof TriggerBuilder) {
                             for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(bs).getConfigs()) {
-                                result.add(AbstractProject.findNearest(config.getProjects())); 
+
+                                // Find the nearest project and ONLY add it if the name is an exact match
+                                AbstractProject projectToAdd = 
+                                    AbstractProject.findNearest(config.getProjects().trim());
+
+                                if (projectToAdd.getFullName().equals(config.getProjects().trim())) {
+                                    result.add(projectToAdd);
+                                }
                             }
                         }
                     }
