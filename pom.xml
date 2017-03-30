@@ -411,6 +411,11 @@
             <version>1.3.5</version>
         </dependency>
         <dependency>
+            <groupId>org.jenkins-ci.plugins</groupId>
+            <artifactId>postbuildscript</artifactId>
+            <version>0.17</version>
+        </dependency>
+        <dependency>
             <groupId>org.jvnet.hudson.plugins</groupId>
             <artifactId>analysis-core</artifactId>
             <version>1.54</version>

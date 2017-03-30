@@ -24,9 +24,18 @@ import hudson.Util;
 import hudson.model.AbstractBuild;
 import hudson.model.AbstractProject;
 import hudson.model.Cause;
+import hudson.model.Descriptor;
 import hudson.model.ItemGroup;
 import hudson.model.Items;
+import hudson.model.Project;
+import hudson.plugins.parameterizedtrigger.BlockableBuildTriggerConfig;
+import hudson.plugins.parameterizedtrigger.TriggerBuilder;
+import hudson.tasks.BuildStep;
+import hudson.tasks.Publisher;
+import hudson.util.DescribableList;
 import hudson.util.ListBoxModel;
+import org.jenkinsci.plugins.conditionalbuildstep.ConditionalBuilder;
+import org.jenkinsci.plugins.postbuildscript.PostBuildScript;
 import uw.iyyuan.jenkins.timeline.RelationshipResolver;
 
 import java.util.ArrayList;
@@ -108,6 +117,77 @@ public final class ProjectUtil {
         for (RelationshipResolver resolver : resolvers) {
             result.addAll(resolver.getDownstreamProjects(project));
         }
+
+        // Remove all downstream jobs from the list for now
+        // Readd these jobs AFTER checking and adding any subprojects stored in the post build script
+        List<AbstractProject> downstreamList = new ArrayList<AbstractProject>();
+        int numberOfJobsToRemoveAndReadd = getNumberOfDownstreamJobsForProject(project);
+
+        if (numberOfJobsToRemoveAndReadd > 0) {
+            for (int i = 0; i < numberOfJobsToRemoveAndReadd; i++) {
+                downstreamList.add(result.remove(result.size() - 1));
+            }
+        }
+
+        // Get the post build script
+        DescribableList<Publisher, Descriptor<Publisher>> publishers = 
+            (DescribableList<Publisher, Descriptor<Publisher>>) project.getPublishersList();
+
+        // Extract AbstractProjects from the post build script
+        // Note: There is likely a better way to do this but this is sufficient for now
+        if (publishers != null) {
+            for (Publisher publisher : publishers) {
+                if (publisher instanceof PostBuildScript) {
+                    List<BuildStep> postBuildSteps = ((PostBuildScript) publisher).getBuildSteps();
+
+                    for (BuildStep bs : postBuildSteps) {
+                        // Conditional steps (single) or (multiple) 
+                        if (bs instanceof ConditionalBuilder) {
+                            List<BuildStep> cbs = ((ConditionalBuilder) bs).getConditionalbuilders();
+
+                            if (cbs != null) {
+                                for (BuildStep buildStep : cbs) {
+                                    if (TriggerBuilder.class.isInstance(buildStep)) {
+                                        for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(
+                                                buildStep).getConfigs()) {
+                                
+                                            // Find the nearest project and ONLY add it if the name is an exact match
+                                            AbstractProject projectToAdd = 
+                                                AbstractProject.findNearest(config.getProjects().trim());
+
+                                            if (projectToAdd.getFullName().equals(config.getProjects().trim())) {
+                                                result.add(projectToAdd);
+                                            }
+
+                                        }
+                                    }
+                                }
+                            }
+                        // Trigger/call builds on other projects
+                        } else if (bs instanceof TriggerBuilder) {
+                            for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(bs).getConfigs()) {
+
+                                // Find the nearest project and ONLY add it if the name is an exact match
+                                AbstractProject projectToAdd = 
+                                    AbstractProject.findNearest(config.getProjects().trim());
+
+                                if (projectToAdd.getFullName().equals(config.getProjects().trim())) {
+                                    result.add(projectToAdd);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (downstreamList.size() > 0) {
+            // Need to reverse the downstream list first in order to preserve the original order of the downstream
+            // projects before they were removed
+            Collections.reverse(downstreamList);
+            result.addAll(downstreamList);
+        }
+
         return result;
     }
 
@@ -182,5 +262,13 @@ public final class ProjectUtil {
         return projectList;
     }
 
+    private static int getNumberOfDownstreamJobsForProject(AbstractProject project) {
+        int counter = 0;
+        List<AbstractProject> downstreamProjects = project.getDownstreamProjects();
+        for (AbstractProject downstreamProject : downstreamProjects) {
+            counter++;
+        }
+        return counter;
+    }
 
 }
