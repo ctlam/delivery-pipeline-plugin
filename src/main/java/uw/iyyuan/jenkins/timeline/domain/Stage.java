@@ -627,6 +627,69 @@ public class Stage extends AbstractItem {
             }
         }
 
+        final List<Stage> processedPromotionStages = Lists.newArrayList();
+
+        // Readd the promotion criteria and promotion trigger jobs
+        for (Stage stage : stages) {
+            if (stage.getPromotionCriteriaJobs() != "" || stage.getPromotionTriggerJobs() != "") {
+                promotionCriteriaJobsQueue.add(stage.getPromotionCriteriaJobs());
+                promotionTriggerJobsQueue.add(stage.getPromotionTriggerJobs());
+            }
+        }
+
+        // Ensure that all trigger jobs come AFTER the criteria job in a promotion
+        while (!promotionCriteriaJobsQueue.isEmpty()) {
+
+            final String criteriaJob = promotionCriteriaJobsQueue.poll().replaceAll(", ", "");
+            final String triggerJob = promotionTriggerJobsQueue.poll().replaceAll(", ", "");
+
+            int criteriaJobColumn = -1;
+            int triggerJobColumn = -1;
+            int triggerJobColumnNoShift = -1;
+            Stage triggerStage = null;
+
+            for (int row = 0; row < allPaths.size(); row++) {
+                List<Stage> path = allPaths.get(row);
+
+                for (int column = 0; column < path.size(); column++) {
+                    Stage stage = path.get(column);
+
+                    if (stage.getName().equals(criteriaJob)) {
+                        criteriaJobColumn = stage.getColumn();
+                    }
+
+                    if (stage.getName().equals(triggerJob)) {
+                        triggerJobColumn = stage.getColumn();
+                        triggerJobColumnNoShift = column;
+                        triggerStage = stage;
+                    }
+                }
+            }
+
+            for (int row = 0; row < allPaths.size(); row++) {
+                List<Stage> path = allPaths.get(row);
+
+                if (triggerStage != null && path.contains(triggerStage)) {
+
+                    if (triggerJobColumn > criteriaJobColumn) {
+                        break;
+                    }
+
+                    for (int column = 0; column < path.size(); column++) {
+                        Stage stage = path.get(column);
+
+                        if (column >= triggerJobColumnNoShift) {
+                            if (!processedPromotionStages.contains(stage)) {
+                                stage.setColumn(stage.getColumn() + criteriaJobColumn - triggerJobColumn + 1);
+                                processedPromotionStages.add(stage);    
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+
         List<Stage> result = new ArrayList<Stage>(stages);
 
         sortByRowsCols(result);
