@@ -1,3 +1,4 @@
+/*
 This file is part of Delivery Pipeline Plugin.
 
 Delivery Pipeline Plugin is free software: you can redistribute it and/or modify
@@ -13,3 +14,20 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with Delivery Pipeline Plugin.
 If not, see <http://www.gnu.org/licenses/>.
+*/
+package uw.iyyuan.jenkins.timeline.test;
+
+import hudson.scm.RepositoryBrowser;
+import org.jvnet.hudson.test.FakeChangeLogSCM;
+
+import java.io.IOException;
+import java.net.URL;
+
+public class MeanFakeRepositoryBrowser extends RepositoryBrowser<FakeChangeLogSCM.EntryImpl> {
+    private static final long serialVersionUID = 996026414850737194L;
+
+    @Override
+    public URL getChangeSetLink(FakeChangeLogSCM.EntryImpl changeSet) throws IOException {
+        throw new IOException("I can get changeset link");
+    }
+}

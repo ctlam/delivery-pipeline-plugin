@@ -213,6 +213,15 @@ function pipelineUtils() {
                 if (isFullScreen) {
                     html.push("<br/>Press ESC at any time to return to the default view.");
                 }
+
+                var firstJobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
+                if (displayArguments.hasOwnProperty(firstJobName)) {
+                    if (displayArguments[firstJobName].hasOwnProperty("PipelineBuildStatus")) {
+                        html.push("<br/><br/>Note: The pipeline status is determined by the status of the following jobs: " 
+                            + displayArguments[firstJobName].PipelineBuildStatus);
+                    }
+                }
+
                 html.push("</h2></div>");
 
                 html.push("<div class=\"pipelineSecondaryHeader\">");
@@ -292,7 +301,7 @@ function pipelineUtils() {
 
                     html.push("<tr id=\"" + toggleRowId + "\" class=\"" + initClass + "\">");    
                     html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
-                    html.push("<p class=\"circle_header circle_" + statusString + " build_circle\">&nbsp;</p></a></td>");
+                    html.push("<p id=\"" + jobName + "-" + buildNum + "-status\" class=\"circle_header circle_" + statusString + " build_circle\">&nbsp;</p></a></td>");
 
                     html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
                     html.push("<p class=\"build_entry\">#" + buildNum + " " + jobName + "</p></a></td>");
@@ -433,6 +442,7 @@ function pipelineUtils() {
                     html.push('<div class="pipeline-row">');
 
                     for (var j = 0; j < pipeline.stages.length; j++) {
+
                         stage = pipeline.stages[j];
 
                         if (stage.blockingJobs != "") {
@@ -479,7 +489,8 @@ function pipelineUtils() {
                             html.push("<div class=\"stage\" style=\"width: " + widthPerCell + "px;\">");    
                             html.push("<div class=\"stage-header\" style=\"font-size: " + fontSizePerCell + "px;\">");
                             html.push("<div class=\"stage-name\">");
-                            html.push("<a href=\"javascript:void(0);\" onclick=\"openNewTabInBackground('" + link + "')\">");
+                            html.push("<a href=\"" + link + "\" target=\"_blank\">");
+                            // html.push("<a href=\"javascript:void(0);\" onclick=\"openNewTabInBackground('" + link + "')\">");
                             html.push(htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</a></div>");
                         }
 
@@ -536,7 +547,8 @@ function pipelineUtils() {
                                 html.push("<div class=\"task-header\">");
                                 html.push("<div class=\"taskname\">");
                                 html.push("<a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle circle_" + task.status.type + "\" ");
-                                html.push("href=\"javascript:void(0);\" onclick=\"openNewTabInBackground('" + getLink(data, task.link) + consoleLogLink + "');\" ");
+                                // html.push("href=\"javascript:void(0);\" onclick=\"openNewTabInBackground('" + getLink(data, task.link) + consoleLogLink + "');\" ");
+                                html.push("href=\"" + getLink(data, task.link) + consoleLogLink + "\" target=\"_blank\" ");
                                 html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; ");
                                 html.push("background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
                                 html.push("<br/><span class=\"tooltip\" style=\"" + toolTipStyle + "\">" + hoverTable + "</span></a>");
@@ -587,6 +599,9 @@ function pipelineUtils() {
                         allStagesComplete = false;
                     }
                 }
+
+                // Update the build status of the pipeline by checking the status of a user defined job(s)
+                getCustomPipelineBuildStatus(displayArguments, pipeline, jobName, buildNum, allStagesComplete);
 
                 if (allStagesComplete) {
                     if (data.showArtifacts) {
@@ -646,7 +661,6 @@ function pipelineUtils() {
 
             var index = 0, source, target;
             var anchors = [[1, 0, 1, 0, 0, 13], [0, 0, -1, 0, 0, 13]];
-            var downstreamAnchors = [[0.5, 1, 0, 1, 0, 1], [0, 0, -1, 0, -0.5, 13]];
             var backgroundColor = "rgba(31,35,41,1)";
 
             lastResponse = data;
@@ -684,6 +698,7 @@ function pipelineUtils() {
                                 var strokeWidth = 3.5;              // Default line width of 3.5
                                 var stub = scaleCondition ? 30 : 80;
                                 var lastBlockingJob;
+                                var downstreamAnchors = [[0.5, 1, 0, 1, 0, 1], [0, 0, -1, 0, -0.5, 13]];
 
                                 var blockedProjects = conditionalProjects = downstreamProjects = [];
                                 var targetName;
@@ -721,6 +736,19 @@ function pipelineUtils() {
                                         color = "rgba(118,91,161,1)";   // Purple
                                         label = "Downstream";
                                         stub = 10;
+
+                                        for (var j = 0; j < pipeline.stages.length; j++) {
+                                            tmpStage = pipeline.stages[j];
+
+                                            if (value == tmpStage.id) {
+
+                                                if (tmpStage.row <= stage.row) {
+                                                    stub = scaleCondition ? 30 : 80;
+                                                    downstreamAnchors = anchors;
+                                                    break;
+                                                }
+                                            }
+                                        }
                                     }
                                 }
 
@@ -1550,6 +1578,12 @@ function triggerBuild(url, taskId) {
 }
  
 function refreshFn() {
+    // Clear all toggle states
+    sessionStorage.toggleStates = JSON.stringify({});
+
+    // CLear all saved pipeline
+    sessionStorage.pipelineStageIdMap = JSON.stringify({});
+
     pipelineutils.updatePipelines(
         pipelineutilsData[0],
         pipelineutilsData[1],
@@ -1563,8 +1597,6 @@ function refreshFn() {
         pipelineutilsData[9],
         pipelineutilsData[10]
     );
-    // Clear all toggle states
-    sessionStorage.toggleStates = JSON.stringify({});
 }
 
 function htmlEncode(html) {
@@ -1689,19 +1721,90 @@ function getBuildArtifactData(url, jobName, buildNum, buildId, data) {
 function getBuildArtifactLinks(url, json, buildId) {
     var savedValues = JSON.parse(sessionStorage.savedPipelineArtifacts);
     var ele = document.getElementById(buildId);
-    var artifact = url.split("/artifact/")[1];
 
-    var eleString = "<a href=\"" + url + "\" class=\"displayTableEntryLink\">" + artifact + 
-                    "<span class=\"tooltip hoverText\">" + json + "</span></a>";
+    if (ele != null) {
+        var artifact = url.split("/artifact/")[1];
 
-    if (ele.innerHTML != "No artifacts found") {
-        ele.innerHTML += ", " + eleString;
-    } else {
-        ele.innerHTML = eleString;
+        var eleString = "<a href=\"" + url + "\" class=\"displayTableEntryLink\">" + artifact + 
+                        "<span class=\"tooltip hoverText\">" + json + "</span></a>";
+
+        if (ele.innerHTML != "No artifacts found") {
+            ele.innerHTML += ", " + eleString;
+        } else {
+            ele.innerHTML = eleString;
+        }
+
+        savedValues[buildId] = ele.innerHTML;
+        sessionStorage.savedPipelineArtifacts = JSON.stringify(savedValues);
     }
+}
 
-    savedValues[buildId] = ele.innerHTML;
-    sessionStorage.savedPipelineArtifacts = JSON.stringify(savedValues);
+/**
+ * Get custom pipeline status
+ */
+function getCustomPipelineBuildStatus(displayArgs, pipeline, jobName, buildNum, allStagesComplete) {
+    for (var mainProject in displayArgs) {
+        if (mainProject == jobName) {
+            // Check for global display arguments
+            if (!displayArgs[mainProject].hasOwnProperty("PipelineBuildStatus")) {
+                return;
+            }
+
+            // Pipeline is still running to set the status to be running
+            if (!allStagesComplete) {
+
+                // Update pipeline build status to finalStatus
+                var id = jobName + "-" + buildNum + "-status";
+                var ele = document.getElementById(id);
+
+                ele.className = "circle_header circle_RUNNING build_circle";
+                return;
+
+            } else {
+
+                // Check that all the user defined jobs are successful
+                var finalStatus = "";
+
+                for (var i = 0; i < pipeline.stages.length; i++) {
+                    stage = pipeline.stages[i];
+
+                    var projects = displayArgs[mainProject].PipelineBuildStatus;
+
+                    while (projects != "") {
+                        var project = projects.split(",")[0];
+
+                        if (stage.name == project) {
+                            stageStatus = stage.tasks[0].status.type;
+
+                            if (stageStatus == "FAILED" || stageStatus == "CANCELLED" || stageStatus == "IDLE") {
+
+                                var id = jobName + "-" + buildNum + "-status";
+                                var ele = document.getElementById(id);
+
+                                ele.className = "circle_header circle_FAILED build_circle";
+
+                                return;
+                            }
+
+                            if (stageStatus == "SUCCESS") {
+                                finalStatus = "SUCCESS";
+                            }
+                        }
+
+                        projects = projects.split(",").slice(1).join(",");
+                    }
+                }
+
+                if (finalStatus != "") {
+                    // Update pipeline build status to finalStatus
+                    var id = jobName + "-" + buildNum + "-status";
+                    var ele = document.getElementById(id);
+
+                    ele.className = "circle_header circle_" + finalStatus + " build_circle"; 
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -2599,8 +2702,6 @@ function toggleCompatibleFs(jobName, buildNum) {
             var ele = document.getElementById(buildId);
             var rowEle = document.getElementById(rowId);
             var pipelineEle = document.getElementById(pipelineId);
-
-            console.info("Hiding: " + buildId);
 
             ele.style.display = "none";
             rowEle.className = "untoggled_build_header";

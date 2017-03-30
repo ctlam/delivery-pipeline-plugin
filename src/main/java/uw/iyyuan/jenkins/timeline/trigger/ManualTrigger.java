@@ -1,3 +1,4 @@
+/*
 This file is part of Delivery Pipeline Plugin.
 
 Delivery Pipeline Plugin is free software: you can redistribute it and/or modify
@@ -13,3 +14,15 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with Delivery Pipeline Plugin.
 If not, see <http://www.gnu.org/licenses/>.
+*/
+package uw.iyyuan.jenkins.timeline.trigger;
+
+import hudson.model.AbstractProject;
+import hudson.model.ItemGroup;
+import hudson.model.TopLevelItem;
+
+public interface ManualTrigger {
+    void triggerManual(AbstractProject<?,?> project, AbstractProject<?,?> upstream,
+                       String buildId, ItemGroup<? extends TopLevelItem> itemGroup) throws TriggerException;
+
+}
