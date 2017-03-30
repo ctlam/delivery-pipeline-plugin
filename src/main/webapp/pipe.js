@@ -217,8 +217,37 @@ function pipelineUtils() {
                 var firstJobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
                 if (displayArguments.hasOwnProperty(firstJobName)) {
                     if (displayArguments[firstJobName].hasOwnProperty("PipelineBuildStatus")) {
-                        html.push("<br/><br/>Note: The pipeline status is determined by the status of the following jobs: " 
-                            + displayArguments[firstJobName].PipelineBuildStatus);
+                        html.push("<br/><br/>Note: The pipeline status is determined by the status of the following jobs: [ " 
+                            + replace(displayArguments[firstJobName].PipelineBuildStatus, ",", ", ") + " ]");
+
+                        var allStages = "";
+                        for (var i = 0; i < component.pipelines.length; i++) {
+                            pipeline = component.pipelines[i];
+
+                            for (var j = 0; j < pipeline.stages.length; j++) {
+                                stage = pipeline.stages[j];
+
+                                allStages += stage.name + ",";
+                            }
+                        }
+
+                        var missingStages = "";
+                        var projects = displayArguments[firstJobName].PipelineBuildStatus;
+
+                        while (projects != "") {
+                            var project = projects.split(",")[0];
+
+                            if (allStages.indexOf(project) == -1) {
+                                missingStages += project + ", ";
+                            }
+
+                            projects = projects.split(",").slice(1).join(",");    
+                        }
+
+                        if (missingStages != "") {
+                            missingStages = missingStages.substring(0, missingStages.length - 2);
+                            html.push("</h2><h2>Error: The following projects [ " + missingStages + " ] could not be found and will be ignored.");
+                        }
                     }
                 }
 
@@ -1789,6 +1818,8 @@ function getCustomPipelineBuildStatus(displayArgs, pipeline, jobName, buildNum, 
                             if (stageStatus == "SUCCESS") {
                                 finalStatus = "SUCCESS";
                             }
+
+                            break;
                         }
 
                         projects = projects.split(",").slice(1).join(",");
