@@ -2841,3 +2841,19 @@ function storePagePosition() {
   var page_y = window.pageYOffset;
   sessionStorage.setItem("page_y", page_y);
 }
+
+/**
+ * Replays the pipeline
+ */
+function replay(pipeline, pipelineName, pipelineNum) {
+
+    var stages = pipeline.stages;
+
+    stages.sort(function(a, b) {
+        var timestampA = parseInt(a.tasks[0].status.timestamp);
+        var timestampB = parseInt(b.tasks[0].status.timestamp);
+        return buildNumA - buildNumB;
+    });
+
+    console.info(stages);
+}
