@@ -94,6 +94,9 @@ public class Stage extends AbstractItem {
     private String promotionCriteriaJobs;
     private String promotionTriggerJobs;
 
+    // Used for mapping of stages
+    private int nextBlockingColumn = -1;
+
     public Stage(String name, List<Task> tasks) {
         super(name);
         this.tasks = ImmutableList.copyOf(tasks);
@@ -256,6 +259,14 @@ public class Stage extends AbstractItem {
 
     public void setPromotionTriggerJobs(String promotionTriggerJobs) {
         this.promotionTriggerJobs = promotionTriggerJobs;
+    }
+
+    public int getNextBlockingColumn() {
+        return nextBlockingColumn;
+    }
+
+    public void setNextBlockingColumn(int nextBlockingColumn) {
+        this.nextBlockingColumn = nextBlockingColumn;
     }
 
     public void setTaskConnections(Map<String, List<String>> taskConnections) {
@@ -524,7 +535,6 @@ public class Stage extends AbstractItem {
         // node are kept on separate rows
         int lastRowDiscovered = 0;
         int lastColumnDiscovered = 0;
-        int nextBlockingColumn = -1;
 
         // The number of rows to offset by due to a project only having one downstream stage that is also
         // a downstream project
@@ -539,24 +549,26 @@ public class Stage extends AbstractItem {
 
             for (int column = 0; column < path.size(); column++) {
                 Stage stage = path.get(column);
+                Stage previousStage = (column > 0) ? path.get(column - 1) : path.get(column);
 
                 //skip processed stage since the row/column has already been set
                 if (!processedStages.contains(stage)) {
                     allSkipped = false;
 
                     if (blockingJobs.contains(stage.getName()) && !completedBlockingJobs.contains(stage.getName())) {
-                        stage.setColumn(Math.max(Math.max(stage.getColumn(), column), nextBlockingColumn));
+                        stage.setColumn(Math.max(Math.max(stage.getColumn(), column), 
+                                previousStage.getNextBlockingColumn()));
                         lastMergeColumn = 0;
                         lastMergeColumnNoShift = 0;
                     } else {
 
                         if (lastMergeColumn != 0) {
-                            stage.setColumn(Math.max(Math.max(column, nextBlockingColumn), 
-                                Math.max(nextBlockingColumn - 1 + column - lastMergeColumnNoShift,
+                            stage.setColumn(Math.max(Math.max(column, previousStage.getNextBlockingColumn()), 
+                                Math.max(previousStage.getNextBlockingColumn() - 1 + column - lastMergeColumnNoShift,
                                     lastMergeColumn + column - lastMergeColumnNoShift)));
 
                         } else {
-                            stage.setColumn(Math.max(column, nextBlockingColumn));
+                            stage.setColumn(Math.max(column, previousStage.getNextBlockingColumn()));
                         }
 
                         // Get the column number of the current stage as well as it's column number
@@ -614,11 +626,27 @@ public class Stage extends AbstractItem {
                 }
                 // Mark each blocking job as completed
                 if (blockingJobs.contains(stage.getName()) && !completedBlockingJobs.contains(stage.getName())) {
-                    nextBlockingColumn = stage.getColumn() + 1;
+
+                    stage.setNextBlockingColumn(stage.getColumn() + 1);
+                    previousStage.setNextBlockingColumn(stage.getColumn() + 1);
+
+                    Stage currentStage = previousStage;
+                    for (int prevColumn = (column > 0) ? column - 1 : column; prevColumn > 0; prevColumn--) {
+                        previousStage = path.get(prevColumn - 1);
+
+                        if (previousStage.getBlockingJobs().contains(currentStage.getName())) {
+                            previousStage.setNextBlockingColumn(stage.getColumn() + 1);
+                        } else {
+                            break;
+                        }
+
+                        currentStage = previousStage;
+                    }
+
                     completedBlockingJobs.add(stage.getName());
                 }
             }
-            // lastRowDiscovered = row + onlyDownstreamJobOffset;
+
             lastRowDiscovered++;
             pushNextDown = false;
             
@@ -626,8 +654,6 @@ public class Stage extends AbstractItem {
                 lastRowDiscovered--;
             }
         }
-
-        final List<Stage> processedPromotionStages = Lists.newArrayList();
 
         // Readd the promotion criteria and promotion trigger jobs
         for (Stage stage : stages) {
@@ -640,6 +666,7 @@ public class Stage extends AbstractItem {
         // Ensure that all trigger jobs come AFTER the criteria job in a promotion
         while (!promotionCriteriaJobsQueue.isEmpty()) {
 
+            final List<Stage> processedPromotionStages = Lists.newArrayList();
             final String criteriaJob = promotionCriteriaJobsQueue.poll().replaceAll(", ", "");
             final String triggerJob = promotionTriggerJobsQueue.poll().replaceAll(", ", "");
 
@@ -655,7 +682,7 @@ public class Stage extends AbstractItem {
                     Stage stage = path.get(column);
 
                     if (stage.getName().equals(criteriaJob)) {
-                        criteriaJobColumn = stage.getColumn();
+                        criteriaJobColumn = Math.max(stage.getColumn(), stage.getNextBlockingColumn());
                     }
 
                     if (stage.getName().equals(triggerJob)) {
@@ -681,6 +708,12 @@ public class Stage extends AbstractItem {
                         if (column >= triggerJobColumnNoShift) {
                             if (!processedPromotionStages.contains(stage)) {
                                 stage.setColumn(stage.getColumn() + criteriaJobColumn - triggerJobColumn + 1);
+
+                                // Update the stages next blocking column as well
+                                if (stage.getNextBlockingColumn() > -1) {
+                                    stage.setNextBlockingColumn(stage.getNextBlockingColumn() - 1
+                                            + criteriaJobColumn - triggerJobColumn + 1);
+                                }
                                 processedPromotionStages.add(stage);    
                             }
                         }
