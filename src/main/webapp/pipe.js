@@ -4,7 +4,7 @@ var isFullScreen = (document.getElementById("main-panel") == null);
 var numColumns = 0;
 var pipelineutilsData = [];
 var pipelineutils;
-var storedPipeline;
+var storedPipelines = [];
 
 function pipelineUtils() {
     var self = this;
@@ -133,6 +133,8 @@ function pipelineUtils() {
         } else {
             cErrorDiv.hide().html('');
         }
+
+        storedPipelines = [];
 
         // Get the display arguments from a specified project url
         var displayArgumentsFromFile = {};
@@ -284,6 +286,7 @@ function pipelineUtils() {
 
                 for (var i = 0; i < component.pipelines.length; i++) {
                     pipeline = component.pipelines[i];
+                    storedPipelines.push(pipeline);
 
                     var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
                     var buildNum = pipeline.version.substring(1);
@@ -2869,13 +2872,15 @@ function storePagePosition() {
  * Retrieves previous build information for merged stages
  */
 function replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stages, pipelineNum, firstStageTimestamp) {
-    return replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stages, pipelineNum, firstStageTimestamp, null);
+    return replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stages, pipelineNum, firstStageTimestamp, 
+                                         null);
 }
 
 /**
  * Retrieves previous build information for merged stages
  */
-function replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stages, pipelineNum, firstStageTimestamp, overrideStageData) {
+function replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stages, pipelineNum, firstStageTimestamp, 
+                                       overrideStageData) {
 
     var returnTimestamps = [];
 
@@ -2883,6 +2888,8 @@ function replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stag
     var targetBuildId = parseInt(stageToNameMap[targetName].tasks[0].buildId);
     var stageData = [];
 
+    // Set up the sources information
+    // These are the upstream projects that triggered a build for another project
     for (var i = 0; i < stages.length; i++) {
         var stage = stages[i];
         
@@ -2895,21 +2902,23 @@ function replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stag
         stageData = overrideStageData;
     }
 
-    console.info(sources);
-    console.info(stageData);
+    // console.info(sources);
+    // console.info(stageData);
 
+    // Check the last 10 builds of the project to see if any were triggered by the pipeline
     for (var j = targetBuildId - 1; j >= Math.max(targetBuildId - 11, 1); j--) {
 
         var json = {};
         var isError = false;
 
+        // Synchronous calls are probably a bad idea
         Q.ajax({
-            url: rootURL + "job/" + targetName + "/" + j + "/api/json",
+            url: rootURL + "job/" + targetName + "/" + j + "/api/json?tree=actions[causes[*]],timestamp,duration,result",
             dataType: "json",
             type: "GET",
             async: false,
             cache: true,
-            timeout: 20000,
+            timeout: 5000,
             success: function(data) {
                 json = data;
             },
@@ -2922,57 +2931,65 @@ function replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stag
             break;
         }
 
-        if (json.hasOwnProperty("timestamp")) {
-            if (json.timestamp < firstStageTimestamp) {
-                break;
-            }
+        // Query must have a timestamp
+        if (!json.hasOwnProperty("timestamp")) {
+            break;
+        }
 
-            if (json.hasOwnProperty("actions")) {
-                var actions = json.actions;
+        // Stop searching if the build's timestamp is BEFORE the start of the pipeline
+        if (json.timestamp < firstStageTimestamp) {
+            break;
+        }
 
-                for (var k = 0; k < actions.length; k++) {
-                    if (actions[k].hasOwnProperty("causes")) {
-                        var causes = actions[k].causes;
+        if (json.hasOwnProperty("actions")) {
+            var actions = json.actions;
 
-                        for (var l = 0; l < causes.length; l++) {
-                            var cause = causes[l];
+            for (var k = 0; k < actions.length; k++) {
+                if (actions[k].hasOwnProperty("causes")) {
+                    var causes = actions[k].causes;
 
-                            if (cause.hasOwnProperty("upstreamBuild") && cause.hasOwnProperty("upstreamProject")) {
+                    for (var l = 0; l < causes.length; l++) {
+                        var cause = causes[l];
 
-                                for (var m = 0; m < stageData.length; m++) {
+                        if (cause.hasOwnProperty("upstreamBuild") && cause.hasOwnProperty("upstreamProject")) {
 
-                                    if (stageData[m][0] == cause.upstreamProject && stageData[m][1] == cause.upstreamBuild.toString()) {
+                            for (var m = 0; m < stageData.length; m++) {
 
-                                        console.info("Found correct shit");
+                                // Verify that this current build was triggered from the pipeline
+                                if (stageData[m][0] == cause.upstreamProject 
+                                        && stageData[m][1] == cause.upstreamBuild.toString()) {
 
-                                        returnTimestamps.push([targetStage, json.timestamp, json.duration + json.timestamp, json.result]);
+                                    console.info("Found a build triggered during the pipeline run! " +
+                                            "{ " + targetName + ", " + j + " }");
 
-                                        // Recursive Call
-                                        console.info(targetStage.downstreamStages);
+                                    // Add the build information to the timestamp list
+                                    returnTimestamps.push([targetStage, json.timestamp, json.duration + json.timestamp,
+                                            json.result]);
 
-                                        for (var n = 0; n < targetStage.downstreamStages.length; n++) {
-                                            var nextStageName = targetStage.downstreamStages[n];
-                                            var nextSources = [getStageId(targetStage.id + "", pipelineNum)];
-                                            var nextStageData = [[targetName, j.toString()]];
+                                    // Recursive call to check downstream projects
+                                    for (var n = 0; n < targetStage.downstreamStages.length; n++) {
+                                        var nextStageName = targetStage.downstreamStages[n];
+                                        var nextSources = [getStageId(targetStage.id + "", pipelineNum)];
+                                        var nextStageData = [[targetName, j.toString()]];
 
-                                            var additionalStageTimestamps = replayRetrieveMergedStageData(stageToNameMap, nextStageName, nextSources, stages, pipelineNum, firstStageTimestamp, nextStageData);
+                                        var additionalStageTimestamps = replayRetrieveMergedStageData(stageToNameMap,
+                                                nextStageName, nextSources, stages, pipelineNum, firstStageTimestamp,
+                                                nextStageData);
 
-                                            for (var o = 0; o < additionalStageTimestamps.length; o++) {
-                                                returnTimestamps.push(additionalStageTimestamps[o]);
-                                            }
+                                        for (var o = 0; o < additionalStageTimestamps.length; o++) {
+                                            returnTimestamps.push(additionalStageTimestamps[o]);
                                         }
-
-                                        return returnTimestamps;
                                     }
+
+                                    return returnTimestamps;
                                 }
                             }
                         }
                     }
                 }
             }
-        } else {
-            break;
         }
+
     }
 
     return [];
@@ -3019,7 +3036,7 @@ function replayUpdateStage(stageTimestamps, counter, pipelineNum, overrideStatus
  */
 function replay(pipelineNum) {
 
-    var pipeline = storedPipeline;
+    var pipeline = storedPipelines[pipelineNum];
     var stages = pipeline.stages;
     var stageTimestamps = [];
     var firstStageTimestamp = stages[0].tasks[0].timestamp;
@@ -3032,6 +3049,7 @@ function replay(pipelineNum) {
         stageToNameMap[stage.name] = stage;
     }
 
+    // Set all stages to IDLE unless they are DISABLED
     for (var i = 0; i < stages.length; i++) {
         var stage = stages[i];
         var stageId = getStageId(stage.id + "", pipelineNum);
@@ -3042,12 +3060,13 @@ function replay(pipelineNum) {
             ele.className = "circle circle_IDLE";
         }
 
+
+        // Check if there is more than one connection to a particular stage
+        // Try to find additional builds of a particular project in the same pipeline that are not shown
         var connections = instance.getConnections({ target:stageId });
 
         if (instance.getConnections({ target:stageId }).length > 1) {
-
             var sources = [];
-
             for (var j = 0; j < connections.length; j++) {
 
                 var connection = connections[j];
@@ -3061,16 +3080,17 @@ function replay(pipelineNum) {
                 }
             }
 
+            // Attempt to find the not shown builds of a job in the pipeline and add them to the timestamp list
             if (sources.length > 1) {
                 console.info("More than one connection { " + sources.length + " } to stage: " + stage.name);
 
                 if (!isNullOrEmpty(stage.tasks[0].buildId)) {
 
-                    var additionalStageTimestamps = replayRetrieveMergedStageData(stageToNameMap, stage.name, sources, stages, pipelineNum, firstStageTimestamp);
+                    var additionalStageTimestamps = replayRetrieveMergedStageData(stageToNameMap, stage.name, sources, 
+                            stages, pipelineNum, firstStageTimestamp);
 
-
-                    for (var m = 0; m < additionalStageTimestamps.length; m++) {
-                        var aStageTS = additionalStageTimestamps[m];
+                    for (var k = 0; k < additionalStageTimestamps.length; k++) {
+                        var aStageTS = additionalStageTimestamps[k];
 
                         stageTimestamps.push([aStageTS[0], aStageTS[1], true, aStageTS[3]]);
                         stageTimestamps.push([aStageTS[0], aStageTS[2], false, aStageTS[3]]);
@@ -3083,6 +3103,7 @@ function replay(pipelineNum) {
         var startTs = parseInt(stage.tasks[0].status.timestamp);
         var endTs = startTs + parseInt(stage.tasks[0].status.duration);
 
+        // Only add to the timestamp list if the timestamp is valid / exists
         if (isNaN(startTs)) {
             continue;
         }
@@ -3091,6 +3112,7 @@ function replay(pipelineNum) {
         stageTimestamps.push([stage, endTs, false]);
     }
 
+    // Sort all the timestamps
     stageTimestamps = stageTimestamps.sort(function(a, b) {
         var timestampA = a[1];
         var timestampB = b[1];
