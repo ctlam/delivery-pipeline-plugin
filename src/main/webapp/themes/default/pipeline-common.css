@@ -547,7 +547,7 @@ div.aggregatedChangesPanelInner > ul {
 }
 
 .build_header_BUILD_NUM {
-    width: 50%;
+    width: 45%;
 }
 
 .build_header_DURATION {
@@ -560,6 +560,10 @@ div.aggregatedChangesPanelInner > ul {
 
 .build_header_STARTED_BY {
     width: 15%;
+}
+
+.builder_header_REPLAY {
+    width: 5%;
 }
 
 .build_column {

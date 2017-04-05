@@ -4,6 +4,7 @@ var isFullScreen = (document.getElementById("main-panel") == null);
 var numColumns = 0;
 var pipelineutilsData = [];
 var pipelineutils;
+var storedPipeline;
 
 function pipelineUtils() {
     var self = this;
@@ -276,6 +277,7 @@ function pipelineUtils() {
                 html.push("<th class=\"build_header build_header_DURATION\">Duration</th>");
                 html.push("<th class=\"build_header build_header_DATE\">Date</th>");
                 html.push("<th class=\"build_header build_header_STARTED_BY\">Started by</th>");
+                html.push("<th class=\"build_header build_header_REPLAY\">Replay</th>");
                 html.push("</tr>");
 
                 var isLatestPipeline = true;
@@ -344,7 +346,14 @@ function pipelineUtils() {
                     html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
                     html.push("<p class=\"build_entry\">" + triggered + "</p></a></td>");
 
-                    html.push("</tr><tr><th id=\"" + togglePipelineId + "\" colspan=\"5\" class=\"" + initPipelineClass + "\">");
+                    html.push("<td class=\"build_column\"><a href=\"javascript:replay('" + i + "');\" style=\"text-decoration:none;\">");
+                    html.push("<p class=\"build_entry\">Replay!</p></a></td>");
+
+                    if (i == 0) {
+                        storedPipeline = pipeline;
+                    }
+
+                    html.push("</tr><tr><th id=\"" + togglePipelineId + "\" colspan=\"6\" class=\"" + initPipelineClass + "\">");
                     html.push("<div id=\"" + toggleBuildId + "\" style=\"display:" + getToggleState(toggleBuildId, "block", isLatestPipeline) + ";\">");
 
                     // Only expand the latest pipeline
@@ -2099,7 +2108,14 @@ function updateGlobalDisplayValues(data, url, displayArgs, pipelineName, pipelin
                     if (displayKeyConfig.hasOwnProperty("projectName") && displayKeyConfig.projectName == projectName) {
                         if (displayKeyConfig.hasOwnProperty("fromConsole") && 
                             (displayKeyConfig.fromConsole == "true" || displayKeyConfig.fromConsole == true)) {
-                            var toolTipData = data.replace(/-/g, '&#x2011;');
+                            var toolTipData = data;
+
+                            // JSON files return javascript objects which must be stringified
+                            if (data !== null && typeof data === 'object') {
+                                toolTipData = JSON.stringify(data).replace(/-/g, '&#x2011;');
+                            } else {
+                                toolTipData = data.replace(/-/g, '&#x2011;');
+                            }
 
                             if (displayKeyConfig.hasOwnProperty("grepPattern")) {
                                 var grepPattern = displayKeyConfig.grepPattern;
@@ -2156,7 +2172,14 @@ function updateGlobalDisplayValues(data, url, displayArgs, pipelineName, pipelin
 
                     if (displayKeyConfig.hasOwnProperty("projectName") && displayKeyConfig.projectName == projectName) {
                         if (displayKeyConfig.hasOwnProperty(propertyType) && displayKeyConfig[propertyType] == file) {
-                            var toolTipData = data.replace(/-/g, '&#x2011;');
+                            var toolTipData = data;
+
+                            // JSON files return javascript objects which must be stringified
+                            if (data !== null && typeof data === 'object') {
+                                toolTipData = JSON.stringify(data).replace(/-/g, '&#x2011;');
+                            } else {
+                                toolTipData = data.replace(/-/g, '&#x2011;');
+                            }
 
                             if (displayKeyConfig.hasOwnProperty("grepPattern")) {
                                 var grepPattern = displayKeyConfig.grepPattern;
@@ -2843,17 +2866,246 @@ function storePagePosition() {
 }
 
 /**
+ * Retrieves previous build information for merged stages
+ */
+function replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stages, pipelineNum, firstStageTimestamp) {
+    return replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stages, pipelineNum, firstStageTimestamp, null);
+}
+
+/**
+ * Retrieves previous build information for merged stages
+ */
+function replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stages, pipelineNum, firstStageTimestamp, overrideStageData) {
+
+    var returnTimestamps = [];
+
+    var targetStage = stageToNameMap[targetName];
+    var targetBuildId = parseInt(stageToNameMap[targetName].tasks[0].buildId);
+    var stageData = [];
+
+    for (var i = 0; i < stages.length; i++) {
+        var stage = stages[i];
+        
+        if (sources.includes(getStageId(stage.id + "", pipelineNum))) {
+            stageData.push([stage.name, stage.tasks[0].buildId]);
+        }
+    }
+
+    if (overrideStageData != null) {
+        stageData = overrideStageData;
+    }
+
+    console.info(sources);
+    console.info(stageData);
+
+    for (var j = targetBuildId - 1; j >= Math.max(targetBuildId - 11, 1); j--) {
+
+        var json = {};
+        var isError = false;
+
+        Q.ajax({
+            url: rootURL + "job/" + targetName + "/" + j + "/api/json",
+            dataType: "json",
+            type: "GET",
+            async: false,
+            cache: true,
+            timeout: 20000,
+            success: function(data) {
+                json = data;
+            },
+            error: function (xhr, status, error) {
+                isError = true;
+            }
+        })
+
+        if (isError) {
+            break;
+        }
+
+        if (json.hasOwnProperty("timestamp")) {
+            if (json.timestamp < firstStageTimestamp) {
+                break;
+            }
+
+            if (json.hasOwnProperty("actions")) {
+                var actions = json.actions;
+
+                for (var k = 0; k < actions.length; k++) {
+                    if (actions[k].hasOwnProperty("causes")) {
+                        var causes = actions[k].causes;
+
+                        for (var l = 0; l < causes.length; l++) {
+                            var cause = causes[l];
+
+                            if (cause.hasOwnProperty("upstreamBuild") && cause.hasOwnProperty("upstreamProject")) {
+
+                                for (var m = 0; m < stageData.length; m++) {
+
+                                    if (stageData[m][0] == cause.upstreamProject && stageData[m][1] == cause.upstreamBuild.toString()) {
+
+                                        console.info("Found correct shit");
+
+                                        returnTimestamps.push([targetStage, json.timestamp, json.duration + json.timestamp, json.result]);
+
+                                        // Recursive Call
+                                        console.info(targetStage.downstreamStages);
+
+                                        for (var n = 0; n < targetStage.downstreamStages.length; n++) {
+                                            var nextStageName = targetStage.downstreamStages[n];
+                                            var nextSources = [getStageId(targetStage.id + "", pipelineNum)];
+                                            var nextStageData = [[targetName, j.toString()]];
+
+                                            var additionalStageTimestamps = replayRetrieveMergedStageData(stageToNameMap, nextStageName, nextSources, stages, pipelineNum, firstStageTimestamp, nextStageData);
+
+                                            for (var o = 0; o < additionalStageTimestamps.length; o++) {
+                                                returnTimestamps.push(additionalStageTimestamps[o]);
+                                            }
+                                        }
+
+                                        return returnTimestamps;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            break;
+        }
+    }
+
+    return [];
+}
+
+/**
+ * Updates the replay stage
+ */
+function replayUpdateStage(stageTimestamps, counter, pipelineNum) {
+    replayUpdateStage(stageTimestamps, counter, pipelineNum, null);
+}
+
+/**
+ * Updates the replay stage
+ */
+function replayUpdateStage(stageTimestamps, counter, pipelineNum, overrideStatus) {
+    var isStartTs = stageTimestamps[counter][2];
+    var stage = stageTimestamps[counter][0];
+    var stageId = getStageId(stage.id + "", pipelineNum);
+    var stageStatus = stage.tasks[0].status.type;
+
+    if (overrideStatus != null) {
+        stageStatus = overrideStatus;
+    }
+
+    if (isStartTs) {
+
+        if (stageStatus != "IDLE" && stageStatus != "DISABLED" && stageStatus != "NOT_BUILT") {    
+            var ele = document.getElementById(stageId);
+            ele.className = "circle circle_RUNNING";
+        }
+
+    } else {
+
+        if (stageStatus != "IDLE" && stageStatus != "DISABLED" && stageStatus != "NOT_BUILT") {    
+            var ele = document.getElementById(stageId);
+            ele.className = "circle circle_" + stageStatus;
+        }
+    }
+}
+
+/**
  * Replays the pipeline
  */
-function replay(pipeline, pipelineName, pipelineNum) {
+function replay(pipelineNum) {
 
+    var pipeline = storedPipeline;
     var stages = pipeline.stages;
+    var stageTimestamps = [];
+    var firstStageTimestamp = stages[0].tasks[0].timestamp;
 
-    stages.sort(function(a, b) {
-        var timestampA = parseInt(a.tasks[0].status.timestamp);
-        var timestampB = parseInt(b.tasks[0].status.timestamp);
-        return buildNumA - buildNumB;
+    var stageToNameMap = {};
+
+    // Map each stage name to each stage object
+    for (var i = 0; i < stages.length; i++) {
+        var stage = stages[i];
+        stageToNameMap[stage.name] = stage;
+    }
+
+    for (var i = 0; i < stages.length; i++) {
+        var stage = stages[i];
+        var stageId = getStageId(stage.id + "", pipelineNum);
+        var stageStatus = stage.tasks[0].status.type;
+
+        if (stageStatus != "DISABLED") {
+            var ele = document.getElementById(stageId);
+            ele.className = "circle circle_IDLE";
+        }
+
+        var connections = instance.getConnections({ target:stageId });
+
+        if (instance.getConnections({ target:stageId }).length > 1) {
+
+            var sources = [];
+
+            for (var j = 0; j < connections.length; j++) {
+
+                var connection = connections[j];
+
+                if (connection.hasOwnProperty("sourceId")) {
+                    var source = connection.sourceId;
+
+                    if (!sources.includes(source.toString())) {
+                        sources.push(source.toString());
+                    }
+                }
+            }
+
+            if (sources.length > 1) {
+                console.info("More than one connection { " + sources.length + " } to stage: " + stage.name);
+
+                if (!isNullOrEmpty(stage.tasks[0].buildId)) {
+
+                    var additionalStageTimestamps = replayRetrieveMergedStageData(stageToNameMap, stage.name, sources, stages, pipelineNum, firstStageTimestamp);
+
+
+                    for (var m = 0; m < additionalStageTimestamps.length; m++) {
+                        var aStageTS = additionalStageTimestamps[m];
+
+                        stageTimestamps.push([aStageTS[0], aStageTS[1], true, aStageTS[3]]);
+                        stageTimestamps.push([aStageTS[0], aStageTS[2], false, aStageTS[3]]);
+
+                    }
+                }
+            }
+        }
+
+        var startTs = parseInt(stage.tasks[0].status.timestamp);
+        var endTs = startTs + parseInt(stage.tasks[0].status.duration);
+
+        if (isNaN(startTs)) {
+            continue;
+        }
+
+        stageTimestamps.push([stage, startTs, true]);
+        stageTimestamps.push([stage, endTs, false]);
+    }
+
+    stageTimestamps = stageTimestamps.sort(function(a, b) {
+        var timestampA = a[1];
+        var timestampB = b[1];
+        return timestampA - timestampB;
     });
 
-    console.info(stages);
+    var counter = 0;
+    for (var i = 0; i < stageTimestamps.length; i++) {
+        sleep(i * 2000).then(() => {
+            replayUpdateStage(stageTimestamps, counter, pipelineNum);
+            counter++;
+        });
+    }
+}
+
+function sleep (time) {
+    return new Promise((resolve) => setTimeout(resolve, time));
 }
