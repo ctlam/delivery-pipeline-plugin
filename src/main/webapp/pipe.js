@@ -1193,7 +1193,7 @@ function generateButtons(c, firstJobParameterized, firstJobUrl, name) {
     html.push("</div>");
 
     html.push("<div class=\"button buttonRefresh\">");
-        html.push("<a id=\"refreshpipeline-" + c  + "\" href=\"javascript:void(0);\" onclick=\"refreshFn();\" style=\"text-decoration:none;\">");
+        html.push("<a id=\"refreshpipeline-" + c  + "\" href=\"javascript:void(0);\" onclick=\"refreshFn(true);\" style=\"text-decoration:none;\">");
             html.push("<p class=\"buttonText\">Refresh Pipeline</p>");
         html.push("</a>");
     html.push("</div>");
@@ -1616,7 +1616,7 @@ function triggerBuild(url, taskId) {
         timeout: 20000,
         success: function (data, textStatus, jqXHR) {
             console.info("Triggered build of " + taskId + " successfully!")
-            refreshFn();
+            refreshFn(true);
         },
         error: function (jqXHR, textStatus, errorThrown) {
             window.alert("Could not trigger build! error: " + errorThrown + " status: " + textStatus)
@@ -1624,9 +1624,12 @@ function triggerBuild(url, taskId) {
     });
 }
  
-function refreshFn() {
-    // Clear all toggle states
-    sessionStorage.toggleStates = JSON.stringify({});
+function refreshFn(clearToggleStates) {
+
+    if (clearToggleStates) {
+        // Clear all toggle states
+        sessionStorage.toggleStates = JSON.stringify({});    
+    }
 
     // CLear all saved pipeline
     sessionStorage.pipelineStageIdMap = JSON.stringify({});
@@ -3288,7 +3291,7 @@ function replay(pipelineNum) {
         console.info("Replay complete! Refreshing page!");
         replayIsRunning = false;
         replayEle.className = "replay replayStopped build_circle";
-        refreshFn();
+        refreshFn(false);
     });
 }
 
