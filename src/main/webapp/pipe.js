@@ -351,7 +351,7 @@ function pipelineUtils() {
                     html.push("<p class=\"build_entry\">" + triggered + "</p></a></td>");
 
                     html.push("<td class=\"build_column\"><a href=\"javascript:replay('" + i + "');\" style=\"text-decoration:none;\">");
-                    html.push("<p id=\"replay-" + i + "\" class=\"replay replayStopped build_circle\"></p></a></td>");
+                    html.push("<p id=\"replay-" + i + "\" class=\"replay replayDisabled build_circle\"></p></a></td>");
 
                     html.push("</tr><tr><th id=\"" + togglePipelineId + "\" colspan=\"6\" class=\"" + initPipelineClass + "\">");
                     html.push("<div id=\"" + toggleBuildId + "\" style=\"display:" + getToggleState(toggleBuildId, "block", isLatestPipeline) + ";\">");
@@ -661,6 +661,9 @@ function pipelineUtils() {
                     } else {
                         loadFailedOnBlockStages(pipeline, i);
                     }
+
+                    var replayEle = document.getElementById("replay-" + i);
+                    replayEle.className = "replay replayStopped build_circle";
                 }
             }
 
@@ -3092,7 +3095,9 @@ function replayUpdateStage(stageTimestamps, counter, pipelineNum) {
                 stroke: "yellow",
                 strokeWidth: 3.5
             }
-        );
+        ).setHoverPaintStyle({
+            strokeWidth: 3.5
+        }).setHover(true);
 
     } else {
 
@@ -3131,7 +3136,10 @@ function replayUpdateStage(stageTimestamps, counter, pipelineNum) {
                 stroke: styleMap[scope][0],
                 strokeWidth: styleMap[scope][1],
                 dashstyle: styleMap[scope][2]
-            });
+            }).setHoverPaintStyle({
+                strokeWidth: styleMap[scope][1] * 1.5
+            }).setHover(false);
+
         }        
     }
 }
@@ -3146,9 +3154,14 @@ function replay(pipelineNum) {
         return;
     }
 
-    replayIsRunning = true;
-
     var replayEle = document.getElementById("replay-" + pipelineNum);
+
+    if (replayEle.className == "replay replayDisabled build_circle") {
+        alert("The pipeline is currently running! Please wait for it to finish.");
+        return;
+    }
+
+    replayIsRunning = true;    
     replayEle.className = "replay replayRunning build_circle";
 
     var pipeline = storedPipelines[pipelineNum];
@@ -3251,7 +3264,7 @@ function replay(pipelineNum) {
                 }
             }
         }
-        
+
         stageTimestamps.push([stage, startTs, true, null, stageSourceId]);
         stageTimestamps.push([stage, endTs, false, null, stageSourceId]);
     }
@@ -3263,21 +3276,15 @@ function replay(pipelineNum) {
         return timestampA - timestampB;
     });
 
-    var delayTime = 2000;
-
-    if (stageTimestamps.length * 4 > 60) {
-        delayTime = 1000;
-    }
-
     var counter = 0;
     for (var i = 0; i < stageTimestamps.length; i++) {
-        sleep(i * delayTime).then(() => {
+        sleep(i * 1000).then(() => {
             replayUpdateStage(stageTimestamps, counter, pipelineNum);
             counter++;
         });
     }
 
-    sleep(stageTimestamps.length * delayTime).then(() => {
+    sleep(stageTimestamps.length * 1000).then(() => {
         console.info("Replay complete! Refreshing page!");
         replayIsRunning = false;
         replayEle.className = "replay replayStopped build_circle";

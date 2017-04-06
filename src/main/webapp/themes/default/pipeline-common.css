@@ -60,6 +60,10 @@
     padding: 0px;
 }
 
+.replayDisabled {
+    background: url("replayDisabled.png") no-repeat;
+}
+
 .replayStopped {
     background: url("replay.png") no-repeat;
 }
