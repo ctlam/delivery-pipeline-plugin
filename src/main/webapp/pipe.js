@@ -529,7 +529,12 @@ function pipelineUtils() {
                             html.push("<div class=\"stage-name\">");
                             html.push("<a href=\"" + link + "\" target=\"_blank\">");
                             // html.push("<a href=\"javascript:void(0);\" onclick=\"openNewTabInBackground('" + link + "')\">");
-                            html.push(htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</a></div>");
+
+                            if (isNullOrEmpty(stage.tasks[0].buildId)) {
+                                html.push(htmlEncode("#N/A " + stage.name) + "</a></div>");
+                            } else {
+                                html.push(htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</a></div>");
+                            }
                         }
 
                         if (!pipeline.aggregated) {
