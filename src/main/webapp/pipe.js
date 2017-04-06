@@ -5,6 +5,7 @@ var numColumns = 0;
 var pipelineutilsData = [];
 var pipelineutils;
 var storedPipelines = [];
+var replayIsRunning = false;
 
 function pipelineUtils() {
     var self = this;
@@ -733,6 +734,7 @@ function pipelineUtils() {
                                 source = getStageId(stage.id + "", index);
                                 target = getStageId(value + "", index);
                                 
+                                var scope = "pipeline-nb";
                                 var color = "rgba(0,122,195,1)";    // Default blue
                                 var label = "Non-blocking";         // Default non-blocking
                                 var dashstyle = "2 2";              // Default dashed line
@@ -764,19 +766,23 @@ function pipelineUtils() {
                                         color = "rgba(255,121,52,1)";   // Orange
                                         label = "Blocking Conditional";
                                         dashstyle = "0 0";
+                                        scope = "pipeline-bc";
                                     } else if (blockedProjects.indexOf(targetName) != -1) {
                                         color = "rgba(0,122,195,1)";    // Blue
                                         label = "Blocking";
                                         dashstyle = "0 0";
+                                        scope = "pipeline-b";
                                     } else if (conditionalProjects.indexOf(targetName) != -1) {
                                         color = "rgba(255,121,52,1)";   // Orange
                                         label = "Non-blocking Conditional";
+                                        scope = "pipeline-nbc";
                                     }
 
                                     if (downstreamProjects.indexOf(targetName) != -1) {
                                         color = "rgba(118,91,161,1)";   // Purple
                                         label = "Downstream";
                                         stub = 10;
+                                        scope = "pipeline-d";
 
                                         for (var j = 0; j < pipeline.stages.length; j++) {
                                             tmpStage = pipeline.stages[j];
@@ -857,7 +863,8 @@ function pipelineUtils() {
                                     connector: connector,
                                     paintStyle: { stroke: color, strokeWidth: strokeWidth, dashstyle: dashstyle },
                                     hoverPaintStyle: { strokeWidth: (strokeWidth * 1.5) },
-                                    endpoint: "Blank"
+                                    endpoint: "Blank",
+                                    scope: scope
                                 });
 
                                 connection.bind("mouseover", function(conn) {
@@ -928,11 +935,11 @@ function pipelineUtils() {
 
                     var legendMap = {};
 
-                    legendMap["b-" + jobName + "-" + buildNum] = ["rgba(0,122,195,1)", "0 0"];
-                    legendMap["nb-" + jobName + "-" + buildNum] = ["rgba(0,122,195,1)", "2 2"];
+                    legendMap["b-"   + jobName + "-" + buildNum] = ["rgba(0,122,195,1)", "0 0"];
+                    legendMap["nb-"  + jobName + "-" + buildNum] = ["rgba(0,122,195,1)", "2 2"];
                     legendMap["nbc-" + jobName + "-" + buildNum] = ["rgba(255,121,52,1)", "2 2"];
-                    legendMap["bc-" + jobName + "-" + buildNum] = ["rgba(255,121,52,1)", "0 0"];
-                    legendMap["d-" + jobName + "-" + buildNum] = ["rgba(118,91,161,1)", "2 2"];
+                    legendMap["bc-"  + jobName + "-" + buildNum] = ["rgba(255,121,52,1)", "0 0"];
+                    legendMap["d-"   + jobName + "-" + buildNum] = ["rgba(118,91,161,1)", "2 2"];
 
                     for (var key in legendMap) {
                         jsplumb.connect({
@@ -2964,7 +2971,7 @@ function replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stag
 
                                     // Add the build information to the timestamp list
                                     returnTimestamps.push([targetStage, json.timestamp, json.duration + json.timestamp,
-                                            json.result]);
+                                            json.result, cause.upstreamProject]);
 
                                     // Recursive call to check downstream projects
                                     for (var n = 0; n < targetStage.downstreamStages.length; n++) {
@@ -2999,17 +3006,15 @@ function replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stag
  * Updates the replay stage
  */
 function replayUpdateStage(stageTimestamps, counter, pipelineNum) {
-    replayUpdateStage(stageTimestamps, counter, pipelineNum, null);
-}
-
-/**
- * Updates the replay stage
- */
-function replayUpdateStage(stageTimestamps, counter, pipelineNum, overrideStatus) {
     var isStartTs = stageTimestamps[counter][2];
+    var overrideStatus =  stageTimestamps[counter][3];
+    var sourceId =  stageTimestamps[counter][4];
     var stage = stageTimestamps[counter][0];
     var stageId = getStageId(stage.id + "", pipelineNum);
     var stageStatus = stage.tasks[0].status.type;
+
+    // All jsPlumb scopes to search for
+    var allScopes = ["pipeline-nb","pipeline-b","pipeline-nbc","pipeline-bc","pipeline-d"];
 
     if (overrideStatus != null) {
         stageStatus = overrideStatus;
@@ -3022,12 +3027,66 @@ function replayUpdateStage(stageTimestamps, counter, pipelineNum, overrideStatus
             ele.className = "circle circle_RUNNING";
         }
 
+        var connections;
+        if (sourceId != null) {
+            connections = instance.select({ 
+                scope   : allScopes,
+                target  : stageId,
+                source  : sourceId
+            });
+        } else {
+            connections = instance.select({ 
+                scope   : allScopes,
+                target  : stageId
+            });
+        }
+
+        connections.each(
+            function(connection) {}).setPaintStyle({
+                stroke: "yellow",
+                strokeWidth: 3.5
+            }
+        );
+
     } else {
 
         if (stageStatus != "IDLE" && stageStatus != "DISABLED" && stageStatus != "NOT_BUILT") {    
             var ele = document.getElementById(stageId);
             ele.className = "circle circle_" + stageStatus;
         }
+
+        var styleMap = {
+            "pipeline-nb"   : ["rgba(0,122,195,1)", 3.5, "2 2"],
+            "pipeline-b"    : ["rgba(0,122,195,1)", 3.5, "0 0"],
+            "pipeline-nbc"  : ["rgba(255,121,52,1)", 3.5, "2 2"],
+            "pipeline-bc"   : ["rgba(255,121,52,1)", 3.5, "0 0"],
+            "pipeline-d"    : ["rgba(118,91,161,1)", 3.5, "2 2"]
+        }
+
+        for (var i = 0; i < allScopes.length; i++) {
+
+            var scope = allScopes[i];
+            var connections;
+            if (sourceId != null) {
+                connections = instance.select({
+                    scope:scope,
+                    target:stageId,
+                    source:sourceId
+                });
+            } else {
+                connections = instance.select({
+                    scope:scope,
+                    target:stageId
+                });
+            }
+
+            // Set the connection back to it's actual color
+            connections.each(function(connection) {}).setPaintStyle({
+                stroke: styleMap[scope][0],
+                strokeWidth: styleMap[scope][1],
+                dashstyle: styleMap[scope][2]
+            });
+        }        
     }
 }
 
@@ -3035,6 +3094,13 @@ function replayUpdateStage(stageTimestamps, counter, pipelineNum, overrideStatus
  * Replays the pipeline
  */
 function replay(pipelineNum) {
+
+    if (replayIsRunning) {
+        alert("A replay is already running!");
+        return;
+    }
+
+    replayIsRunning = true;
 
     var pipeline = storedPipelines[pipelineNum];
     var stages = pipeline.stages;
@@ -3049,6 +3115,8 @@ function replay(pipelineNum) {
         stageToNameMap[stage.name] = stage;
     }
 
+    console.info("Replaying pipeline! { #" + stages[0].tasks[0].buildId + " " + stages[0].name + " }");
+
     // Set all stages to IDLE unless they are DISABLED
     for (var i = 0; i < stages.length; i++) {
         var stage = stages[i];
@@ -3060,12 +3128,18 @@ function replay(pipelineNum) {
             ele.className = "circle circle_IDLE";
         }
 
+        // Set to null for all stages that only have 1 connection to it
+        var stageSourceId = null;
 
         // Check if there is more than one connection to a particular stage
         // Try to find additional builds of a particular project in the same pipeline that are not shown
-        var connections = instance.getConnections({ target:stageId });
+        var allScopes = ["pipeline-nb","pipeline-b","pipeline-nbc","pipeline-bc","pipeline-d"];
+        var connections = instance.getConnections({ 
+            scopes  : allScopes,
+            target  : stageId
+        }, true);
 
-        if (instance.getConnections({ target:stageId }).length > 1) {
+        if (instance.getConnections({ scope: allScopes, target:stageId }, true).length > 1) {
             var sources = [];
             for (var j = 0; j < connections.length; j++) {
 
@@ -3086,15 +3160,38 @@ function replay(pipelineNum) {
 
                 if (!isNullOrEmpty(stage.tasks[0].buildId)) {
 
-                    var additionalStageTimestamps = replayRetrieveMergedStageData(stageToNameMap, stage.name, sources, 
-                            stages, pipelineNum, firstStageTimestamp);
+                    try {
+                        var remainingSources = sources;
 
-                    for (var k = 0; k < additionalStageTimestamps.length; k++) {
-                        var aStageTS = additionalStageTimestamps[k];
+                        var additionalStageTimestamps = replayRetrieveMergedStageData(stageToNameMap, stage.name,
+                                sources, stages, pipelineNum, firstStageTimestamp);
 
-                        stageTimestamps.push([aStageTS[0], aStageTS[1], true, aStageTS[3]]);
-                        stageTimestamps.push([aStageTS[0], aStageTS[2], false, aStageTS[3]]);
+                        for (var k = 0; k < additionalStageTimestamps.length; k++) {
+                            var aStageTS = additionalStageTimestamps[k];
 
+                            var sourceId = null;
+
+                            try {
+                                sourceId = getStageId(stageToNameMap[aStageTS[4]].id + "", pipelineNum);
+                            } catch (e) {
+                            }
+
+                            stageTimestamps.push([aStageTS[0], aStageTS[1], true, aStageTS[3], sourceId]);
+                            stageTimestamps.push([aStageTS[0], aStageTS[2], false, aStageTS[3], sourceId]);
+
+                            if (sourceId != null && remainingSources.indexOf(sourceId) > -1) {
+                                remainingSources.splice(remainingSources.indexOf(sourceId), 1);
+                            }
+
+                        }
+
+                        // Get the stage source id for the last path to a particular stage
+                        if (remainingSources.length == 1) {
+                            stageSourceId = remainingSources[0];
+                        }
+
+                    } catch (e) {
+                        console.info("Something went wrong fetching additional connection information");
                     }
                 }
             }
@@ -3108,8 +3205,8 @@ function replay(pipelineNum) {
             continue;
         }
 
-        stageTimestamps.push([stage, startTs, true]);
-        stageTimestamps.push([stage, endTs, false]);
+        stageTimestamps.push([stage, startTs, true, null, stageSourceId]);
+        stageTimestamps.push([stage, endTs, false, null, stageSourceId]);
     }
 
     // Sort all the timestamps
@@ -3126,6 +3223,12 @@ function replay(pipelineNum) {
             counter++;
         });
     }
+
+    sleep(stageTimestamps.length * 2000).then(() => {
+        console.info("Replay complete! Refreshing page!");
+        replayIsRunning = false;
+        refreshFn();
+    });
 }
 
 function sleep (time) {
