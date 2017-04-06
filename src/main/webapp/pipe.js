@@ -353,10 +353,6 @@ function pipelineUtils() {
                     html.push("<td class=\"build_column\"><a href=\"javascript:replay('" + i + "');\" style=\"text-decoration:none;\">");
                     html.push("<p id=\"replay-" + i + "\" class=\"replay replayStopped build_circle\"></p></a></td>");
 
-                    if (i == 0) {
-                        storedPipeline = pipeline;
-                    }
-
                     html.push("</tr><tr><th id=\"" + togglePipelineId + "\" colspan=\"6\" class=\"" + initPipelineClass + "\">");
                     html.push("<div id=\"" + toggleBuildId + "\" style=\"display:" + getToggleState(toggleBuildId, "block", isLatestPipeline) + ";\">");
 
@@ -2876,6 +2872,56 @@ function storePagePosition() {
 }
 
 /**
+ * Get the upstream stage name for a particular stage build
+ */
+function replayGetStageSource(stage) {
+    var json = {};
+    var isError = false;
+
+    var stageBuildId = stage.tasks[0].buildId;
+    Q.ajax({
+        url: rootURL + "job/" + stage.name + "/" + stageBuildId + "/api/json?tree=actions[causes[*]],timestamp,duration,result",
+        dataType: "json",
+        type: "GET",
+        async: false,
+        cache: true,
+        timeout: 5000,
+        success: function(data) {
+            json = data;
+        },
+        error: function (xhr, status, error) {
+            isError = true;
+        }
+    })
+
+    if (isError) {
+        return null;
+    }
+
+    // Query must have a timestamp
+    if (!json.hasOwnProperty("timestamp")) {
+        return null;
+    }
+
+    if (json.hasOwnProperty("actions")) {
+        var actions = json.actions;
+        for (var k = 0; k < actions.length; k++) {
+            if (actions[k].hasOwnProperty("causes")) {
+                var causes = actions[k].causes;
+                for (var l = 0; l < causes.length; l++) {
+                    var cause = causes[l];
+                    if (cause.hasOwnProperty("upstreamBuild") && cause.hasOwnProperty("upstreamProject")) {
+                        return cause.upstreamProject;
+                    }
+                }
+            }
+        }
+    }
+
+    return null;
+}
+
+/**
  * Retrieves previous build information for merged stages
  */
 function replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stages, pipelineNum, firstStageTimestamp) {
@@ -2971,7 +3017,7 @@ function replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stag
 
                                     // Add the build information to the timestamp list
                                     returnTimestamps.push([targetStage, json.timestamp, json.duration + json.timestamp,
-                                            json.result, cause.upstreamProject]);
+                                            json.result, cause.upstreamProject, cause.upstreamBuild.toString()]);
 
                                     // Recursive call to check downstream projects
                                     for (var n = 0; n < targetStage.downstreamStages.length; n++) {
@@ -3131,6 +3177,14 @@ function replay(pipelineNum) {
             ele.className = "circle circle_IDLE";
         }
 
+        var startTs = parseInt(stage.tasks[0].status.timestamp);
+        var endTs = startTs + parseInt(stage.tasks[0].status.duration);
+
+        // Only add to the timestamp list if the timestamp is valid / exists
+        if (isNaN(startTs)) {
+            continue;
+        }
+
         // Set to null for all stages that only have 1 connection to it
         var stageSourceId = null;
 
@@ -3181,16 +3235,14 @@ function replay(pipelineNum) {
 
                             stageTimestamps.push([aStageTS[0], aStageTS[1], true, aStageTS[3], sourceId]);
                             stageTimestamps.push([aStageTS[0], aStageTS[2], false, aStageTS[3], sourceId]);
-
-                            if (sourceId != null && remainingSources.indexOf(sourceId) > -1) {
-                                remainingSources.splice(remainingSources.indexOf(sourceId), 1);
-                            }
-
                         }
 
-                        // Get the stage source id for the last path to a particular stage
-                        if (remainingSources.length == 1) {
-                            stageSourceId = remainingSources[0];
+                        // Get the stage source id for the lastest path to a particular stage
+
+                        var stageSourceName = replayGetStageSource(stage);
+
+                        if (stageSourceName != null) {
+                            stageSourceId = getStageId(stageToNameMap[stageSourceName].id + "", pipelineNum);
                         }
 
                     } catch (e) {
@@ -3199,15 +3251,7 @@ function replay(pipelineNum) {
                 }
             }
         }
-
-        var startTs = parseInt(stage.tasks[0].status.timestamp);
-        var endTs = startTs + parseInt(stage.tasks[0].status.duration);
-
-        // Only add to the timestamp list if the timestamp is valid / exists
-        if (isNaN(startTs)) {
-            continue;
-        }
-
+        
         stageTimestamps.push([stage, startTs, true, null, stageSourceId]);
         stageTimestamps.push([stage, endTs, false, null, stageSourceId]);
     }
@@ -3219,15 +3263,21 @@ function replay(pipelineNum) {
         return timestampA - timestampB;
     });
 
+    var delayTime = 2000;
+
+    if (stageTimestamps.length * 4 > 60) {
+        delayTime = 1000;
+    }
+
     var counter = 0;
     for (var i = 0; i < stageTimestamps.length; i++) {
-        sleep(i * 2000).then(() => {
+        sleep(i * delayTime).then(() => {
             replayUpdateStage(stageTimestamps, counter, pipelineNum);
             counter++;
         });
     }
 
-    sleep(stageTimestamps.length * 2000).then(() => {
+    sleep(stageTimestamps.length * delayTime).then(() => {
         console.info("Replay complete! Refreshing page!");
         replayIsRunning = false;
         replayEle.className = "replay replayStopped build_circle";
