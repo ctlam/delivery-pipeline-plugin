@@ -351,7 +351,7 @@ function pipelineUtils() {
                     html.push("<p class=\"build_entry\">" + triggered + "</p></a></td>");
 
                     html.push("<td class=\"build_column\"><a href=\"javascript:replay('" + i + "');\" style=\"text-decoration:none;\">");
-                    html.push("<p class=\"build_entry\">Replay!</p></a></td>");
+                    html.push("<p id=\"replay-" + i + "\" class=\"replay replayStopped build_circle\"></p></a></td>");
 
                     if (i == 0) {
                         storedPipeline = pipeline;
@@ -3102,6 +3102,9 @@ function replay(pipelineNum) {
 
     replayIsRunning = true;
 
+    var replayEle = document.getElementById("replay-" + pipelineNum);
+    replayEle.className = "replay replayRunning build_circle";
+
     var pipeline = storedPipelines[pipelineNum];
     var stages = pipeline.stages;
     var stageTimestamps = [];
@@ -3227,6 +3230,7 @@ function replay(pipelineNum) {
     sleep(stageTimestamps.length * 2000).then(() => {
         console.info("Replay complete! Refreshing page!");
         replayIsRunning = false;
+        replayEle.className = "replay replayStopped build_circle";
         refreshFn();
     });
 }

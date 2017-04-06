@@ -54,6 +54,21 @@
     background: url("failedOnBlockCircle.png") no-repeat;
 }
 
+.replay {
+    float: left;
+    margin: 0px;
+    padding: 0px;
+}
+
+.replayStopped {
+    background: url("replay.png") no-repeat;
+}
+
+.replayRunning {
+    background: url("replay.gif") no-repeat;
+    background-color: transparent;
+}
+
 .pipelineHeader {
     display: block;
     background-color: rgba(36,66,92,1);
