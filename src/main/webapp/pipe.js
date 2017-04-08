@@ -374,7 +374,7 @@ function pipelineUtils() {
                             html.push(generateChangeLog(pipeline.changes));
                         }
 
-                        html.push("<section class=\"pipeline\">");
+                        html.push("<section class=\"pipeline-values\">");
                         html.push("<div class=\"pipeline-row\">");
 
                         //if (displayArguments != "" && displayArguments != null) {
@@ -475,7 +475,8 @@ function pipelineUtils() {
                         fontSizePerCell = 10; // Set a minimum font-size rather than scaling it down to something unreadable
                     }
 
-                    var row = 0, column = 0, stage;                                   
+                    var row = 0, column = 0, stage;
+                    var shiftedOneColumn = false;                             
                     html.push("<section class=\"pipeline\">");
                     html.push('<div class="pipeline-row">');
 
@@ -501,6 +502,15 @@ function pipelineUtils() {
                             html.push('</div><div class="pipeline-row">');
                             column = 0;
                             row++;
+                            shiftedOneColumn = false;
+                        }
+
+                        if (numColumns <= 3 && !shiftedOneColumn) {
+                            shiftedOneColumn = true;
+                            if (data.viewMode == "Minimalist") {
+                                html.push("<div class=\"pipeline-cell\">");
+                                html.push("<div class=\"stage hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
+                            }
                         }
 
                         if (stage.column > column) {
@@ -609,6 +619,10 @@ function pipelineUtils() {
                         // Ensure no cell can be more than 20% of the pipeline-row
                         if (numColumns < 5 && j == pipeline.stages.length - 1) {
                             var numAdditionalColumnsToAdd = 5 - numColumns;
+
+                            if (numColumns <= 3) {
+                                numAdditionalColumnsToAdd--;
+                            }
 
                             for (var m = 0; m < numAdditionalColumnsToAdd; m++) {
                                 html.push("<div class=\"pipeline-cell\">");
