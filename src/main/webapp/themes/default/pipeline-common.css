@@ -54,6 +54,25 @@
     background: url("failedOnBlockCircle.png") no-repeat;
 }
 
+.replay {
+    float: left;
+    margin: 0px;
+    padding: 0px;
+}
+
+.replayDisabled {
+    background: url("replayDisabled.png") no-repeat;
+}
+
+.replayStopped {
+    background: url("replay.png") no-repeat;
+}
+
+.replayRunning {
+    background: url("replay.gif") no-repeat;
+    background-color: transparent;
+}
+
 .pipelineHeader {
     display: block;
     background-color: rgba(36,66,92,1);
@@ -201,11 +220,19 @@ section.pipeline-component h2 {
     padding: 5px;
 }
 
-section.pipeline {
+section.pipeline-values {
     display: table;
     border-collapse: collapse;
     width: 100%;
-    /*overflow: auto;*/
+}
+
+section.pipeline {
+    display: table;
+    border-collapse: collapse;
+    width: 98%;
+    margin-bottom: 15px;
+    margin-left: 1%;
+    margin-right: 1%;
 }
 
 div.changes {
@@ -547,7 +574,7 @@ div.aggregatedChangesPanelInner > ul {
 }
 
 .build_header_BUILD_NUM {
-    width: 50%;
+    width: 45%;
 }
 
 .build_header_DURATION {
@@ -560,6 +587,10 @@ div.aggregatedChangesPanelInner > ul {
 
 .build_header_STARTED_BY {
     width: 15%;
+}
+
+.builder_header_REPLAY {
+    width: 5%;
 }
 
 .build_column {

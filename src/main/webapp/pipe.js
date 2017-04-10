@@ -4,6 +4,8 @@ var isFullScreen = (document.getElementById("main-panel") == null);
 var numColumns = 0;
 var pipelineutilsData = [];
 var pipelineutils;
+var storedPipelines = [];
+var replayIsRunning = false;
 
 function pipelineUtils() {
     var self = this;
@@ -132,6 +134,8 @@ function pipelineUtils() {
         } else {
             cErrorDiv.hide().html('');
         }
+
+        storedPipelines = [];
 
         // Get the display arguments from a specified project url
         var displayArgumentsFromFile = {};
@@ -276,12 +280,14 @@ function pipelineUtils() {
                 html.push("<th class=\"build_header build_header_DURATION\">Duration</th>");
                 html.push("<th class=\"build_header build_header_DATE\">Date</th>");
                 html.push("<th class=\"build_header build_header_STARTED_BY\">Started by</th>");
+                html.push("<th class=\"build_header build_header_REPLAY\">Replay</th>");
                 html.push("</tr>");
 
                 var isLatestPipeline = true;
 
                 for (var i = 0; i < component.pipelines.length; i++) {
                     pipeline = component.pipelines[i];
+                    storedPipelines.push(pipeline);
 
                     var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
                     var buildNum = pipeline.version.substring(1);
@@ -344,7 +350,10 @@ function pipelineUtils() {
                     html.push("<td class=\"build_column\"><a href=\"" + toggleFunction + "\" style=\"text-decoration:none;\">");
                     html.push("<p class=\"build_entry\">" + triggered + "</p></a></td>");
 
-                    html.push("</tr><tr><th id=\"" + togglePipelineId + "\" colspan=\"5\" class=\"" + initPipelineClass + "\">");
+                    html.push("<td class=\"build_column\"><a href=\"javascript:replay('" + i + "');\" style=\"text-decoration:none;\">");
+                    html.push("<p id=\"replay-" + i + "\" class=\"replay replayDisabled build_circle\"></p></a></td>");
+
+                    html.push("</tr><tr><th id=\"" + togglePipelineId + "\" colspan=\"6\" class=\"" + initPipelineClass + "\">");
                     html.push("<div id=\"" + toggleBuildId + "\" style=\"display:" + getToggleState(toggleBuildId, "block", isLatestPipeline) + ";\">");
 
                     // Only expand the latest pipeline
@@ -365,7 +374,7 @@ function pipelineUtils() {
                             html.push(generateChangeLog(pipeline.changes));
                         }
 
-                        html.push("<section class=\"pipeline\">");
+                        html.push("<section class=\"pipeline-values\">");
                         html.push("<div class=\"pipeline-row\">");
 
                         //if (displayArguments != "" && displayArguments != null) {
@@ -466,7 +475,8 @@ function pipelineUtils() {
                         fontSizePerCell = 10; // Set a minimum font-size rather than scaling it down to something unreadable
                     }
 
-                    var row = 0, column = 0, stage;                                   
+                    var row = 0, column = 0, stage;
+                    var shiftedOneColumn = false;                             
                     html.push("<section class=\"pipeline\">");
                     html.push('<div class="pipeline-row">');
 
@@ -492,6 +502,15 @@ function pipelineUtils() {
                             html.push('</div><div class="pipeline-row">');
                             column = 0;
                             row++;
+                            shiftedOneColumn = false;
+                        }
+
+                        if (numColumns <= 3 && !shiftedOneColumn) {
+                            shiftedOneColumn = true;
+                            if (data.viewMode == "Minimalist") {
+                                html.push("<div class=\"pipeline-cell\">");
+                                html.push("<div class=\"stage hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
+                            }
                         }
 
                         if (stage.column > column) {
@@ -520,7 +539,12 @@ function pipelineUtils() {
                             html.push("<div class=\"stage-name\">");
                             html.push("<a href=\"" + link + "\" target=\"_blank\">");
                             // html.push("<a href=\"javascript:void(0);\" onclick=\"openNewTabInBackground('" + link + "')\">");
-                            html.push(htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</a></div>");
+
+                            if (isNullOrEmpty(stage.tasks[0].buildId)) {
+                                html.push(htmlEncode("#N/A " + stage.name) + "</a></div>");
+                            } else {
+                                html.push(htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</a></div>");
+                            }
                         }
 
                         if (!pipeline.aggregated) {
@@ -596,6 +620,10 @@ function pipelineUtils() {
                         if (numColumns < 5 && j == pipeline.stages.length - 1) {
                             var numAdditionalColumnsToAdd = 5 - numColumns;
 
+                            if (numColumns <= 3) {
+                                numAdditionalColumnsToAdd--;
+                            }
+
                             for (var m = 0; m < numAdditionalColumnsToAdd; m++) {
                                 html.push("<div class=\"pipeline-cell\">");
                                 html.push("<div class=\"stage hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
@@ -652,6 +680,9 @@ function pipelineUtils() {
                     } else {
                         loadFailedOnBlockStages(pipeline, i);
                     }
+
+                    var replayEle = document.getElementById("replay-" + i);
+                    replayEle.className = "replay replayStopped build_circle";
                 }
             }
 
@@ -721,6 +752,7 @@ function pipelineUtils() {
                                 source = getStageId(stage.id + "", index);
                                 target = getStageId(value + "", index);
                                 
+                                var scope = "pipeline-nb";
                                 var color = "rgba(0,122,195,1)";    // Default blue
                                 var label = "Non-blocking";         // Default non-blocking
                                 var dashstyle = "2 2";              // Default dashed line
@@ -752,19 +784,23 @@ function pipelineUtils() {
                                         color = "rgba(255,121,52,1)";   // Orange
                                         label = "Blocking Conditional";
                                         dashstyle = "0 0";
+                                        scope = "pipeline-bc";
                                     } else if (blockedProjects.indexOf(targetName) != -1) {
                                         color = "rgba(0,122,195,1)";    // Blue
                                         label = "Blocking";
                                         dashstyle = "0 0";
+                                        scope = "pipeline-b";
                                     } else if (conditionalProjects.indexOf(targetName) != -1) {
                                         color = "rgba(255,121,52,1)";   // Orange
                                         label = "Non-blocking Conditional";
+                                        scope = "pipeline-nbc";
                                     }
 
                                     if (downstreamProjects.indexOf(targetName) != -1) {
                                         color = "rgba(118,91,161,1)";   // Purple
                                         label = "Downstream";
                                         stub = 10;
+                                        scope = "pipeline-d";
 
                                         for (var j = 0; j < pipeline.stages.length; j++) {
                                             tmpStage = pipeline.stages[j];
@@ -845,7 +881,8 @@ function pipelineUtils() {
                                     connector: connector,
                                     paintStyle: { stroke: color, strokeWidth: strokeWidth, dashstyle: dashstyle },
                                     hoverPaintStyle: { strokeWidth: (strokeWidth * 1.5) },
-                                    endpoint: "Blank"
+                                    endpoint: "Blank",
+                                    scope: scope
                                 });
 
                                 connection.bind("mouseover", function(conn) {
@@ -916,11 +953,11 @@ function pipelineUtils() {
 
                     var legendMap = {};
 
-                    legendMap["b-" + jobName + "-" + buildNum] = ["rgba(0,122,195,1)", "0 0"];
-                    legendMap["nb-" + jobName + "-" + buildNum] = ["rgba(0,122,195,1)", "2 2"];
+                    legendMap["b-"   + jobName + "-" + buildNum] = ["rgba(0,122,195,1)", "0 0"];
+                    legendMap["nb-"  + jobName + "-" + buildNum] = ["rgba(0,122,195,1)", "2 2"];
                     legendMap["nbc-" + jobName + "-" + buildNum] = ["rgba(255,121,52,1)", "2 2"];
-                    legendMap["bc-" + jobName + "-" + buildNum] = ["rgba(255,121,52,1)", "0 0"];
-                    legendMap["d-" + jobName + "-" + buildNum] = ["rgba(118,91,161,1)", "2 2"];
+                    legendMap["bc-"  + jobName + "-" + buildNum] = ["rgba(255,121,52,1)", "0 0"];
+                    legendMap["d-"   + jobName + "-" + buildNum] = ["rgba(118,91,161,1)", "2 2"];
 
                     for (var key in legendMap) {
                         jsplumb.connect({
@@ -1175,7 +1212,7 @@ function generateButtons(c, firstJobParameterized, firstJobUrl, name) {
     html.push("</div>");
 
     html.push("<div class=\"button buttonRefresh\">");
-        html.push("<a id=\"refreshpipeline-" + c  + "\" href=\"javascript:void(0);\" onclick=\"refreshFn();\" style=\"text-decoration:none;\">");
+        html.push("<a id=\"refreshpipeline-" + c  + "\" href=\"javascript:void(0);\" onclick=\"refreshFn(true);\" style=\"text-decoration:none;\">");
             html.push("<p class=\"buttonText\">Refresh Pipeline</p>");
         html.push("</a>");
     html.push("</div>");
@@ -1598,7 +1635,7 @@ function triggerBuild(url, taskId) {
         timeout: 20000,
         success: function (data, textStatus, jqXHR) {
             console.info("Triggered build of " + taskId + " successfully!")
-            refreshFn();
+            refreshFn(true);
         },
         error: function (jqXHR, textStatus, errorThrown) {
             window.alert("Could not trigger build! error: " + errorThrown + " status: " + textStatus)
@@ -1606,9 +1643,12 @@ function triggerBuild(url, taskId) {
     });
 }
  
-function refreshFn() {
-    // Clear all toggle states
-    sessionStorage.toggleStates = JSON.stringify({});
+function refreshFn(clearToggleStates) {
+
+    if (clearToggleStates) {
+        // Clear all toggle states
+        sessionStorage.toggleStates = JSON.stringify({});    
+    }
 
     // CLear all saved pipeline
     sessionStorage.pipelineStageIdMap = JSON.stringify({});
@@ -2099,7 +2139,14 @@ function updateGlobalDisplayValues(data, url, displayArgs, pipelineName, pipelin
                     if (displayKeyConfig.hasOwnProperty("projectName") && displayKeyConfig.projectName == projectName) {
                         if (displayKeyConfig.hasOwnProperty("fromConsole") && 
                             (displayKeyConfig.fromConsole == "true" || displayKeyConfig.fromConsole == true)) {
-                            var toolTipData = data.replace(/-/g, '&#x2011;');
+                            var toolTipData = data;
+
+                            // JSON files return javascript objects which must be stringified
+                            if (data !== null && typeof data === 'object') {
+                                toolTipData = JSON.stringify(data).replace(/-/g, '&#x2011;');
+                            } else {
+                                toolTipData = data.replace(/-/g, '&#x2011;');
+                            }
 
                             if (displayKeyConfig.hasOwnProperty("grepPattern")) {
                                 var grepPattern = displayKeyConfig.grepPattern;
@@ -2156,7 +2203,14 @@ function updateGlobalDisplayValues(data, url, displayArgs, pipelineName, pipelin
 
                     if (displayKeyConfig.hasOwnProperty("projectName") && displayKeyConfig.projectName == projectName) {
                         if (displayKeyConfig.hasOwnProperty(propertyType) && displayKeyConfig[propertyType] == file) {
-                            var toolTipData = data.replace(/-/g, '&#x2011;');
+                            var toolTipData = data;
+
+                            // JSON files return javascript objects which must be stringified
+                            if (data !== null && typeof data === 'object') {
+                                toolTipData = JSON.stringify(data).replace(/-/g, '&#x2011;');
+                            } else {
+                                toolTipData = data.replace(/-/g, '&#x2011;');
+                            }
 
                             if (displayKeyConfig.hasOwnProperty("grepPattern")) {
                                 var grepPattern = displayKeyConfig.grepPattern;
@@ -2840,4 +2894,426 @@ function toggleTableCompatibleFS(jobName, buildNum) {
 function storePagePosition() {
   var page_y = window.pageYOffset;
   sessionStorage.setItem("page_y", page_y);
+}
+
+/**
+ * Get the upstream stage name for a particular stage build
+ */
+function replayGetStageSource(stage) {
+    var json = {};
+    var isError = false;
+
+    var stageBuildId = stage.tasks[0].buildId;
+    Q.ajax({
+        url: rootURL + "job/" + stage.name + "/" + stageBuildId + "/api/json?tree=actions[causes[*]],timestamp,duration,result",
+        dataType: "json",
+        type: "GET",
+        async: false,
+        cache: true,
+        timeout: 5000,
+        success: function(data) {
+            json = data;
+        },
+        error: function (xhr, status, error) {
+            isError = true;
+        }
+    })
+
+    if (isError) {
+        return null;
+    }
+
+    // Query must have a timestamp
+    if (!json.hasOwnProperty("timestamp")) {
+        return null;
+    }
+
+    if (json.hasOwnProperty("actions")) {
+        var actions = json.actions;
+        for (var k = 0; k < actions.length; k++) {
+            if (actions[k].hasOwnProperty("causes")) {
+                var causes = actions[k].causes;
+                for (var l = 0; l < causes.length; l++) {
+                    var cause = causes[l];
+                    if (cause.hasOwnProperty("upstreamBuild") && cause.hasOwnProperty("upstreamProject")) {
+                        return cause.upstreamProject;
+                    }
+                }
+            }
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Retrieves previous build information for merged stages
+ */
+function replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stages, pipelineNum, firstStageTimestamp) {
+    return replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stages, pipelineNum, firstStageTimestamp, 
+                                         null);
+}
+
+/**
+ * Retrieves previous build information for merged stages
+ */
+function replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stages, pipelineNum, firstStageTimestamp, 
+                                       overrideStageData) {
+
+    var returnTimestamps = [];
+
+    var targetStage = stageToNameMap[targetName];
+    var targetBuildId = parseInt(stageToNameMap[targetName].tasks[0].buildId);
+    var stageData = [];
+
+    // Set up the sources information
+    // These are the upstream projects that triggered a build for another project
+    for (var i = 0; i < stages.length; i++) {
+        var stage = stages[i];
+        
+        if (sources.includes(getStageId(stage.id + "", pipelineNum))) {
+            stageData.push([stage.name, stage.tasks[0].buildId]);
+        }
+    }
+
+    if (overrideStageData != null) {
+        stageData = overrideStageData;
+    }
+
+    // console.info(sources);
+    // console.info(stageData);
+
+    // Check the last 10 builds of the project to see if any were triggered by the pipeline
+    for (var j = targetBuildId - 1; j >= Math.max(targetBuildId - 11, 1); j--) {
+
+        var json = {};
+        var isError = false;
+
+        // Synchronous calls are probably a bad idea
+        Q.ajax({
+            url: rootURL + "job/" + targetName + "/" + j + "/api/json?tree=actions[causes[*]],timestamp,duration,result",
+            dataType: "json",
+            type: "GET",
+            async: false,
+            cache: true,
+            timeout: 5000,
+            success: function(data) {
+                json = data;
+            },
+            error: function (xhr, status, error) {
+                isError = true;
+            }
+        })
+
+        if (isError) {
+            break;
+        }
+
+        // Query must have a timestamp
+        if (!json.hasOwnProperty("timestamp")) {
+            break;
+        }
+
+        // Stop searching if the build's timestamp is BEFORE the start of the pipeline
+        if (json.timestamp < firstStageTimestamp) {
+            break;
+        }
+
+        if (json.hasOwnProperty("actions")) {
+            var actions = json.actions;
+
+            for (var k = 0; k < actions.length; k++) {
+                if (actions[k].hasOwnProperty("causes")) {
+                    var causes = actions[k].causes;
+
+                    for (var l = 0; l < causes.length; l++) {
+                        var cause = causes[l];
+
+                        if (cause.hasOwnProperty("upstreamBuild") && cause.hasOwnProperty("upstreamProject")) {
+
+                            for (var m = 0; m < stageData.length; m++) {
+
+                                // Verify that this current build was triggered from the pipeline
+                                if (stageData[m][0] == cause.upstreamProject 
+                                        && stageData[m][1] == cause.upstreamBuild.toString()) {
+
+                                    console.info("Found a build triggered during the pipeline run! " +
+                                            "{ " + targetName + ", " + j + " }");
+
+                                    // Add the build information to the timestamp list
+                                    returnTimestamps.push([targetStage, json.timestamp, json.duration + json.timestamp,
+                                            json.result, cause.upstreamProject, cause.upstreamBuild.toString()]);
+
+                                    // Recursive call to check downstream projects
+                                    for (var n = 0; n < targetStage.downstreamStages.length; n++) {
+                                        var nextStageName = targetStage.downstreamStages[n];
+                                        var nextSources = [getStageId(targetStage.id + "", pipelineNum)];
+                                        var nextStageData = [[targetName, j.toString()]];
+
+                                        var additionalStageTimestamps = replayRetrieveMergedStageData(stageToNameMap,
+                                                nextStageName, nextSources, stages, pipelineNum, firstStageTimestamp,
+                                                nextStageData);
+
+                                        for (var o = 0; o < additionalStageTimestamps.length; o++) {
+                                            returnTimestamps.push(additionalStageTimestamps[o]);
+                                        }
+                                    }
+
+                                    return returnTimestamps;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+    }
+
+    return [];
+}
+
+/**
+ * Updates the replay stage
+ */
+function replayUpdateStage(stageTimestamps, counter, pipelineNum) {
+    var isStartTs = stageTimestamps[counter][2];
+    var overrideStatus =  stageTimestamps[counter][3];
+    var sourceId =  stageTimestamps[counter][4];
+    var stage = stageTimestamps[counter][0];
+    var stageId = getStageId(stage.id + "", pipelineNum);
+    var stageStatus = stage.tasks[0].status.type;
+
+    // All jsPlumb scopes to search for
+    var allScopes = ["pipeline-nb","pipeline-b","pipeline-nbc","pipeline-bc","pipeline-d"];
+
+    if (overrideStatus != null) {
+        stageStatus = overrideStatus;
+    }
+
+    if (isStartTs) {
+
+        if (stageStatus != "IDLE" && stageStatus != "DISABLED" && stageStatus != "NOT_BUILT") {    
+            var ele = document.getElementById(stageId);
+            ele.className = "circle circle_RUNNING";
+        }
+
+        var connections;
+        if (sourceId != null) {
+            connections = instance.select({ 
+                scope   : allScopes,
+                target  : stageId,
+                source  : sourceId
+            });
+        } else {
+            connections = instance.select({ 
+                scope   : allScopes,
+                target  : stageId
+            });
+        }
+
+        connections.each(
+            function(connection) {}).setPaintStyle({
+                stroke: "yellow",
+                strokeWidth: 3.5
+            }
+        ).setHoverPaintStyle({
+            strokeWidth: 3.5
+        }).setHover(true);
+
+    } else {
+
+        if (stageStatus != "IDLE" && stageStatus != "DISABLED" && stageStatus != "NOT_BUILT") {    
+            var ele = document.getElementById(stageId);
+            ele.className = "circle circle_" + stageStatus;
+        }
+
+        var styleMap = {
+            "pipeline-nb"   : ["rgba(0,122,195,1)", 3.5, "2 2"],
+            "pipeline-b"    : ["rgba(0,122,195,1)", 3.5, "0 0"],
+            "pipeline-nbc"  : ["rgba(255,121,52,1)", 3.5, "2 2"],
+            "pipeline-bc"   : ["rgba(255,121,52,1)", 3.5, "0 0"],
+            "pipeline-d"    : ["rgba(118,91,161,1)", 3.5, "2 2"]
+        }
+
+        for (var i = 0; i < allScopes.length; i++) {
+
+            var scope = allScopes[i];
+            var connections;
+            if (sourceId != null) {
+                connections = instance.select({
+                    scope:scope,
+                    target:stageId,
+                    source:sourceId
+                });
+            } else {
+                connections = instance.select({
+                    scope:scope,
+                    target:stageId
+                });
+            }
+
+            // Set the connection back to it's actual color
+            connections.each(function(connection) {}).setPaintStyle({
+                stroke: styleMap[scope][0],
+                strokeWidth: styleMap[scope][1],
+                dashstyle: styleMap[scope][2]
+            }).setHoverPaintStyle({
+                strokeWidth: styleMap[scope][1] * 1.5
+            }).setHover(false);
+
+        }        
+    }
+}
+
+/**
+ * Replays the pipeline
+ */
+function replay(pipelineNum) {
+
+    if (replayIsRunning) {
+        alert("A replay is already running!");
+        return;
+    }
+
+    var replayEle = document.getElementById("replay-" + pipelineNum);
+
+    if (replayEle.className == "replay replayDisabled build_circle") {
+        alert("The pipeline is currently running! Please wait for it to finish.");
+        return;
+    }
+
+    replayIsRunning = true;    
+    replayEle.className = "replay replayRunning build_circle";
+
+    var pipeline = storedPipelines[pipelineNum];
+    var stages = pipeline.stages;
+    var stageTimestamps = [];
+    var firstStageTimestamp = stages[0].tasks[0].timestamp;
+
+    var stageToNameMap = {};
+
+    // Map each stage name to each stage object
+    for (var i = 0; i < stages.length; i++) {
+        var stage = stages[i];
+        stageToNameMap[stage.name] = stage;
+    }
+
+    console.info("Replaying pipeline! { #" + stages[0].tasks[0].buildId + " " + stages[0].name + " }");
+
+    // Set all stages to IDLE unless they are DISABLED
+    for (var i = 0; i < stages.length; i++) {
+        var stage = stages[i];
+        var stageId = getStageId(stage.id + "", pipelineNum);
+        var stageStatus = stage.tasks[0].status.type;
+
+        if (stageStatus != "DISABLED") {
+            var ele = document.getElementById(stageId);
+            ele.className = "circle circle_IDLE";
+        }
+
+        var startTs = parseInt(stage.tasks[0].status.timestamp);
+        var endTs = startTs + parseInt(stage.tasks[0].status.duration);
+
+        // Only add to the timestamp list if the timestamp is valid / exists
+        if (isNaN(startTs)) {
+            continue;
+        }
+
+        // Set to null for all stages that only have 1 connection to it
+        var stageSourceId = null;
+
+        // Check if there is more than one connection to a particular stage
+        // Try to find additional builds of a particular project in the same pipeline that are not shown
+        var allScopes = ["pipeline-nb","pipeline-b","pipeline-nbc","pipeline-bc","pipeline-d"];
+        var connections = instance.getConnections({ 
+            scopes  : allScopes,
+            target  : stageId
+        }, true);
+
+        if (instance.getConnections({ scope: allScopes, target:stageId }, true).length > 1) {
+            var sources = [];
+            for (var j = 0; j < connections.length; j++) {
+
+                var connection = connections[j];
+
+                if (connection.hasOwnProperty("sourceId")) {
+                    var source = connection.sourceId;
+
+                    if (!sources.includes(source.toString())) {
+                        sources.push(source.toString());
+                    }
+                }
+            }
+
+            // Attempt to find the not shown builds of a job in the pipeline and add them to the timestamp list
+            if (sources.length > 1) {
+                console.info("More than one connection { " + sources.length + " } to stage: " + stage.name);
+
+                if (!isNullOrEmpty(stage.tasks[0].buildId)) {
+
+                    try {
+                        var remainingSources = sources;
+
+                        var additionalStageTimestamps = replayRetrieveMergedStageData(stageToNameMap, stage.name,
+                                sources, stages, pipelineNum, firstStageTimestamp);
+
+                        for (var k = 0; k < additionalStageTimestamps.length; k++) {
+                            var aStageTS = additionalStageTimestamps[k];
+
+                            var sourceId = null;
+
+                            try {
+                                sourceId = getStageId(stageToNameMap[aStageTS[4]].id + "", pipelineNum);
+                            } catch (e) {
+                            }
+
+                            stageTimestamps.push([aStageTS[0], aStageTS[1], true, aStageTS[3], sourceId]);
+                            stageTimestamps.push([aStageTS[0], aStageTS[2], false, aStageTS[3], sourceId]);
+                        }
+
+                        // Get the stage source id for the lastest path to a particular stage
+
+                        var stageSourceName = replayGetStageSource(stage);
+
+                        if (stageSourceName != null) {
+                            stageSourceId = getStageId(stageToNameMap[stageSourceName].id + "", pipelineNum);
+                        }
+
+                    } catch (e) {
+                        console.info("Something went wrong fetching additional connection information");
+                    }
+                }
+            }
+        }
+
+        stageTimestamps.push([stage, startTs, true, null, stageSourceId]);
+        stageTimestamps.push([stage, endTs, false, null, stageSourceId]);
+    }
+
+    // Sort all the timestamps
+    stageTimestamps = stageTimestamps.sort(function(a, b) {
+        var timestampA = a[1];
+        var timestampB = b[1];
+        return timestampA - timestampB;
+    });
+
+    var counter = 0;
+    for (var i = 0; i < stageTimestamps.length; i++) {
+        sleep(i * 1000).then(() => {
+            replayUpdateStage(stageTimestamps, counter, pipelineNum);
+            counter++;
+        });
+    }
+
+    sleep(stageTimestamps.length * 1000).then(() => {
+        console.info("Replay complete! Refreshing page!");
+        replayIsRunning = false;
+        replayEle.className = "replay replayStopped build_circle";
+        refreshFn(false);
+    });
+}
+
+function sleep (time) {
+    return new Promise((resolve) => setTimeout(resolve, time));
 }
