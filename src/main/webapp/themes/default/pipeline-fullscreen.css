@@ -1,8 +1,8 @@
 body {
     font-family: sans-serif;
-    background: #000000;
-    color: #fefefe;
-    font-size: 14px;
+    background: rgba(37,44,49,1);
+    margin: 0;
+    padding: 0;
 }
 
 div.pipeline-loading-icon {
@@ -10,55 +10,52 @@ div.pipeline-loading-icon {
 }
 
 section.pipeline-component {
+    width: 97.5%; /* Hackish way to resolve issues for now*/
     padding-left: 20px;
+    padding-right: 20px;
 }
 
 section.pipeline-component h1 {
     font-size: 38px;
     font-weight: bold;
+    vertical-align: middle;
+    padding: 10px;
 }
 
 section.pipeline-component h2 {
-    font-size: 24px;
+    font-size: 16px;
+    padding: 10px;
+}
+
+.pipelineHeader {
+    margin: 20px 0px 0px 0px;
+}
+
+.pipelineSecondaryHeader {
+    margin: 0px 0px 50px 0px;
+    padding: 5px 0px 5px 0px;
+}
+
+.buttonText {
+    line-height: 1.5em;
+    font-size: 16px;
+    padding: 5px 10px 5px 10px;
+}
+
+.buttonTrigger {
+    margin-left: 10px;
+}
+
+.buttonTriggerTextBox {
+    min-width: 450px;
+}
+
+.buttonRefreshTextBox {
+    min-width: 260px
 }
 
 div.changes h1 {
     font-size: 14px;
-}
-
-div.stage {
-    border-radius: 0;
-    border: solid #404040 1px;
-    background: #404040;
-}
-
-div.stage-header {
-    background: #808080;
-    border-bottom: solid #808080 1px;
-}
-
-div.stage-task {
-    min-height: 36px;
-}
-
-div.task-progress {
-    min-height: 36px;
-}
-
-.stage-name {
-    padding: 10px 10px 10px 10px;
-}
-
-.stage-version {
-    padding: 10px 10px 10px 10px;
-}
-
-.timestamp {
-    font-size: 12px;
-}
-
-.duration {
-    font-size: 12px;
 }
 
 .pipeline-message {
@@ -76,59 +73,10 @@ div.task-progress {
     color: inherit;
 }
 
-.IDLE {
-    border-left: 6px solid #d3d3d3;
-}
-
-.QUEUED {
-    border-left: 6px solid #2e6e9e;
-}
-
-.FAILED {
-    border-left: 6px solid red;
-    font-weight: bold;
-    color: red;
-    background-color: inherit;
-}
-
-.SUCCESS {
-    border-left: 6px solid #228b22;
-    background-color: inherit;
-}
-
-.UNSTABLE {
-    border-left: 6px solid #fcae3f;
-    font-weight: bold;
-    color: #fcae3f;
-    background-color: inherit;
-}
-
-.CANCELLED {
-    border-left: 6px solid #8b8989;
-    font-weight: bold;
-    background-color: inherit;
-}
-
-.NOT_BUILT {
-    border-left: 6px solid #8b8989;
-    font-weight: bold;
-    background-color: inherit;
-}
-
-.DISABLED {
-    border-left: 6px solid transparent;
-    color: #a9a9a9;
-    background-color: inherit;
-}
-
-.RUNNING {
-    border-left: 6px solid #0092ef;
-}
-
-svg.relation path {
+/*svg.relation path {
     stroke: #fefefe;
     stroke-width: 3;
-}
+}*/
 
 div.infoPanel {
     border: none;
@@ -145,4 +93,41 @@ div.aggregatedChangesPanelOuter {
     margin: 8px;
     border: 1px solid lightgray;
     background-color: #646060;
+}
+
+a span {
+    min-width: initial;
+}
+
+.build_entry {
+    line-height: 2.5em;
+}
+
+.displayTable {
+    font-size: 15px;
+}
+
+.hoverText {
+    font-size: 14px;
+}
+
+.hoverTable {
+    font-size: 14px;
+}
+
+.hoverTableTh {
+    min-width: 140px;
+}
+
+/* Enough to fit the timestamp in one line */
+.hoverTableTd {
+    min-width: 240px;
+}
+
+.legendTh {
+    font-size: small;
+}
+
+.legendTd {
+    font-size: small;
 }

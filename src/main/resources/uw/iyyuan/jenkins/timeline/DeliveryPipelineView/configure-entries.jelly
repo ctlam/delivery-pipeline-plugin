@@ -1,0 +1,161 @@
+<?jelly escape-by-default='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout"
+         xmlns:t="/lib/hudson" xmlns:f="/lib/form" xmlns:i="jelly:fmt">
+
+    <f:section title="View settings">
+        <f:entry title="Number of pipeline instances per pipeline" field="noOfPipelines">
+            <f:select/>
+        </f:entry>
+
+        <!--
+
+        <f:entry title="Display aggregated pipeline for each pipeline" field="showAggregatedPipeline">
+            <f:checkbox/>
+        </f:entry>
+
+        <f:entry title="Display aggregated changelog in aggregated view" field="showAggregatedChanges">
+            <f:checkbox/>
+        </f:entry>
+
+        <f:entry title="Group aggregated changelog by regular expression" field="aggregatedChangesGroupingPattern">
+            <f:textbox/>
+        </f:entry>
+
+        -->
+
+        <f:entry title="Number of columns" field="noOfColumns">
+            <f:select/>
+        </f:entry>
+
+        <f:entry title="Sorting" field="sorting">
+            <f:select/>
+        </f:entry>
+
+        <f:entry title="Max number of pipelines" field="maxNumberOfVisiblePipelines" default="-1">
+            <f:textbox/>
+        </f:entry>
+
+        <f:entry title="Update interval" field="updateInterval" default="2">
+            <f:textbox/>
+        </f:entry>
+
+        <f:entry title="Enable start of new pipeline build" field="allowPipelineStart">
+            <f:checkbox/>
+        </f:entry>
+
+        <f:entry title="Enable manual triggers" field="allowManualTriggers">
+            <f:checkbox/>
+        </f:entry>
+
+        <f:entry title="Enable rebuild" field="allowRebuild">
+            <f:checkbox/>
+        </f:entry>
+
+        <f:entry title="Show avatars" field="showAvatars">
+            <f:checkbox/>
+        </f:entry>
+
+        <f:entry title="Show commit messages" field="showChanges">
+            <f:checkbox/>
+        </f:entry>
+
+        <f:entry title="Show job description" field="showDescription">
+            <f:checkbox/>
+        </f:entry>
+
+        <f:entry title="Show job promotions" field="showPromotions">
+            <f:checkbox/>
+        </f:entry>
+
+        <f:entry title="Show test results" field="showTestResults">
+            <f:checkbox/>
+        </f:entry>
+
+        <f:entry title="Show static analysis results" field="showStaticAnalysisResults">
+            <f:checkbox/>
+        </f:entry>
+
+        <!--
+        Disabled because this is very misleading
+        
+        <f:entry title="Show total build time" field="showTotalBuildTime">
+            <f:checkbox/>
+        </f:entry>
+
+        -->
+
+        <f:entry title="Use relative links for easier navigation" field="linkRelative">
+            <f:checkbox/>
+        </f:entry>
+
+        <f:entry title="Use direct link to console log" field="linkToConsoleLog">
+            <f:checkbox/>
+        </f:entry>
+
+        <f:entry title="URL for custom CSS file" field="embeddedCss">
+            <f:textbox/>
+        </f:entry>
+
+        <f:entry title="URL for custom CSS file (fullscreen)" field="fullScreenCss">
+            <f:textbox/>
+        </f:entry>
+
+        <f:entry title="Enable paging" field="pagingEnabled">
+            <f:checkbox/>
+        </f:entry>
+
+        <f:entry title="Max number of pages" field="maxNoOfPages">
+            <f:textbox/>
+        </f:entry>
+
+        <f:entry name="theme" title="Theme" field="theme">
+            <select name="theme" class="setting-input  select">
+                <option value="default" selected="${instance.getTheme().equals('default')? 'true':null}">Default</option>
+
+                <!--
+                Only supporting default view at the moment
+                <option value="contrast" selected="${instance.getTheme().equals('contrast')? 'true':null}">Contrast</option>
+                <option value="overview" selected="${instance.getTheme().equals('overview')? 'true':null}">Overview</option>
+                -->
+                
+            </select>
+        </f:entry>
+
+    </f:section>
+
+    <f:section title="Pipelines">
+        <f:entry title="Components">
+            <f:repeatableProperty minimum="0" field="componentSpecs" header="Component"/>
+        </f:entry>
+        <f:entry title="Regular Expression">
+            <f:repeatableProperty minimum="0" field="regexpFirstJobs" header="RegEx"/>
+        </f:entry>
+    </f:section>
+
+    <f:section title="Additional Display Settings">
+        <f:entry title="Preferred Display Mode" field="viewMode">
+            <f:select/>
+        </f:entry>
+
+        <f:entry title="Use Full Locale Time Strings" field="useFullLocaleTimeStrings">
+            <f:checkbox/>
+        </f:entry>
+
+        <f:entry title="Display Top-Level Artifacts" field="showArtifacts">
+            <f:checkbox/>
+        </f:entry>
+
+        <f:entry title="Use YAML Parser for Display Arguments" field="useYamlParser">
+            <f:checkbox/>
+        </f:entry>
+
+        <f:entry title="Display Arguments File Name" field="displayArgumentsFile">
+            <f:textbox/>
+        </f:entry>
+
+        <f:entry title="Display Arguments" field="displayArguments">
+            <f:textarea/>
+        </f:entry>
+    </f:section>
+
+</j:jelly>
