@@ -484,16 +484,16 @@ function pipelineUtils() {
 
                         stage = pipeline.stages[j];
 
-                        if (stage.blockingJobs != "") {
-                            blockingMap[getStageId(stage.id + "", i)] = stage.blockingJobs.split(', ');
+                        if (stage.blockingJobs.length > 0) {
+                            blockingMap[getStageId(stage.id + "", i)] = stage.blockingJobs;
                         }
 
-                        if (stage.conditionalJobs != "") {
-                            conditionalMap[getStageId(stage.id + "", i)] = stage.conditionalJobs.split(', ');
+                        if (stage.conditionalJobs.length > 0) {
+                            conditionalMap[getStageId(stage.id + "", i)] = stage.conditionalJobs;
                         }
 
-                        if (stage.downstreamJobs != "") {
-                            downstreamMap[getStageId(stage.id + "", i)] = stage.downstreamJobs.split(', ');
+                        if (stage.downstreamJobs.length > 0) {
+                            downstreamMap[getStageId(stage.id + "", i)] = stage.downstreamJobs;
                         }
 
                         projectNameIdMap[getStageId(stage.id + "", i)] = stage.name;
@@ -2582,7 +2582,7 @@ function updateFailedOnBlockStages(pipeline, i) {
 
         if (stage.tasks[0].status.type == "FAILED") {
             for (var k = 0; k < downstreamStages.size(); k++) {
-                if (blockingJobs.split(', ').indexOf(downstreamStages[k]) != -1) {
+                if (blockingJobs.indexOf(downstreamStages[k]) != -1) {
                     var downstreamEle = document.getElementById(getStageId(downstreamStageIds[k] + "", i));
                     if (downstreamEle != null) {
                         if (downstreamEle.className == "circle circle_FAILED" || downstreamEle.className == "circle circle_CANCELLED") {
