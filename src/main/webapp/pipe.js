@@ -484,6 +484,10 @@ function pipelineUtils() {
 
                         stage = pipeline.stages[j];
 
+                        console.info("-------------------------------");
+                        console.info(stage.name);
+                        console.info(stage.previousTasks);
+
                         if (stage.blockingJobs.length > 0) {
                             blockingMap[getStageId(stage.id + "", i)] = stage.blockingJobs;
                         }
@@ -594,6 +598,26 @@ function pipelineUtils() {
                                 hoverTable += "<th class=\"hoverTableTh\">Duration:</th>";
                                 hoverTable += "<td class=\"hoverTableTd\">" + formatLongDuration(task.status.duration) + "</td></tr>";
                                 hoverTable += generateStageDisplayValueTable(displayArguments, jobName, stage.name, getStageId(stage.id + "", i));
+                                
+
+                                for (var l = 0; l < stage.previousTasks.length; l++) {
+                                    previousTask = stage.previousTasks[l];
+
+                                    hoverTable += "<tr class=\"hoverRow\">";
+                                    hoverTable += "<th class=\"hoverTableTh\">&nbsp;</th>";
+                                    hoverTable += "<td class=\"hoverTableTd\">&nbsp;</td></tr><tr class=\"hoverRow\">"
+
+                                    hoverTable += "<tr class=\"hoverRow\">";
+                                    hoverTable += "<th class=\"hoverTableTh\">Other Builds Triggered:</th>";
+                                    hoverTable += "<td class=\"hoverTableTd\">" + "#" + previousTask.buildId + "</td></tr><tr class=\"hoverRow\">"
+                                    hoverTable += "<th class=\"hoverTableTh\">Status:</th>";
+                                    hoverTable += "<td class=\"hoverTableTd\">" + previousTask.status.type + "</td></tr><tr class=\"hoverRow\">"
+                                    hoverTable += "<th class=\"hoverTableTh\">Timestamp:</th>";
+                                    hoverTable += "<td class=\"hoverTableTd\">" + formatLongDate(previousTask.status.timestamp) + "</td></tr><tr class=\"hoverRow\">";
+                                    hoverTable += "<th class=\"hoverTableTh\">Duration:</th>";
+                                    hoverTable += "<td class=\"hoverTableTd\">" + formatLongDuration(previousTask.status.duration) + "</td></tr>";
+                                }
+
                                 hoverTable += "</table>";
 
                                 html.push("<div id=\"" + id + "\" class=\"stage-task\">");

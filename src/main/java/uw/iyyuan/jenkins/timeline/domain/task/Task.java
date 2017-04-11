@@ -180,6 +180,37 @@ public class Task extends AbstractItem {
                 project.getUrl(), ManualStep.resolveManualStep(project), downStreamTasks, initial, descriptionTemplate);
     }
 
+    public List<Task> getAllTriggeredTasks(ItemGroup context, AbstractBuild firstBuild) {
+        AbstractProject<?, ?> project = getProject(this, context);
+        List<AbstractBuild> builds = null;
+        if (!ProjectUtil.isQueued(project, firstBuild)) {
+            builds = BuildUtil.matchAll(project.getBuilds(), firstBuild);
+        }
+
+        List<Task> allTriggeredTasks = new ArrayList<Task>();
+
+        if (builds == null) {
+            return allTriggeredTasks;
+        }
+
+        for (AbstractBuild<?, ?> build : builds) {
+            final Status taskStatus = SimpleStatus.resolveStatus(project, build, firstBuild);
+            final ManualStep manualStep = ManualStep.getManualStepLatest(project, build, firstBuild);
+
+            allTriggeredTasks.add(new Task(this,
+                                           resolveTaskName(project, getExpandedName(build)),
+                                           resolveBuildId(taskStatus, build),
+                                           taskStatus,
+                                           resolveTaskLink(taskStatus, build),
+                                           manualStep,
+                                           TestResult.getResults(build),
+                                           StaticAnalysisResult.getResults(build),
+                                           getBuildDescription(build)));
+        }
+
+        return allTriggeredTasks;
+    }
+
     public Task getLatestTask(ItemGroup context, AbstractBuild firstBuild) {
         AbstractProject<?, ?> project = getProject(this, context);
         AbstractBuild<?, ?> build = null;

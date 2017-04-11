@@ -24,6 +24,7 @@ import hudson.model.Cause;
 import hudson.model.CauseAction;
 import hudson.util.RunList;
 
+import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.CheckForNull;
 
@@ -92,6 +93,34 @@ public final class BuildUtil {
                     return currentBuild;
                 }
             }
+        }
+        return null;
+    }
+
+    /**
+     * Returns the builds for a projects that has been triggered by the supplied upstream project.
+     * Immediately stops searching once a build with a timestamp that is less than the supplied upstream project's
+     * timestamp is found
+     */
+    @CheckForNull
+    public static List<AbstractBuild> matchAll(RunList<? extends AbstractBuild> runList, AbstractBuild firstBuild) {
+        List<AbstractBuild> matchingBuilds = new ArrayList<AbstractBuild>();
+        if (firstBuild != null) {
+            Long firstBuildTs = firstBuild.getTimeInMillis();
+            for (AbstractBuild currentBuild : runList) {
+                // Get the first upstream build for all the build numbers
+                AbstractBuild build = BuildUtil.getFirstUpstreamBuild(currentBuild, firstBuild.getProject());
+                if (equals(build, firstBuild)) {
+                    matchingBuilds.add(currentBuild);
+                }
+                // Stop searching if the first upstream build occurs before the firstBuild's start timestamp
+                if (build.getTimeInMillis() < firstBuildTs) {
+                    break;
+                }
+            }
+        }
+        if (!matchingBuilds.isEmpty()) {
+            return matchingBuilds;
         }
         return null;
     }
