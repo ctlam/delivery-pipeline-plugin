@@ -11,6 +11,8 @@ function pipelineUtils() {
     var self = this;
     this.updatePipelines = function(divNames, errorDiv, view, fullscreen, page, component, showChanges, aggregatedChangesGroupingPattern, timeout, pipelineid, jsplumb) {
 
+        // Prevent a pipeline update if a replay is running
+        // The replay will automatically update the pipeline once it is complete
         if (replayIsRunning) {
             console.info("Replay is currently running. Will update pipeline after replay is complete.");
             return;
@@ -3244,6 +3246,9 @@ function replay(pipelineNum) {
         console.info("Replay complete! Refreshing page!");
         replayIsRunning = false;
         replayEle.className = "replay replayStopped build_circle";
+
+        // Refresh after replay is complete since a running replay will prevent a pipeline update
+        // Also ensures the validity of the pipeline information in the event replay has a bug somewhere
         refreshFn(false);
     });
 }
