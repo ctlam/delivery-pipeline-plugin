@@ -3124,19 +3124,24 @@ function replay(pipelineNum) {
 
     console.info("Replaying pipeline! { #" + stages[0].tasks[0].buildId + " " + stages[0].name + " }");
 
-    // Set all stages to IDLE unless they are DISABLED
+    // Set all stages to IDLE unless they are DISABLED / IDLE / NOT_BUILT
     for (var i = 0; i < stages.length; i++) {
         var stage = stages[i];
         var stageId = getStageId(stage.id + "", pipelineNum);
         var stageStatus = stage.tasks[0].status.type;
         var stageBuildName = "#" + stage.tasks[0].buildId + " " + stage.name;
 
-        if (stageStatus != "DISABLED") {
+        if (stageStatus != "DISABLED" && stageStatus != "IDLE" && stageStatus != "NOT_BUILT") {
             var ele = document.getElementById(stageId);
             ele.className = "circle circle_IDLE";
 
             var buildNameEle = document.getElementById(stage.name + "-" + pipelineNum);
-            buildNameEle.innerHTML = "#N/A " + stage.name;
+
+            // To prevent the job name box from resizing due to a change in text length
+            var tmpString = "#";
+            tmpString += "_".repeat(buildNameEle.innerHTML.split(" ")[0].length - 1);
+
+            buildNameEle.innerHTML = tmpString + " " + stage.name;
         }
 
         var startTs = parseInt(stage.tasks[0].status.timestamp);
