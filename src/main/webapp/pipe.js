@@ -1610,6 +1610,13 @@ function formatDuration(millis) {
 }
 
 function triggerManual(taskId, downstreamProject, upstreamProject, upstreamBuild, viewUrl) {
+
+    var confirmManualStep = confirm("Are you sure you want to kick off this manual step?");
+    if (!confirmManualStep) {
+        console.info("Did not trigger manual step!");
+        return;
+    }
+
     Q("#manual-" + taskId).hide();
     var formData = {project: downstreamProject, upstream: upstreamProject, buildId: upstreamBuild},
         before;
