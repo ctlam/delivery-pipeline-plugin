@@ -104,7 +104,7 @@ public class DeliveryPipelineView extends View {
     private boolean showAvatars = false;
     private int updateInterval = DEFAULT_INTERVAL;
     private boolean showChanges = false;
-    private boolean allowManualTriggers = false;
+    private boolean allowManualTriggers = true;
     private boolean showTotalBuildTime = false;
     private boolean allowRebuild = false;
     private boolean allowPipelineStart = true;
