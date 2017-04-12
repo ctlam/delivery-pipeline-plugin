@@ -1643,6 +1643,8 @@ function triggerManual(taskId, downstreamProject, upstreamProject, upstreamBuild
             window.alert("Could not trigger build! error: " + errorThrown + " status: " + textStatus);
         }
     });
+
+    refreshFn(false);
 }
 
 function triggerRebuild(taskId, project, buildId, viewUrl) {
