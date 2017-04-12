@@ -294,11 +294,11 @@ function pipelineUtils() {
                     var statusString = pipeline.stages[0].tasks[0].status.type;
 
                     var pipelineTimestamp = formatLongDate(pipeline.timestamp);
-                    var pipelineDuration = formatLongDuration(pipeline.stages[0].tasks[0].status.duration);
+                    var pipelineDuration = formatLongDuration(pipeline.pipelineBuildTime);
                         
                     if (!data.useFullLocaleTimeStrings) {
                         pipelineTimestamp = formatDate(pipeline.timestamp);
-                        pipelineDuration = formatDuration(pipeline.stages[0].tasks[0].status.duration);
+                        pipelineDuration = formatDuration(pipeline.pipelineBuildTime);
                     }
 
                     if (pipeline.triggeredBy && pipeline.triggeredBy.length > 0) {
@@ -507,18 +507,14 @@ function pipelineUtils() {
 
                         if (numColumns <= 3 && !shiftedOneColumn) {
                             shiftedOneColumn = true;
-                            if (data.viewMode == "Minimalist") {
-                                html.push("<div class=\"pipeline-cell\">");
-                                html.push("<div class=\"stage hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
-                            }
+                            html.push("<div class=\"pipeline-cell\">");
+                            html.push("<div class=\"stage hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
                         }
 
                         if (stage.column > column) {
                             for (var as = column; as < stage.column; as++) {
-                                if (data.viewMode == "Minimalist") {
-                                    html.push("<div class=\"pipeline-cell\">");
-                                    html.push("<div class=\"stage hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
-                                }
+                                html.push("<div class=\"pipeline-cell\">");
+                                html.push("<div class=\"stage hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
                                 column++;
                             }
                         }
@@ -533,18 +529,15 @@ function pipelineUtils() {
                             }
                         }
 
-                        if (data.viewMode == "Minimalist") {
-                            html.push("<div class=\"stage\" style=\"width: " + widthPerCell + "px;\">");    
-                            html.push("<div class=\"stage-header\" style=\"font-size: " + fontSizePerCell + "px;\">");
-                            html.push("<div class=\"stage-name\">");
-                            html.push("<a href=\"" + link + "\" target=\"_blank\" id=\"" + stage.name + "-" + i + "\">");
-                            // html.push("<a href=\"javascript:void(0);\" onclick=\"openNewTabInBackground('" + link + "')\">");
+                        html.push("<div class=\"stage\" style=\"width: " + widthPerCell + "px;\">");    
+                        html.push("<div class=\"stage-header\" style=\"font-size: " + fontSizePerCell + "px;\">");
+                        html.push("<div class=\"stage-name\">");
+                        html.push("<a href=\"" + link + "\" target=\"_blank\" id=\"" + stage.name + "-" + i + "\">");
 
-                            if (isNullOrEmpty(stage.tasks[0].buildId)) {
-                                html.push("#N/A " + stage.name + "</a></div>");
+                        if (isNullOrEmpty(stage.tasks[0].buildId)) {
+                            html.push("#N/A " + stage.name + "</a></div>");
                             } else {
-                                html.push("#" + stage.tasks[0].buildId + " " + stage.name + "</a></div>");
-                            }
+                            html.push("#" + stage.tasks[0].buildId + " " + stage.name + "</a></div>");
                         }
 
                         if (!pipeline.aggregated) {
@@ -584,54 +577,60 @@ function pipelineUtils() {
                                }
                             }
 
-                            if (data.viewMode == "Minimalist") {
-                                var toolTipStyle = Math.round(column / numColumns) < 0.5 ? "left: 0%;" : "right: 0%;"
-                                var hoverTable = "<table class=\"hoverTable\"><tr class=\"hoverRow\">";
+                            var toolTipStyle = Math.round(column / numColumns) < 0.5 ? "left: 0%;" : "right: 0%;"
+                            var hoverTable = "<table class=\"hoverTable\"><tr class=\"hoverRow\">";
+                            hoverTable += "<th class=\"hoverTableTh\">Status:</th>";
+                            hoverTable += "<td class=\"hoverTableTd\">" + task.status.type + "</td></tr><tr class=\"hoverRow\">"
+                            hoverTable += "<th class=\"hoverTableTh\">Timestamp:</th>";
+                            hoverTable += "<td class=\"hoverTableTd\">" + timestamp + "</td></tr><tr class=\"hoverRow\">";
+                            hoverTable += "<th class=\"hoverTableTh\">Duration:</th>";
+                            hoverTable += "<td class=\"hoverTableTd\">" + formatLongDuration(task.status.duration) + "</td></tr>";
+
+                            if (task.status.promoted) {
+                                hoverTable += "<tr class=\"hoverRow\">";
+                                hoverTable += "<th class=\"hoverTableTh\">Promoted:</th>";
+                                hoverTable += "<td class=\"hoverTableTd\">TRUE</td></tr>";
+                            }
+
+                            hoverTable += generateStageDisplayValueTable(displayArguments, jobName, stage.name, stage.tasks[0].buildId, getStageId(stage.id + "", i));
+                            
+                            for (var l = 0; l < stage.previousTasks.length; l++) {
+                                previousTask = stage.previousTasks[l];
+
+                                hoverTable += "<tr class=\"hoverRow\">";
+                                hoverTable += "<th class=\"hoverTableTh\">&nbsp;</th>";
+                                hoverTable += "<td class=\"hoverTableTd\">&nbsp;</td></tr><tr class=\"hoverRow\">"
+
+                                hoverTable += "<tr class=\"hoverRow\">";
+                                hoverTable += "<th class=\"hoverTableTh\">Other Builds Triggered:</th>";
+                                hoverTable += "<td class=\"hoverTableTd\">" + "#" + previousTask.buildId + "</td></tr><tr class=\"hoverRow\">"
                                 hoverTable += "<th class=\"hoverTableTh\">Status:</th>";
-                                hoverTable += "<td class=\"hoverTableTd\">" + task.status.type + "</td></tr><tr class=\"hoverRow\">"
+                                hoverTable += "<td class=\"hoverTableTd\">" + previousTask.status.type + "</td></tr><tr class=\"hoverRow\">"
                                 hoverTable += "<th class=\"hoverTableTh\">Timestamp:</th>";
-                                hoverTable += "<td class=\"hoverTableTd\">" + timestamp + "</td></tr><tr class=\"hoverRow\">";
+                                hoverTable += "<td class=\"hoverTableTd\">" + formatLongDate(previousTask.status.timestamp) + "</td></tr><tr class=\"hoverRow\">";
                                 hoverTable += "<th class=\"hoverTableTh\">Duration:</th>";
-                                hoverTable += "<td class=\"hoverTableTd\">" + formatLongDuration(task.status.duration) + "</td></tr>";
-                                hoverTable += generateStageDisplayValueTable(displayArguments, jobName, stage.name, stage.tasks[0].buildId, getStageId(stage.id + "", i));
-                                
+                                hoverTable += "<td class=\"hoverTableTd\">" + formatLongDuration(previousTask.status.duration) + "</td></tr>";
 
-                                for (var l = 0; l < stage.previousTasks.length; l++) {
-                                    previousTask = stage.previousTasks[l];
-
+                                if (previousTask.status.promoted) {
                                     hoverTable += "<tr class=\"hoverRow\">";
-                                    hoverTable += "<th class=\"hoverTableTh\">&nbsp;</th>";
-                                    hoverTable += "<td class=\"hoverTableTd\">&nbsp;</td></tr><tr class=\"hoverRow\">"
-
-                                    hoverTable += "<tr class=\"hoverRow\">";
-                                    hoverTable += "<th class=\"hoverTableTh\">Other Builds Triggered:</th>";
-                                    hoverTable += "<td class=\"hoverTableTd\">" + "#" + previousTask.buildId + "</td></tr><tr class=\"hoverRow\">"
-                                    hoverTable += "<th class=\"hoverTableTh\">Status:</th>";
-                                    hoverTable += "<td class=\"hoverTableTd\">" + previousTask.status.type + "</td></tr><tr class=\"hoverRow\">"
-                                    hoverTable += "<th class=\"hoverTableTh\">Timestamp:</th>";
-                                    hoverTable += "<td class=\"hoverTableTd\">" + formatLongDate(previousTask.status.timestamp) + "</td></tr><tr class=\"hoverRow\">";
-                                    hoverTable += "<th class=\"hoverTableTh\">Duration:</th>";
-                                    hoverTable += "<td class=\"hoverTableTd\">" + formatLongDuration(previousTask.status.duration) + "</td></tr>";
-                                    hoverTable += generateStageDisplayValueTable(displayArguments, jobName, stage.name, previousTask.buildId, getStageId(stage.id + "", i));
+                                    hoverTable += "<th class=\"hoverTableTh\">Promoted:</th>";
+                                    hoverTable += "<td class=\"hoverTableTd\">TRUE</td></tr>";
                                 }
 
-                                hoverTable += "</table>";
-
-                                html.push("<div id=\"" + id + "\" class=\"stage-task\">");
-                                html.push("<div class=\"task-header\">");
-                                html.push("<div class=\"taskname\">");
-                                html.push("<a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle circle_" + task.status.type + "\" ");
-                                // html.push("href=\"javascript:void(0);\" onclick=\"openNewTabInBackground('" + getLink(data, task.link) + consoleLogLink + "');\" ");
-                                html.push("href=\"" + getLink(data, task.link) + consoleLogLink + "\" target=\"_blank\" ");
-                                html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; ");
-                                html.push("background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
-                                html.push("<br/><span class=\"tooltip\" style=\"" + toolTipStyle + "\">" + hoverTable + "</span></a>");
-                                html.push("</div></div></div>");
+                                hoverTable += generateStageDisplayValueTable(displayArguments, jobName, stage.name, previousTask.buildId, getStageId(stage.id + "", i));
                             }
-                        }
 
-                        if (pipeline.aggregated && stage.changes && stage.changes.length > 0) {
-                            html.push(generateAggregatedChangelog(stage.changes, aggregatedChangesGroupingPattern));
+                            hoverTable += "</table>";
+
+                            html.push("<div id=\"" + id + "\" class=\"stage-task\">");
+                            html.push("<div class=\"task-header\">");
+                            html.push("<div class=\"taskname\">");
+                            html.push("<a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle circle_" + task.status.type + "\" ");
+                            html.push("href=\"" + getLink(data, task.link) + consoleLogLink + "\" target=\"_blank\" ");
+                            html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; ");
+                            html.push("background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
+                            html.push("<br/><span class=\"tooltip\" style=\"" + toolTipStyle + "\">" + hoverTable + "</span></a>");
+                            html.push("</div></div></div>");
                         }
 
                         html.push("</div></div>");
