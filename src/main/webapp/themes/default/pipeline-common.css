@@ -54,6 +54,10 @@
     background: url("failedOnBlockCircle.png") no-repeat;
 }
 
+.circle_MANUAL {
+    background: url("manualTriggerCircle.png") no-repeat;
+}
+
 .replay {
     float: left;
     margin: 0px;

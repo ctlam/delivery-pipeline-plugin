@@ -598,8 +598,8 @@ function pipelineUtils() {
                                 previousTask = stage.previousTasks[l];
 
                                 hoverTable += "<tr class=\"hoverRow\">";
-                                hoverTable += "<th class=\"hoverTableTh\">&nbsp;</th>";
-                                hoverTable += "<td class=\"hoverTableTd\">&nbsp;</td></tr><tr class=\"hoverRow\">"
+                                hoverTable += "<th class=\"hoverTableTh\" colspan=\"2\">&nbsp;</th>";
+                                hoverTable += "</tr>"
 
                                 hoverTable += "<tr class=\"hoverRow\">";
                                 hoverTable += "<th class=\"hoverTableTh\">Other Builds Triggered:</th>";
@@ -620,16 +620,37 @@ function pipelineUtils() {
                                 hoverTable += generateStageDisplayValueTable(displayArguments, jobName, stage.name, previousTask.buildId, getStageId(stage.id + "", i));
                             }
 
+                            if (data.allowManualTriggers && task.manual && task.manualStep.enabled && task.manualStep.permission) {
+                                hoverTable += "<tr class=\"hoverRow\">";
+                                hoverTable += "<th class=\"hoverTableTh\" colspan=\"2\">&nbsp;</th>";
+                                hoverTable += "</tr>"
+
+                                hoverTable += "<tr class=\"hoverRow\">";
+                                hoverTable += "<th class=\"hoverTableTh\" colspan=\"2\">Awaiting Manual Trigger</th>";
+                                hoverTable += "</tr>";
+                            }
+
                             hoverTable += "</table>";
 
                             html.push("<div id=\"" + id + "\" class=\"stage-task\">");
                             html.push("<div class=\"task-header\">");
                             html.push("<div class=\"taskname\">");
-                            html.push("<a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle circle_" + task.status.type + "\" ");
-                            html.push("href=\"" + getLink(data, task.link) + consoleLogLink + "\" target=\"_blank\" ");
-                            html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; ");
-                            html.push("background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
-                            html.push("<br/><span class=\"tooltip\" style=\"" + toolTipStyle + "\">" + hoverTable + "</span></a>");
+
+                            // Manual trigger
+                            if (data.allowManualTriggers && task.manual && task.manualStep.enabled && task.manualStep.permission) {
+                                html.push("<a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle circle_MANUAL\" ");
+                                html.push("onclick=\"triggerManual('" + id + "', '" + task.id + "', '" + task.manualStep.upstreamProject + "', '" + task.manualStep.upstreamId +  "', '" + view.viewUrl + "'); refreshFn(false)\" ");
+                                html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; ");
+                                html.push("background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
+                                html.push("<br/><span class=\"tooltip\" style=\"" + toolTipStyle + "\">" + hoverTable + "</span></a>");
+                            } else {
+                                html.push("<a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle circle_" + task.status.type + "\" ");
+                                html.push("href=\"" + getLink(data, task.link) + consoleLogLink + "\" target=\"_blank\" ");
+                                html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; ");
+                                html.push("background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
+                                html.push("<br/><span class=\"tooltip\" style=\"" + toolTipStyle + "\">" + hoverTable + "</span></a>");
+                            }
+                            
                             html.push("</div></div></div>");
                         }
 
