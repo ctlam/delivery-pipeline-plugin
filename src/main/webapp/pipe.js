@@ -11,6 +11,11 @@ function pipelineUtils() {
     var self = this;
     this.updatePipelines = function(divNames, errorDiv, view, fullscreen, page, component, showChanges, aggregatedChangesGroupingPattern, timeout, pipelineid, jsplumb) {
 
+        if (replayIsRunning) {
+            console.info("Replay is currently running. Will update pipeline after replay is complete.");
+            return;
+        }
+
         pipelineutils = this;
         pipelineutilsData.push(divNames, errorDiv, view, fullscreen, page, component, showChanges, aggregatedChangesGroupingPattern, timeout, pipelineid, jsplumb);
         // Keep track of the jsplumb instance so that we can repaint when necessary
