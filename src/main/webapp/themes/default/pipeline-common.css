@@ -54,6 +54,10 @@
     background: url("failedOnBlockCircle.png") no-repeat;
 }
 
+.circle_MANUAL {
+    background: url("manualTriggerCircle.png") no-repeat;
+}
+
 .replay {
     float: left;
     margin: 0px;
@@ -767,7 +771,7 @@ a span {
     min-height: 50px;
     min-width: 100px;
     top: 100%;
-    z-index: 6;
+    z-index: 7;
     padding: 5px;
 }
 
@@ -791,7 +795,7 @@ a:hover span {
     font-size: 12px;
     background-color: #ddd;
     color: black;
-    z-index: 5;
+    z-index: 6;
 }
 
 ._jsPlumb_connector {
@@ -799,13 +803,21 @@ a:hover span {
 }
 
 ._jsPlumb_endpoint {
-    z-index: 2;
-}
-
-._jsPlumb_overlay {
     z-index: 3;
 }
 
-.jtk-hover {
+._jsPlumb_overlay {
     z-index: 4;
+}
+
+.jtk-hover {
+    z-index: 5;
+}
+
+.blocking {
+    z-index: 2;
+}
+
+.running {
+    z-index: 5;
 }

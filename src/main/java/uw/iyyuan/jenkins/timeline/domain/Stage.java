@@ -79,6 +79,7 @@ import javax.annotation.CheckForNull;
 @ExportedBean(defaultVisibility = AbstractItem.VISIBILITY)
 public class Stage extends AbstractItem {
     private final List<Task> tasks;
+    private List<Task> previousTasks;
 
     private String version;
     private int row;
@@ -126,18 +127,26 @@ public class Stage extends AbstractItem {
     }
 
     private Stage(Stage stage, List<Task> tasks, String version, long id) {
-        this(stage.getName(), tasks, stage.getDownstreamStages(), stage.getDownstreamStageIds(),
+        this(stage.getName(), tasks, new ArrayList<Task>(), stage.getDownstreamStages(), stage.getDownstreamStageIds(),
              stage.getTaskConnections(), version, stage.getRow(), stage.getColumn(), id, stage.getBlockingJobs(),
              stage.getConditionalJobs(), stage.getDownstreamJobs(), stage.getPromotionCriteriaJobs(),
              stage.getPromotionTriggerJobs());
     }
 
-    private Stage(String name, List<Task> tasks, List<String> downstreamStages, List<Long> downstreamStageIds,
-                  Map<String, List<String>> taskConnections, String version, int row, int column, long id,
-                  List<String> blockingJobs, List<String> conditionalJobs, List<String> downstreamJobs, 
-                  String promotionCriteriaJobs, String promotionTriggerJobs) {
+    private Stage(Stage stage, List<Task> tasks, List<Task> previousTasks, String version, long id) {
+        this(stage.getName(), tasks, previousTasks, stage.getDownstreamStages(), stage.getDownstreamStageIds(),
+             stage.getTaskConnections(), version, stage.getRow(), stage.getColumn(), id, stage.getBlockingJobs(),
+             stage.getConditionalJobs(), stage.getDownstreamJobs(), stage.getPromotionCriteriaJobs(),
+             stage.getPromotionTriggerJobs());
+    }
+
+    private Stage(String name, List<Task> tasks, List<Task> previousTasks, List<String> downstreamStages, 
+                  List<Long> downstreamStageIds, Map<String, List<String>> taskConnections, String version, int row, 
+                  int column, long id, List<String> blockingJobs, List<String> conditionalJobs, 
+                  List<String> downstreamJobs, String promotionCriteriaJobs, String promotionTriggerJobs) {
         super(name);
         this.tasks = tasks;
+        this.previousTasks = previousTasks;
         this.version = version;
         this.row = row;
         this.column = column;
@@ -155,6 +164,11 @@ public class Stage extends AbstractItem {
     @Exported
     public List<Task> getTasks() {
         return tasks;
+    }
+
+    @Exported
+    public List<Task> getPreviousTasks() {
+        return previousTasks;
     }
 
     @Exported
@@ -422,15 +436,31 @@ public class Stage extends AbstractItem {
         return new Stage(this, stageTasks, stageVersion, id);
     }
 
-
     public Stage createLatestStage(ItemGroup context, AbstractBuild firstBuild) {
         List<Task> stageTasks = new ArrayList<Task>();
+        List<Task> previousStageTasks = new ArrayList<Task>();
+
         for (Task task : getTasks()) {
             stageTasks.add(task.getLatestTask(context, firstBuild));
-        }
-        return new Stage(this, stageTasks, null, id);
 
+            final List<Task> previousTasks = task.getAllTriggeredTasks(context, firstBuild);
+
+            // Get all other builds other than the latest that were triggered by firstBuild
+            if (previousTasks.size() > 1) {
+                previousStageTasks.addAll(previousTasks.subList(1, previousTasks.size()));
+            }
+
+        }
+        return new Stage(this, stageTasks, previousStageTasks, null, id);
     }
+
+    // public Stage createLatestStage(ItemGroup context, AbstractBuild firstBuild) {
+    //     List<Task> stageTasks = new ArrayList<Task>();
+    //     for (Task task : getTasks()) {
+    //         stageTasks.add(task.getLatestTask(context, firstBuild));
+    //     }
+    //     return new Stage(this, stageTasks, null, id);
+    // }
 
 
     public static List<Stage> placeStages(AbstractProject firstProject, Collection<Stage> stages)
