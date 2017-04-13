@@ -1249,18 +1249,11 @@ function generateButtons(c, firstJobParameterized, firstJobUrl, name) {
     var retVal = "";
     var buildTriggerMessage = firstJobParameterized ? "Trigger New Parameterized Build" : "Trigger New Build";
     var triggerFunction = firstJobParameterized ? "triggerParameterizedBuild" : "triggerBuild";
-    var buildTriggerHoverMessage = "Triggers a new build.<br/><br/>" 
-        + "Auto-refreshes the page for unparameterized jobs.<br/><br/>"
-        + "If the top project is parameterized, a new tab will be opened.<br/>"
-        + "Please either manually refresh the page once you have kicked off the parameterized job, "
-        + "or wait until this page is updated on the next refresh cycle.";
 
     var html = ["<div class=\"button buttonTrigger\">"];
     html.push("<a id=\"startpipeline-" + c  + "\" href=\"javascript:void(0);\" onclick=\"" + triggerFunction 
         + "('" + firstJobUrl + "', '" + name + "');\" style=\"text-decoration:none;\">");
         html.push("<p class=\"buttonText\">" + buildTriggerMessage + "</p>");
-            // html.push("<span class=\"tooltiptext buttonTriggerTextBox\">" + buildTriggerHoverMessage);
-            // html.push("</span>");
         html.push("</a>");
     html.push("</div>");
 
@@ -1610,7 +1603,6 @@ function formatDuration(millis) {
 }
 
 function triggerManual(taskId, downstreamProject, upstreamProject, upstreamBuild, viewUrl) {
-
     var confirmManualStep = confirm("Are you sure you want to kick off this manual step?");
     if (!confirmManualStep) {
         console.info("Did not trigger manual step!");
@@ -1706,7 +1698,6 @@ function triggerBuild(url, taskId) {
 }
  
 function refreshFn(clearToggleStates) {
-
     if (clearToggleStates) {
         // Clear all toggle states
         sessionStorage.toggleStates = JSON.stringify({});    
@@ -1743,7 +1734,6 @@ function getStageId(name, count) {
 }
 
 function equalheight(container) {
-
     var currentTallest = 0,
         currentRowStart = 0,
         rowDivs = new Array(),
@@ -1883,24 +1873,18 @@ function getCustomPipelineBuildStatus(displayArgs, pipeline, jobName, buildNum, 
 
             // Pipeline is still running to set the status to be running
             if (!allStagesComplete) {
-
                 // Update pipeline build status to finalStatus
                 var id = jobName + "-" + buildNum + "-status";
                 var ele = document.getElementById(id);
-
                 ele.className = "circle_header circle_RUNNING build_circle";
                 return;
-
             } else {
-
                 // Check that all the user defined jobs are successful
                 var finalStatus = "";
-
                 for (var i = 0; i < pipeline.stages.length; i++) {
                     stage = pipeline.stages[i];
 
                     var projects = displayArgs[mainProject].PipelineBuildStatus;
-
                     while (projects != "") {
                         var project = projects.split(",")[0];
 
@@ -1911,28 +1895,21 @@ function getCustomPipelineBuildStatus(displayArgs, pipeline, jobName, buildNum, 
 
                                 var id = jobName + "-" + buildNum + "-status";
                                 var ele = document.getElementById(id);
-
                                 ele.className = "circle_header circle_FAILED build_circle";
-
                                 return;
                             }
-
                             if (stageStatus == "SUCCESS") {
                                 finalStatus = "SUCCESS";
                             }
-
                             break;
                         }
-
                         projects = projects.split(",").slice(1).join(",");
                     }
                 }
-
                 if (finalStatus != "") {
                     // Update pipeline build status to finalStatus
                     var id = jobName + "-" + buildNum + "-status";
                     var ele = document.getElementById(id);
-
                     ele.className = "circle_header circle_" + finalStatus + " build_circle"; 
                 }
             }
@@ -2049,7 +2026,6 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
                     if (savedValues.hasOwnProperty(id) && configNotChanged) {
                         continue;
                     }
-
                     if (projectNameIdMap.hasOwnProperty(projectName) == false) {
                         continue;
                     }
@@ -2057,19 +2033,15 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
                     if (displayKeyConfig.hasOwnProperty("filePath")) {
                         filePath = displayKeyConfig.filePath;
                     }
-
                     if (displayKeyConfig.hasOwnProperty("artifactName")) {
                         artifactName = displayKeyConfig.artifactName;
                     }
-
                     if (displayKeyConfig.hasOwnProperty("envName")) {
                         envName = displayKeyConfig.envName;
                     }
-
                     if (displayKeyConfig.hasOwnProperty("paramName")) {
                         paramName = displayKeyConfig.paramName;
                     }
-
                     if (displayKeyConfig.hasOwnProperty("fromConsole")) {
                         fromConsole = displayKeyConfig.fromConsole;
                     }
@@ -2086,18 +2058,15 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
                             return;
                         }
                     }
-
                     if (filePath != "") {
                         url = "/job/" + projectName + "/ws/" + filePath;
                     }
-
                     if (envName != "" || paramName != "") {
                         url = "/job/" + projectName + "/" + projectNameIdMap[projectName] + "/injectedEnvVars/api/json";
                         if (projectNameIdMap[projectName] == null) {
                             return;
                         }
                     }
-
                     if (fromConsole == "true" || fromConsole == true) {
                         url = "/job/" + projectName + "/" + projectNameIdMap[projectName] + "/consoleText";
                         if (projectNameIdMap[projectName] == null) {
@@ -2364,19 +2333,15 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
                 if (displayKeyConfig.hasOwnProperty("filePath")) {
                     filePath = displayKeyConfig.filePath;
                 }
-
                 if (displayKeyConfig.hasOwnProperty("artifactName")) {
                     artifactName = displayKeyConfig.artifactName;
                 }
-
                 if (displayKeyConfig.hasOwnProperty("envName")) {
                     envName = displayKeyConfig.envName;
                 }
-
                 if (displayKeyConfig.hasOwnProperty("paramName")) {
                     paramName = displayKeyConfig.paramName;
                 }
-
                 if (displayKeyConfig.hasOwnProperty("fromConsole")) {
                     fromConsole = displayKeyConfig.fromConsole;
                 }
@@ -2393,18 +2358,15 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
                         return;
                     }
                 }
-
                 if (filePath != "") {
                     url = "/job/" + stageName + "/ws/" + filePath;
                 }
-
                 if (envName != "" || paramName != "") {
                     url = "/job/" + stageName + "/" + stageBuildNum + "/injectedEnvVars/api/json";
                     if (stageBuildNum == null) {
                         return;
                     }
                 }
-
                 if (fromConsole == "true" || fromConsole == true) {
                     url = "/job/" + stageName + "/" + stageBuildNum + "/consoleText";
                     if (stageBuildNum == null) {
