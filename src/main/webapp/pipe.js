@@ -11,6 +11,13 @@ function pipelineUtils() {
     var self = this;
     this.updatePipelines = function(divNames, errorDiv, view, fullscreen, page, component, showChanges, aggregatedChangesGroupingPattern, timeout, pipelineid, jsplumb) {
 
+        // Prevent a pipeline update if a replay is running
+        // The replay will automatically update the pipeline once it is complete
+        if (replayIsRunning) {
+            console.info("Replay is currently running. Will update pipeline after replay is complete.");
+            return;
+        }
+
         pipelineutils = this;
         pipelineutilsData.push(divNames, errorDiv, view, fullscreen, page, component, showChanges, aggregatedChangesGroupingPattern, timeout, pipelineid, jsplumb);
         // Keep track of the jsplumb instance so that we can repaint when necessary
@@ -293,12 +300,21 @@ function pipelineUtils() {
                     var buildNum = pipeline.version.substring(1);
                     var statusString = pipeline.stages[0].tasks[0].status.type;
 
+                    for (var j = 0; j < pipeline.stages.length; j++) {
+                        var stage = pipeline.stages[j];
+                        var task = stage.tasks[0];
+
+                        if (data.allowManualTriggers && task.manual && task.manualStep.enabled && task.manualStep.permission) {
+                            statusString = "MANUAL";
+                        }
+                    }
+
                     var pipelineTimestamp = formatLongDate(pipeline.timestamp);
-                    var pipelineDuration = formatLongDuration(pipeline.stages[0].tasks[0].status.duration);
+                    var pipelineDuration = formatLongDuration(pipeline.pipelineBuildTime);
                         
                     if (!data.useFullLocaleTimeStrings) {
                         pipelineTimestamp = formatDate(pipeline.timestamp);
-                        pipelineDuration = formatDuration(pipeline.stages[0].tasks[0].status.duration);
+                        pipelineDuration = formatDuration(pipeline.pipelineBuildTime);
                     }
 
                     if (pipeline.triggeredBy && pipeline.triggeredBy.length > 0) {
@@ -377,7 +393,6 @@ function pipelineUtils() {
                         html.push("<section class=\"pipeline-values\">");
                         html.push("<div class=\"pipeline-row\">");
 
-                        //if (displayArguments != "" && displayArguments != null) {
                         if (JSON.stringify(displayArguments) != JSON.stringify({})) {
                             var toggleTableId = "toggle-table-" + jobName + "-" + buildNum;
                             var displayTableId = "display-table-" + jobName + "-" + buildNum;
@@ -484,16 +499,14 @@ function pipelineUtils() {
 
                         stage = pipeline.stages[j];
 
-                        if (stage.blockingJobs != "") {
-                            blockingMap[getStageId(stage.id + "", i)] = stage.blockingJobs.split(', ');
+                        if (stage.blockingJobs.length > 0) {
+                            blockingMap[getStageId(stage.id + "", i)] = stage.blockingJobs;
                         }
-
-                        if (stage.conditionalJobs != "") {
-                            conditionalMap[getStageId(stage.id + "", i)] = stage.conditionalJobs.split(', ');
+                        if (stage.conditionalJobs.length > 0) {
+                            conditionalMap[getStageId(stage.id + "", i)] = stage.conditionalJobs;
                         }
-
-                        if (stage.downstreamJobs != "") {
-                            downstreamMap[getStageId(stage.id + "", i)] = stage.downstreamJobs.split(', ');
+                        if (stage.downstreamJobs.length > 0) {
+                            downstreamMap[getStageId(stage.id + "", i)] = stage.downstreamJobs;
                         }
 
                         projectNameIdMap[getStageId(stage.id + "", i)] = stage.name;
@@ -507,18 +520,14 @@ function pipelineUtils() {
 
                         if (numColumns <= 3 && !shiftedOneColumn) {
                             shiftedOneColumn = true;
-                            if (data.viewMode == "Minimalist") {
-                                html.push("<div class=\"pipeline-cell\">");
-                                html.push("<div class=\"stage hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
-                            }
+                            html.push("<div class=\"pipeline-cell\">");
+                            html.push("<div class=\"stage hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
                         }
 
                         if (stage.column > column) {
                             for (var as = column; as < stage.column; as++) {
-                                if (data.viewMode == "Minimalist") {
-                                    html.push("<div class=\"pipeline-cell\">");
-                                    html.push("<div class=\"stage hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
-                                }
+                                html.push("<div class=\"pipeline-cell\">");
+                                html.push("<div class=\"stage hide\" style=\"width: " + widthPerCell + "px;\"></div></div>");
                                 column++;
                             }
                         }
@@ -533,18 +542,15 @@ function pipelineUtils() {
                             }
                         }
 
-                        if (data.viewMode == "Minimalist") {
-                            html.push("<div class=\"stage\" style=\"width: " + widthPerCell + "px;\">");    
-                            html.push("<div class=\"stage-header\" style=\"font-size: " + fontSizePerCell + "px;\">");
-                            html.push("<div class=\"stage-name\">");
-                            html.push("<a href=\"" + link + "\" target=\"_blank\">");
-                            // html.push("<a href=\"javascript:void(0);\" onclick=\"openNewTabInBackground('" + link + "')\">");
+                        html.push("<div class=\"stage\" style=\"width: " + widthPerCell + "px;\">");    
+                        html.push("<div class=\"stage-header\" style=\"font-size: " + fontSizePerCell + "px;\">");
+                        html.push("<div class=\"stage-name\">");
+                        html.push("<a href=\"" + link + "\" target=\"_blank\" id=\"" + stage.name + "-" + i + "\">");
 
-                            if (isNullOrEmpty(stage.tasks[0].buildId)) {
-                                html.push(htmlEncode("#N/A " + stage.name) + "</a></div>");
+                        if (isNullOrEmpty(stage.tasks[0].buildId)) {
+                            html.push("#N/A " + stage.name + "</a></div>");
                             } else {
-                                html.push(htmlEncode("#" + stage.tasks[0].buildId + " " + stage.name) + "</a></div>");
-                            }
+                            html.push("#" + stage.tasks[0].buildId + " " + stage.name + "</a></div>");
                         }
 
                         if (!pipeline.aggregated) {
@@ -584,33 +590,81 @@ function pipelineUtils() {
                                }
                             }
 
-                            if (data.viewMode == "Minimalist") {
-                                var toolTipStyle = Math.round(column / numColumns) < 0.5 ? "left: 0%;" : "right: 0%;"
-                                var hoverTable = "<table class=\"hoverTable\"><tr class=\"hoverRow\">";
-                                hoverTable += "<th class=\"hoverTableTh\">Status:</th>";
-                                hoverTable += "<td class=\"hoverTableTd\">" + task.status.type + "</td></tr><tr class=\"hoverRow\">"
-                                hoverTable += "<th class=\"hoverTableTh\">Timestamp:</th>";
-                                hoverTable += "<td class=\"hoverTableTd\">" + timestamp + "</td></tr><tr class=\"hoverRow\">";
-                                hoverTable += "<th class=\"hoverTableTh\">Duration:</th>";
-                                hoverTable += "<td class=\"hoverTableTd\">" + formatLongDuration(task.status.duration) + "</td></tr>";
-                                hoverTable += generateStageDisplayValueTable(displayArguments, jobName, stage.name, getStageId(stage.id + "", i));
-                                hoverTable += "</table>";
+                            var toolTipStyle = Math.round(column / numColumns) < 0.5 ? "left: 0%;" : "right: 0%;"
+                            var hoverTable = "<table class=\"hoverTable\"><tr class=\"hoverRow\">";
+                            hoverTable += "<th class=\"hoverTableTh\">Status:</th>";
+                            hoverTable += "<td class=\"hoverTableTd\">" + task.status.type + "</td></tr><tr class=\"hoverRow\">"
+                            hoverTable += "<th class=\"hoverTableTh\">Timestamp:</th>";
+                            hoverTable += "<td class=\"hoverTableTd\">" + timestamp + "</td></tr><tr class=\"hoverRow\">";
+                            hoverTable += "<th class=\"hoverTableTh\">Duration:</th>";
+                            hoverTable += "<td class=\"hoverTableTd\">" + formatLongDuration(task.status.duration) + "</td></tr>";
 
-                                html.push("<div id=\"" + id + "\" class=\"stage-task\">");
-                                html.push("<div class=\"task-header\">");
-                                html.push("<div class=\"taskname\">");
+                            if (task.status.promoted) {
+                                hoverTable += "<tr class=\"hoverRow\">";
+                                hoverTable += "<th class=\"hoverTableTh\">Promoted:</th>";
+                                hoverTable += "<td class=\"hoverTableTd\">TRUE</td></tr>";
+                            }
+
+                            hoverTable += generateStageDisplayValueTable(displayArguments, jobName, stage.name, stage.tasks[0].buildId, getStageId(stage.id + "", i));
+                            
+                            for (var l = 0; l < stage.previousTasks.length; l++) {
+                                previousTask = stage.previousTasks[l];
+
+                                hoverTable += "<tr class=\"hoverRow\">";
+                                hoverTable += "<th class=\"hoverTableTh\" colspan=\"2\">&nbsp;</th>";
+                                hoverTable += "</tr>"
+
+                                hoverTable += "<tr class=\"hoverRow\">";
+                                hoverTable += "<th class=\"hoverTableTh\">Other Builds Triggered:</th>";
+                                hoverTable += "<td class=\"hoverTableTd\">" + "#" + previousTask.buildId + "</td></tr><tr class=\"hoverRow\">"
+                                hoverTable += "<th class=\"hoverTableTh\">Status:</th>";
+                                hoverTable += "<td class=\"hoverTableTd\">" + previousTask.status.type + "</td></tr><tr class=\"hoverRow\">"
+                                hoverTable += "<th class=\"hoverTableTh\">Timestamp:</th>";
+                                hoverTable += "<td class=\"hoverTableTd\">" + formatLongDate(previousTask.status.timestamp) + "</td></tr><tr class=\"hoverRow\">";
+                                hoverTable += "<th class=\"hoverTableTh\">Duration:</th>";
+                                hoverTable += "<td class=\"hoverTableTd\">" + formatLongDuration(previousTask.status.duration) + "</td></tr>";
+
+                                if (previousTask.status.promoted) {
+                                    hoverTable += "<tr class=\"hoverRow\">";
+                                    hoverTable += "<th class=\"hoverTableTh\">Promoted:</th>";
+                                    hoverTable += "<td class=\"hoverTableTd\">TRUE</td></tr>";
+                                }
+
+                                hoverTable += generateStageDisplayValueTable(displayArguments, jobName, stage.name, previousTask.buildId, getStageId(stage.id + "", i));
+                            }
+
+                            if (data.allowManualTriggers && task.manual && task.manualStep.enabled && task.manualStep.permission) {
+                                hoverTable += "<tr class=\"hoverRow\">";
+                                hoverTable += "<th class=\"hoverTableTh\" colspan=\"2\">&nbsp;</th>";
+                                hoverTable += "</tr>"
+
+                                hoverTable += "<tr class=\"hoverRow\">";
+                                hoverTable += "<th class=\"hoverTableTh\" colspan=\"2\">Awaiting Manual Trigger</th>";
+                                hoverTable += "</tr>";
+                            }
+
+                            hoverTable += "</table>";
+
+                            html.push("<div id=\"" + id + "\" class=\"stage-task\">");
+                            html.push("<div class=\"task-header\">");
+                            html.push("<div class=\"taskname\">");
+
+                            // Manual trigger
+                            if (data.allowManualTriggers && task.manual && task.manualStep.enabled && task.manualStep.permission) {
+                                html.push("<a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle circle_MANUAL\" ");
+                                html.push("onclick=\"triggerManual('" + id + "', '" + task.id + "', '" + task.manualStep.upstreamProject + "', '" + task.manualStep.upstreamId +  "', '" + view.viewUrl + "'); refreshFn(false)\" ");
+                                html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; ");
+                                html.push("background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
+                                html.push("<br/><span class=\"tooltip\" style=\"" + toolTipStyle + "\">" + hoverTable + "</span></a>");
+                            } else {
                                 html.push("<a id=\"" + getStageId(stage.id + "", i) + "\" class=\"circle circle_" + task.status.type + "\" ");
-                                // html.push("href=\"javascript:void(0);\" onclick=\"openNewTabInBackground('" + getLink(data, task.link) + consoleLogLink + "');\" ");
                                 html.push("href=\"" + getLink(data, task.link) + consoleLogLink + "\" target=\"_blank\" ");
                                 html.push("style=\"left: " + leftPercentPerCell + "; height: " + circleSizePerCell + "; width: " + circleSizePerCell + "; ");
                                 html.push("background-size: " + circleSizePerCell + " " + circleSizePerCell + ";\">");
                                 html.push("<br/><span class=\"tooltip\" style=\"" + toolTipStyle + "\">" + hoverTable + "</span></a>");
-                                html.push("</div></div></div>");
                             }
-                        }
-
-                        if (pipeline.aggregated && stage.changes && stage.changes.length > 0) {
-                            html.push(generateAggregatedChangelog(stage.changes, aggregatedChangesGroupingPattern));
+                            
+                            html.push("</div></div></div>");
                         }
 
                         html.push("</div></div>");
@@ -640,22 +694,42 @@ function pipelineUtils() {
                 Q("#pipeline-message-" + pipelineid).html('');
             }
 
-            // Update pipeline data if every stage in the pipeline has run to completion.
+            var pipelineStageIdMap = {};
+
+            // Update global pipeline data if every stage in the pipeline has run to completion.
+            // Update stage specific data if the stage has run to completion.
+            // Create a pipeline - stage id mapping for later use.
             for (var i = 0; i < component.pipelines.length; i++) {
                 var pipeline = component.pipelines[i];
                 var pipelineNum = pipeline.version.substring(1);
                 var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
                 var buildNum = pipeline.version.substring(1);
                 var allStagesComplete = true;
+                var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
+                var stageIds = {};
 
                 for (var j = 0; j < pipeline.stages.length; j++) {
                     var stage = pipeline.stages[j];
                     var stageStatus = stage.tasks[0].status.type;
+                    var id = getStageId(stage.id + "", i);
+                    stageIds[id] = "true";
 
+                    // Check if every stage is complete
                     if (stageStatus == "QUEUED" || stageStatus == "RUNNING") {
                         allStagesComplete = false;
                     }
+
+                    // Update specific stage display values if the stage has finished
+                    if (stageStatus.success || stageStatus.failed || stageStatus.unstable || stageStatus.cancelled) {
+                        getStageDisplayValues(displayArguments, jobName, stage.name, stage.tasks[0].buildId, id);
+
+                        for (var k = 0; k < stage.previousTasks.length; k++) {
+                            var prevTask = stage.previousTasks[k];
+                            getStageDisplayValues(displayArguments, jobName, stage.name, prevTask.buildId, id);
+                        }
+                    }
                 }
+                pipelineStageIdMap[toggleBuildId] = stageIds;
 
                 // Update the build status of the pipeline by checking the status of a user defined job(s)
                 getCustomPipelineBuildStatus(displayArguments, pipeline, jobName, buildNum, allStagesComplete);
@@ -672,7 +746,7 @@ function pipelineUtils() {
                     }
 
                     // Update global display values
-                    getGlobalDisplayValues(displayArguments, pipeline, jobName, buildNum);
+                    getGlobalDisplayValues(displayArguments, pipeline, jobName, pipelineNum);
 
                     // Mark the stages that failed on a blocking call
                     if (!JSON.parse(sessionStorage.blockedOnFailedMap).hasOwnProperty(pipeline.stages[0].name + "-" + pipelineNum)) {
@@ -684,31 +758,6 @@ function pipelineUtils() {
                     var replayEle = document.getElementById("replay-" + i);
                     replayEle.className = "replay replayStopped build_circle";
                 }
-            }
-
-            var pipelineStageIdMap = {};
-            
-            // Create a pipeline - stage id mapping
-            for (var i = 0; i < component.pipelines.length; i++) {
-                var pipeline = component.pipelines[i];
-                var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                var buildNum = pipeline.version.substring(1);
-                var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
-                var stageIds = {};
-
-                for (var j = 0; j < pipeline.stages.length; j++) {
-                    var stage = pipeline.stages[j];
-                    var stageStatus = stage.tasks[0].status;
-
-                    var id = getStageId(stage.id + "", i);
-                    stageIds[id] = "true";
-
-                    // Update specific stage display values if the stage has finished
-                    if (stageStatus.success || stageStatus.failed || stageStatus.unstable || stageStatus.cancelled) {
-                        getStageDisplayValues(displayArguments, jobName, stage.name, stage.tasks[0].buildId, id);
-                    }
-                }
-                pipelineStageIdMap[toggleBuildId] = stageIds;
             }
 
             // Update the previous display argument configuration after all new values have been found
@@ -729,6 +778,24 @@ function pipelineUtils() {
             Q.each(data.pipelines, function (i, component) {
                 Q.each(component.pipelines, function (j, pipeline) {
                     index = j;
+
+                    var stageToNameMap = {};
+                    var stageIdToCountMap = {};
+
+                    // Map each stage id to the number of upstream jobs calling it
+                    // Map each stage name to the stage
+                    for (var a = 0; a < pipeline.stages.length; a++) {
+                        var stage = pipeline.stages[a];
+                        stageToNameMap[stage.name] = stage;
+                        for (var b = 0; b < stage.downstreamStageIds.length; b++) {
+                            var downstreamId = getStageId(stage.downstreamStageIds[b] + "", index);
+                            if (stageIdToCountMap.hasOwnProperty(downstreamId)) {
+                                stageIdToCountMap[downstreamId]++;
+                            } else {
+                                stageIdToCountMap[downstreamId] = 0;
+                            }
+                        }
+                    }
 
                     // Temporary Hack in place... 
                     // The legend for single stage pipelines is not being drawn properly if nothing is drawn here
@@ -763,6 +830,7 @@ function pipelineUtils() {
 
                                 var blockedProjects = conditionalProjects = downstreamProjects = [];
                                 var targetName;
+                                var isBlocking = false;
                                 if (blockingMap.hasOwnProperty(source)) {
                                     blockedProjects = blockingMap[source];
                                     lastBlockingJob = blockedProjects[blockedProjects.length - 1];
@@ -785,17 +853,18 @@ function pipelineUtils() {
                                         label = "Blocking Conditional";
                                         dashstyle = "0 0";
                                         scope = "pipeline-bc";
+                                        isBlocking = true;
                                     } else if (blockedProjects.indexOf(targetName) != -1) {
                                         color = "rgba(0,122,195,1)";    // Blue
                                         label = "Blocking";
                                         dashstyle = "0 0";
                                         scope = "pipeline-b";
+                                        isBlocking = true;
                                     } else if (conditionalProjects.indexOf(targetName) != -1) {
                                         color = "rgba(255,121,52,1)";   // Orange
                                         label = "Non-blocking Conditional";
                                         scope = "pipeline-nbc";
                                     }
-
                                     if (downstreamProjects.indexOf(targetName) != -1) {
                                         color = "rgba(118,91,161,1)";   // Purple
                                         label = "Downstream";
@@ -817,6 +886,24 @@ function pipelineUtils() {
                                     }
                                 }
 
+                                var isRunning = false;
+                                if (stageToNameMap.hasOwnProperty(targetName)
+                                        && stageToNameMap[targetName].tasks[0].status.type == "RUNNING") {
+
+                                    // Multiple sources -- need to look up what the calling job is
+                                    if (stageIdToCountMap[target] > 1) {
+                                        var sourceName = getStageSource(targetName, stageToNameMap[targetName].tasks[0].buildId);
+                                        if (sourceName == stage.name) {
+                                            color = "yellow";
+                                            isRunning = true;
+                                        }
+                                    } else {
+                                        // Only 1 source (0 sources for the first job)
+                                        color = "yellow";
+                                        isRunning = true;
+                                    }
+                                }
+
                                 var isDownstreamProject = (downstreamProjects.indexOf(targetName) != -1);
                                 var connector = ["Flowchart", {
                                     stub: stub,
@@ -826,9 +913,8 @@ function pipelineUtils() {
                                     cornerRadius: 20
                                 }];
 
-                                // Draw a hidden connection hide the bad line overlapping
-                                // Only do it if there is a mix of conditional and blocking jobs however as having all
-                                // blocking jobs (or blue lines) looks visually ok
+                                // Draw a hidden connection to hide the bad line overlapping
+                                // Only do it if there is a mix of conditional and blocking jobs
                                 if (lastBlockingJob == projectNameIdMap[target] &&
                                     conditionalMap.hasOwnProperty(source)) {
 
@@ -870,6 +956,8 @@ function pipelineUtils() {
                                     });
                                 }
 
+                                // The primary connection
+                                // Add a scope to these connections for replay
                                 var connection = jsplumb.connect({
                                     source: source,
                                     target: target,
@@ -884,6 +972,15 @@ function pipelineUtils() {
                                     endpoint: "Blank",
                                     scope: scope
                                 });
+
+                                // Add a higher z-index for running connections and/or blocking connections
+                                if (isRunning) {
+                                    connection.addClass("running");
+                                } else {
+                                    if (isBlocking) {
+                                        connection.addClass("blocking");
+                                    }
+                                }
 
                                 connection.bind("mouseover", function(conn) {
                                     conn.addOverlay([ "Label", { 
@@ -1151,32 +1248,12 @@ function openNewTabInBackground(url) {
 
     var is_chrome = navigator.userAgent.toLowerCase().indexOf('chrome') > -1;
     
-    if(!is_chrome)
-    {
+    if(!is_chrome) {
         console.info("Using firefox!");
-        // ele.dispatchEvent(event);
         ele.click();
-        // window.open(url, '_blank');
-    } 
-    else {
+    } else {
         console.info("Using chrome!");
         ele.dispatchEvent(event);
-        // var a = document.createElement("a");
-        // a.href = url;
-
-        // var evt = document.createEvent("MouseEvents");
-        // evt.initMouseEvent("click", true, true, window, 0, 0, 0, 0, 0, true, false, false, false, 0, null);
-
-        // var clickEvent = new MouseEvent("click", {
-        //     "view": window,
-        //     "bubbles": true,
-        //     "cancelable": false,
-        //     "ctrlKey": true,
-        //     "button": 0
-        // });
-        
-        // a.dispatchEvent(evt);
-        // a.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}));
     }
 }
 
@@ -1196,18 +1273,11 @@ function generateButtons(c, firstJobParameterized, firstJobUrl, name) {
     var retVal = "";
     var buildTriggerMessage = firstJobParameterized ? "Trigger New Parameterized Build" : "Trigger New Build";
     var triggerFunction = firstJobParameterized ? "triggerParameterizedBuild" : "triggerBuild";
-    var buildTriggerHoverMessage = "Triggers a new build.<br/><br/>" 
-        + "Auto-refreshes the page for unparameterized jobs.<br/><br/>"
-        + "If the top project is parameterized, a new tab will be opened.<br/>"
-        + "Please either manually refresh the page once you have kicked off the parameterized job, "
-        + "or wait until this page is updated on the next refresh cycle.";
 
     var html = ["<div class=\"button buttonTrigger\">"];
     html.push("<a id=\"startpipeline-" + c  + "\" href=\"javascript:void(0);\" onclick=\"" + triggerFunction 
         + "('" + firstJobUrl + "', '" + name + "');\" style=\"text-decoration:none;\">");
         html.push("<p class=\"buttonText\">" + buildTriggerMessage + "</p>");
-            // html.push("<span class=\"tooltiptext buttonTriggerTextBox\">" + buildTriggerHoverMessage);
-            // html.push("</span>");
         html.push("</a>");
     html.push("</div>");
 
@@ -1557,6 +1627,12 @@ function formatDuration(millis) {
 }
 
 function triggerManual(taskId, downstreamProject, upstreamProject, upstreamBuild, viewUrl) {
+    var confirmManualStep = confirm("Are you sure you want to kick off this manual step?");
+    if (!confirmManualStep) {
+        console.info("Did not trigger manual step!");
+        return;
+    }
+
     Q("#manual-" + taskId).hide();
     var formData = {project: downstreamProject, upstream: upstreamProject, buildId: upstreamBuild},
         before;
@@ -1583,6 +1659,8 @@ function triggerManual(taskId, downstreamProject, upstreamProject, upstreamBuild
             window.alert("Could not trigger build! error: " + errorThrown + " status: " + textStatus);
         }
     });
+
+    refreshFn(false);
 }
 
 function triggerRebuild(taskId, project, buildId, viewUrl) {
@@ -1644,7 +1722,6 @@ function triggerBuild(url, taskId) {
 }
  
 function refreshFn(clearToggleStates) {
-
     if (clearToggleStates) {
         // Clear all toggle states
         sessionStorage.toggleStates = JSON.stringify({});    
@@ -1681,7 +1758,6 @@ function getStageId(name, count) {
 }
 
 function equalheight(container) {
-
     var currentTallest = 0,
         currentRowStart = 0,
         rowDivs = new Array(),
@@ -1821,24 +1897,18 @@ function getCustomPipelineBuildStatus(displayArgs, pipeline, jobName, buildNum, 
 
             // Pipeline is still running to set the status to be running
             if (!allStagesComplete) {
-
                 // Update pipeline build status to finalStatus
                 var id = jobName + "-" + buildNum + "-status";
                 var ele = document.getElementById(id);
-
                 ele.className = "circle_header circle_RUNNING build_circle";
                 return;
-
             } else {
-
                 // Check that all the user defined jobs are successful
                 var finalStatus = "";
-
                 for (var i = 0; i < pipeline.stages.length; i++) {
                     stage = pipeline.stages[i];
 
                     var projects = displayArgs[mainProject].PipelineBuildStatus;
-
                     while (projects != "") {
                         var project = projects.split(",")[0];
 
@@ -1849,28 +1919,21 @@ function getCustomPipelineBuildStatus(displayArgs, pipeline, jobName, buildNum, 
 
                                 var id = jobName + "-" + buildNum + "-status";
                                 var ele = document.getElementById(id);
-
                                 ele.className = "circle_header circle_FAILED build_circle";
-
                                 return;
                             }
-
                             if (stageStatus == "SUCCESS") {
                                 finalStatus = "SUCCESS";
                             }
-
                             break;
                         }
-
                         projects = projects.split(",").slice(1).join(",");
                     }
                 }
-
                 if (finalStatus != "") {
                     // Update pipeline build status to finalStatus
                     var id = jobName + "-" + buildNum + "-status";
                     var ele = document.getElementById(id);
-
                     ele.className = "circle_header circle_" + finalStatus + " build_circle"; 
                 }
             }
@@ -1987,7 +2050,6 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
                     if (savedValues.hasOwnProperty(id) && configNotChanged) {
                         continue;
                     }
-
                     if (projectNameIdMap.hasOwnProperty(projectName) == false) {
                         continue;
                     }
@@ -1995,19 +2057,15 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
                     if (displayKeyConfig.hasOwnProperty("filePath")) {
                         filePath = displayKeyConfig.filePath;
                     }
-
                     if (displayKeyConfig.hasOwnProperty("artifactName")) {
                         artifactName = displayKeyConfig.artifactName;
                     }
-
                     if (displayKeyConfig.hasOwnProperty("envName")) {
                         envName = displayKeyConfig.envName;
                     }
-
                     if (displayKeyConfig.hasOwnProperty("paramName")) {
                         paramName = displayKeyConfig.paramName;
                     }
-
                     if (displayKeyConfig.hasOwnProperty("fromConsole")) {
                         fromConsole = displayKeyConfig.fromConsole;
                     }
@@ -2024,18 +2082,15 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
                             return;
                         }
                     }
-
                     if (filePath != "") {
                         url = "/job/" + projectName + "/ws/" + filePath;
                     }
-
                     if (envName != "" || paramName != "") {
                         url = "/job/" + projectName + "/" + projectNameIdMap[projectName] + "/injectedEnvVars/api/json";
                         if (projectNameIdMap[projectName] == null) {
                             return;
                         }
                     }
-
                     if (fromConsole == "true" || fromConsole == true) {
                         url = "/job/" + projectName + "/" + projectNameIdMap[projectName] + "/consoleText";
                         if (projectNameIdMap[projectName] == null) {
@@ -2246,7 +2301,7 @@ function updateGlobalDisplayValues(data, url, displayArgs, pipelineName, pipelin
 /**
  * Generate an table of stage specific display values
  */
-function generateStageDisplayValueTable(displayArgs, pipelineName, stageName, stageId) {
+function generateStageDisplayValueTable(displayArgs, pipelineName, stageName, stageBuildNum, stageId) {
     var retVal = "";
 
     for (var mainProject in displayArgs) {
@@ -2260,7 +2315,8 @@ function generateStageDisplayValueTable(displayArgs, pipelineName, stageName, st
 
             for (var displayKey in mainProjectDisplayConfig) {
                 retVal += "<tr class=\"hoverRow\"><th class=\"hoverTableTh\">" + displayKey + ":</th>";
-                retVal += "<td id=\"" + stageId + "-" + displayKey.replace(re, '_') + "\" class=\"hoverTableTd\">Value not found across pipeline</td></tr>";  
+                retVal += "<td id=\"" + stageId + "-" + stageBuildNum + "-" + displayKey.replace(re, '_') 
+                          + "\" class=\"hoverTableTd\">Value not found across pipeline</td></tr>";  
             }    
         }
     }
@@ -2288,7 +2344,7 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
 
                 var saveId = stageName + "-" + stageBuildNum + "-" + displayKey.replace(re, '_');
                 if (savedStageDisplayValues.hasOwnProperty(saveId) && configNotChanged) {
-                    var id = stageId + "-" + displayKey.replace(re, '_');
+                    var id = stageId + "-" + stageBuildNum + "-" + displayKey.replace(re, '_');
                     var ele = document.getElementById(id);
                     ele.innerHTML = savedStageDisplayValues[saveId];
                     continue;
@@ -2301,19 +2357,15 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
                 if (displayKeyConfig.hasOwnProperty("filePath")) {
                     filePath = displayKeyConfig.filePath;
                 }
-
                 if (displayKeyConfig.hasOwnProperty("artifactName")) {
                     artifactName = displayKeyConfig.artifactName;
                 }
-
                 if (displayKeyConfig.hasOwnProperty("envName")) {
                     envName = displayKeyConfig.envName;
                 }
-
                 if (displayKeyConfig.hasOwnProperty("paramName")) {
                     paramName = displayKeyConfig.paramName;
                 }
-
                 if (displayKeyConfig.hasOwnProperty("fromConsole")) {
                     fromConsole = displayKeyConfig.fromConsole;
                 }
@@ -2330,18 +2382,15 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
                         return;
                     }
                 }
-
                 if (filePath != "") {
                     url = "/job/" + stageName + "/ws/" + filePath;
                 }
-
                 if (envName != "" || paramName != "") {
                     url = "/job/" + stageName + "/" + stageBuildNum + "/injectedEnvVars/api/json";
                     if (stageBuildNum == null) {
                         return;
                     }
                 }
-
                 if (fromConsole == "true" || fromConsole == true) {
                     url = "/job/" + stageName + "/" + stageBuildNum + "/consoleText";
                     if (stageBuildNum == null) {
@@ -2408,7 +2457,7 @@ function updateStageDisplayValues(url, data, displayArgs, pipelineName, stageNam
                             var envMap = data.envMap;
 
                             if (envMap.hasOwnProperty(envName)) {
-                                var id = stageId + "-" + displayKey.replace(re, '_');
+                                var id = stageId + "-" + stageBuildNum + "-" + displayKey.replace(re, '_');
                                 var ele = document.getElementById(id);
 
                                 if (displayKeyConfig.hasOwnProperty("grepPattern")) {
@@ -2452,7 +2501,7 @@ function updateStageDisplayValues(url, data, displayArgs, pipelineName, stageNam
                         }
                         toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br/>');
 
-                        var id = stageId + "-" + displayKey.replace(re, '_');
+                        var id = stageId + "-" + stageBuildNum + "-" + displayKey.replace(re, '_');
                         var ele = document.getElementById(id);
                         ele.innerHTML = toolTipData;
 
@@ -2498,7 +2547,7 @@ function updateStageDisplayValues(url, data, displayArgs, pipelineName, stageNam
                         }
                         toolTipData = toolTipData.replace(/(?:\r\n|\r|\n)/g, '<br/>');
 
-                        var id = stageId + "-" + displayKey.replace(re, '_');
+                        var id = stageId + "-" + stageBuildNum + "-" + displayKey.replace(re, '_');
                         var ele = document.getElementById(id);
                         ele.innerHTML = toolTipData;
 
@@ -2582,7 +2631,7 @@ function updateFailedOnBlockStages(pipeline, i) {
 
         if (stage.tasks[0].status.type == "FAILED") {
             for (var k = 0; k < downstreamStages.size(); k++) {
-                if (blockingJobs.split(', ').indexOf(downstreamStages[k]) != -1) {
+                if (blockingJobs.indexOf(downstreamStages[k]) != -1) {
                     var downstreamEle = document.getElementById(getStageId(downstreamStageIds[k] + "", i));
                     if (downstreamEle != null) {
                         if (downstreamEle.className == "circle circle_FAILED" || downstreamEle.className == "circle circle_CANCELLED") {
@@ -2759,105 +2808,6 @@ function toggleTable(jobName, buildNum) {
 }
 
 /**
- * Toggle method for Full Screen. Used to toggle build rows.
- * The toggle() method works fine in both normal view and fullscreen.
- * However, we'll leave this method in case of any new visual bugs.
- */
-function toggleCompatibleFs(jobName, buildNum) {
-    var toggleStates = JSON.parse(sessionStorage.toggleStates);
-    var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
-
-    var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
-
-    if (toggleStates.hasOwnProperty(toggleBuildId)) {
-        if (toggleStates[toggleBuildId] == "none") {
-            toggleStates[toggleBuildId] = "block";
-        } else {
-            toggleStates[toggleBuildId] = "none";
-        }
-    } else {
-        toggleStates[toggleBuildId] = "block";
-    }
-
-    for (var buildId in toggleStates) {
-        if (toggleStates.hasOwnProperty(buildId)) {
-            var rowId = "toggle-row-" + buildId.split("toggle-build-")[1];
-            var pipelineId = "toggle-pipeline-" + buildId.split("toggle-build-")[1];
-            
-            var ele = document.getElementById(buildId);
-            var rowEle = document.getElementById(rowId);
-            var pipelineEle = document.getElementById(pipelineId);
-
-            ele.style.display = "none";
-            rowEle.className = "untoggled_build_header";
-            pipelineEle.className = "untoggled_pipeline";
-
-            var stageIds = pipelineStageIdMap[buildId];
-            // Hide all the connectors
-            for (var key in stageIds) {
-                instance.hide(key);
-            }
-            toggleLegend(jobName, buildNum, false);
-        }
-    }
-
-    var sorted = [];
-    for (var buildId in toggleStates) {
-        sorted.push(buildId);
-    }
-
-    sorted.sort(function(a, b) {
-        var buildNumA = parseInt(a.split("-").slice(-1)[0]);
-        var buildNumB = parseInt(b.split("-").slice(-1)[0]);
-        return buildNumA - buildNumB;
-    });
-
-    var orderedString = sorted.join(",");
-
-    while(orderedString != "") {
-        var buildId = orderedString.split(",")[0];
-
-         if (toggleStates.hasOwnProperty(buildId) && toggleStates[buildId] == "block") {
-            var rowId = "toggle-row-" + buildId.split("toggle-build-")[1];
-            var pipelineId = "toggle-pipeline-" + buildId.split("toggle-build-")[1];
-            
-            var ele = document.getElementById(buildId);
-            var rowEle = document.getElementById(rowId);
-            var pipelineEle = document.getElementById(pipelineId);
-
-            ele.style.display = "block";
-            rowEle.className = "toggled_build_header";
-            pipelineEle.className = "toggled_pipeline";
-
-            var stageIds = pipelineStageIdMap[buildId];
-            // Show all the connectors
-            for (var key in stageIds) {
-                instance.show(key);
-            }
-            toggleLegend(jobName, buildNum, true);
-        }
-
-        orderedString = orderedString.split(",").slice(1).join(",");
-    }
-
-    window.scrollTo(0, 0);
-
-    instance.revalidate();
-
-    // Recalculate offsets for every stage
-    for (var pipeline in pipelineStageIdMap) {
-        for (var stage in pipelineStageIdMap[pipeline]) {
-            instance.recalculateOffsets(stage);
-        }
-    }
-
-    sessionStorage.toggleStates = JSON.stringify(toggleStates);
-    instance.repaintEverything();
-
-    window.scrollTo(0, sessionStorage.getItem("page_y"));
-}
-
-/**
  * Toggle method for Full Screen. Used to toggle the display values table.
  */
 function toggleTableCompatibleFS(jobName, buildNum) {
@@ -2897,20 +2847,19 @@ function storePagePosition() {
 }
 
 /**
- * Get the upstream stage name for a particular stage build
+ * Get the upstream stage name for any build triggered for any stage
  */
-function replayGetStageSource(stage) {
+function getStageSource(stageName, stageBuildId) {
     var json = {};
     var isError = false;
 
-    var stageBuildId = stage.tasks[0].buildId;
     Q.ajax({
-        url: rootURL + "job/" + stage.name + "/" + stageBuildId + "/api/json?tree=actions[causes[*]],timestamp,duration,result",
+        url: rootURL + "job/" + stageName + "/" + stageBuildId + "/api/json?tree=actions[causes[*]],timestamp,duration,result",
         dataType: "json",
         type: "GET",
         async: false,
         cache: true,
-        timeout: 5000,
+        timeout: 2000,
         success: function(data) {
             json = data;
         },
@@ -2935,7 +2884,7 @@ function replayGetStageSource(stage) {
                 var causes = actions[k].causes;
                 for (var l = 0; l < causes.length; l++) {
                     var cause = causes[l];
-                    if (cause.hasOwnProperty("upstreamBuild") && cause.hasOwnProperty("upstreamProject")) {
+                    if (cause.hasOwnProperty("upstreamProject")) {
                         return cause.upstreamProject;
                     }
                 }
@@ -2947,142 +2896,25 @@ function replayGetStageSource(stage) {
 }
 
 /**
- * Retrieves previous build information for merged stages
- */
-function replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stages, pipelineNum, firstStageTimestamp) {
-    return replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stages, pipelineNum, firstStageTimestamp, 
-                                         null);
-}
-
-/**
- * Retrieves previous build information for merged stages
- */
-function replayRetrieveMergedStageData(stageToNameMap, targetName, sources, stages, pipelineNum, firstStageTimestamp, 
-                                       overrideStageData) {
-
-    var returnTimestamps = [];
-
-    var targetStage = stageToNameMap[targetName];
-    var targetBuildId = parseInt(stageToNameMap[targetName].tasks[0].buildId);
-    var stageData = [];
-
-    // Set up the sources information
-    // These are the upstream projects that triggered a build for another project
-    for (var i = 0; i < stages.length; i++) {
-        var stage = stages[i];
-        
-        if (sources.includes(getStageId(stage.id + "", pipelineNum))) {
-            stageData.push([stage.name, stage.tasks[0].buildId]);
-        }
-    }
-
-    if (overrideStageData != null) {
-        stageData = overrideStageData;
-    }
-
-    // console.info(sources);
-    // console.info(stageData);
-
-    // Check the last 10 builds of the project to see if any were triggered by the pipeline
-    for (var j = targetBuildId - 1; j >= Math.max(targetBuildId - 11, 1); j--) {
-
-        var json = {};
-        var isError = false;
-
-        // Synchronous calls are probably a bad idea
-        Q.ajax({
-            url: rootURL + "job/" + targetName + "/" + j + "/api/json?tree=actions[causes[*]],timestamp,duration,result",
-            dataType: "json",
-            type: "GET",
-            async: false,
-            cache: true,
-            timeout: 5000,
-            success: function(data) {
-                json = data;
-            },
-            error: function (xhr, status, error) {
-                isError = true;
-            }
-        })
-
-        if (isError) {
-            break;
-        }
-
-        // Query must have a timestamp
-        if (!json.hasOwnProperty("timestamp")) {
-            break;
-        }
-
-        // Stop searching if the build's timestamp is BEFORE the start of the pipeline
-        if (json.timestamp < firstStageTimestamp) {
-            break;
-        }
-
-        if (json.hasOwnProperty("actions")) {
-            var actions = json.actions;
-
-            for (var k = 0; k < actions.length; k++) {
-                if (actions[k].hasOwnProperty("causes")) {
-                    var causes = actions[k].causes;
-
-                    for (var l = 0; l < causes.length; l++) {
-                        var cause = causes[l];
-
-                        if (cause.hasOwnProperty("upstreamBuild") && cause.hasOwnProperty("upstreamProject")) {
-
-                            for (var m = 0; m < stageData.length; m++) {
-
-                                // Verify that this current build was triggered from the pipeline
-                                if (stageData[m][0] == cause.upstreamProject 
-                                        && stageData[m][1] == cause.upstreamBuild.toString()) {
-
-                                    console.info("Found a build triggered during the pipeline run! " +
-                                            "{ " + targetName + ", " + j + " }");
-
-                                    // Add the build information to the timestamp list
-                                    returnTimestamps.push([targetStage, json.timestamp, json.duration + json.timestamp,
-                                            json.result, cause.upstreamProject, cause.upstreamBuild.toString()]);
-
-                                    // Recursive call to check downstream projects
-                                    for (var n = 0; n < targetStage.downstreamStages.length; n++) {
-                                        var nextStageName = targetStage.downstreamStages[n];
-                                        var nextSources = [getStageId(targetStage.id + "", pipelineNum)];
-                                        var nextStageData = [[targetName, j.toString()]];
-
-                                        var additionalStageTimestamps = replayRetrieveMergedStageData(stageToNameMap,
-                                                nextStageName, nextSources, stages, pipelineNum, firstStageTimestamp,
-                                                nextStageData);
-
-                                        for (var o = 0; o < additionalStageTimestamps.length; o++) {
-                                            returnTimestamps.push(additionalStageTimestamps[o]);
-                                        }
-                                    }
-
-                                    return returnTimestamps;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-    }
-
-    return [];
-}
-
-/**
  * Updates the replay stage
  */
 function replayUpdateStage(stageTimestamps, counter, pipelineNum) {
-    var isStartTs = stageTimestamps[counter][2];
-    var overrideStatus =  stageTimestamps[counter][3];
-    var sourceId =  stageTimestamps[counter][4];
-    var stage = stageTimestamps[counter][0];
+    var stage           = stageTimestamps[counter][0];
+    var isStartTs       = stageTimestamps[counter][2];
+    var overrideStatus  = stageTimestamps[counter][3];
+    var sourceId        = stageTimestamps[counter][4];
+    var stageBuildName  = stageTimestamps[counter][5];
+
     var stageId = getStageId(stage.id + "", pipelineNum);
     var stageStatus = stage.tasks[0].status.type;
+
+    var styleMap = {
+        "pipeline-nb"   : ["rgba(0,122,195,1)", 3.5, "2 2"],
+        "pipeline-b"    : ["rgba(0,122,195,1)", 3.5, "0 0"],
+        "pipeline-nbc"  : ["rgba(255,121,52,1)", 3.5, "2 2"],
+        "pipeline-bc"   : ["rgba(255,121,52,1)", 3.5, "0 0"],
+        "pipeline-d"    : ["rgba(118,91,161,1)", 3.5, "2 2"]
+    }
 
     // All jsPlumb scopes to search for
     var allScopes = ["pipeline-nb","pipeline-b","pipeline-nbc","pipeline-bc","pipeline-d"];
@@ -3091,78 +2923,56 @@ function replayUpdateStage(stageTimestamps, counter, pipelineNum) {
         stageStatus = overrideStatus;
     }
 
-    if (isStartTs) {
-
-        if (stageStatus != "IDLE" && stageStatus != "DISABLED" && stageStatus != "NOT_BUILT") {    
-            var ele = document.getElementById(stageId);
-            ele.className = "circle circle_RUNNING";
-        }
-
+    // Check all scopes
+    for (var i = 0; i < allScopes.length; i++) {
+        var scope = allScopes[i];
         var connections;
         if (sourceId != null) {
-            connections = instance.select({ 
-                scope   : allScopes,
+            connections = instance.select({
+                scope   : scope,
                 target  : stageId,
                 source  : sourceId
             });
         } else {
-            connections = instance.select({ 
-                scope   : allScopes,
+            connections = instance.select({
+                scope   : scope,
                 target  : stageId
             });
         }
 
+        if (stageStatus != "IDLE" && stageStatus != "DISABLED" && stageStatus != "NOT_BUILT") {
+            if (isStartTs) {
+                var ele = document.getElementById(stageId);
+                ele.className = "circle circle_RUNNING";
+
+                var buildNameEle = document.getElementById(stage.name + "-" + pipelineNum);
+                buildNameEle.innerHTML = stageBuildName;
+            } else {
+                var ele = document.getElementById(stageId);
+                ele.className = "circle circle_" + stageStatus;
+            }
+        }
+
+        var strokeColor = isStartTs ? "yellow" : styleMap[scope][0];
+
+        // Set the color to yellow and its z-index to 4 (same level as hovering over an arrow) if it is running
+        // Otherwise, set the connection color and the z-index back to its default values
         connections.each(
             function(connection) {}).setPaintStyle({
-                stroke: "yellow",
-                strokeWidth: 3.5
-            }
-        ).setHoverPaintStyle({
-            strokeWidth: 3.5
-        }).setHover(true);
-
-    } else {
-
-        if (stageStatus != "IDLE" && stageStatus != "DISABLED" && stageStatus != "NOT_BUILT") {    
-            var ele = document.getElementById(stageId);
-            ele.className = "circle circle_" + stageStatus;
-        }
-
-        var styleMap = {
-            "pipeline-nb"   : ["rgba(0,122,195,1)", 3.5, "2 2"],
-            "pipeline-b"    : ["rgba(0,122,195,1)", 3.5, "0 0"],
-            "pipeline-nbc"  : ["rgba(255,121,52,1)", 3.5, "2 2"],
-            "pipeline-bc"   : ["rgba(255,121,52,1)", 3.5, "0 0"],
-            "pipeline-d"    : ["rgba(118,91,161,1)", 3.5, "2 2"]
-        }
-
-        for (var i = 0; i < allScopes.length; i++) {
-
-            var scope = allScopes[i];
-            var connections;
-            if (sourceId != null) {
-                connections = instance.select({
-                    scope:scope,
-                    target:stageId,
-                    source:sourceId
-                });
-            } else {
-                connections = instance.select({
-                    scope:scope,
-                    target:stageId
-                });
-            }
-
-            // Set the connection back to it's actual color
-            connections.each(function(connection) {}).setPaintStyle({
-                stroke: styleMap[scope][0],
+                stroke: strokeColor,
                 strokeWidth: styleMap[scope][1],
                 dashstyle: styleMap[scope][2]
-            }).setHoverPaintStyle({
-                strokeWidth: styleMap[scope][1] * 1.5
-            }).setHover(false);
+            }
+        ).setHoverPaintStyle({
+            stroke: strokeColor,
+            strokeWidth: styleMap[scope][1] * 1.5
+        }).setHover(false);
 
-        }        
+        if (isStartTs) {
+            connections.each(function(connection) {}).addClass("running");
+        } else {
+            connections.each(function(connection) {}).removeClass("running");
+        }
     }
 }
 
@@ -3188,9 +2998,8 @@ function replay(pipelineNum) {
 
     var pipeline = storedPipelines[pipelineNum];
     var stages = pipeline.stages;
-    var stageTimestamps = [];
-    var firstStageTimestamp = stages[0].tasks[0].timestamp;
 
+    var stageTimestamps = [];
     var stageToNameMap = {};
 
     // Map each stage name to each stage object
@@ -3201,15 +3010,24 @@ function replay(pipelineNum) {
 
     console.info("Replaying pipeline! { #" + stages[0].tasks[0].buildId + " " + stages[0].name + " }");
 
-    // Set all stages to IDLE unless they are DISABLED
+    // Set all stages to IDLE unless they are DISABLED / IDLE / NOT_BUILT
     for (var i = 0; i < stages.length; i++) {
         var stage = stages[i];
         var stageId = getStageId(stage.id + "", pipelineNum);
         var stageStatus = stage.tasks[0].status.type;
+        var stageBuildName = "#" + stage.tasks[0].buildId + " " + stage.name;
 
-        if (stageStatus != "DISABLED") {
+        if (stageStatus != "DISABLED" && stageStatus != "IDLE" && stageStatus != "NOT_BUILT") {
             var ele = document.getElementById(stageId);
             ele.className = "circle circle_IDLE";
+
+            var buildNameEle = document.getElementById(stage.name + "-" + pipelineNum);
+
+            // To prevent the job name box from resizing due to a change in text length
+            var tmpString = "#";
+            tmpString += "_".repeat(buildNameEle.innerHTML.split(" ")[0].length - 1);
+
+            buildNameEle.innerHTML = tmpString + " " + stage.name;
         }
 
         var startTs = parseInt(stage.tasks[0].status.timestamp);
@@ -3220,75 +3038,68 @@ function replay(pipelineNum) {
             continue;
         }
 
-        // Set to null for all stages that only have 1 connection to it
-        var stageSourceId = null;
+        // Defaulted to null for all stages that only have 1 connection to it since it is redundant to look up the id
+        var sourceStageId = null;
 
-        // Check if there is more than one connection to a particular stage
-        // Try to find additional builds of a particular project in the same pipeline that are not shown
+        // Use jsPlumb to check if there is more than one connection to a particular stage
         var allScopes = ["pipeline-nb","pipeline-b","pipeline-nbc","pipeline-bc","pipeline-d"];
-        var connections = instance.getConnections({ 
-            scopes  : allScopes,
-            target  : stageId
-        }, true);
+        var numConnections = instance.getConnections({ scope: allScopes, target:stageId }, true).length;
 
-        if (instance.getConnections({ scope: allScopes, target:stageId }, true).length > 1) {
-            var sources = [];
-            for (var j = 0; j < connections.length; j++) {
+        if (numConnections > 1) {
+            console.info("More than one connection { " + numConnections + " } to stage: " + stage.name);
 
-                var connection = connections[j];
-
-                if (connection.hasOwnProperty("sourceId")) {
-                    var source = connection.sourceId;
-
-                    if (!sources.includes(source.toString())) {
-                        sources.push(source.toString());
-                    }
-                }
+            if (stage.previousTasks.length > 0) {
+                console.info("More than one build { " + (1 + stage.previousTasks.length) + " } was triggered at stage: " 
+                        + stage.name);
             }
 
-            // Attempt to find the not shown builds of a job in the pipeline and add them to the timestamp list
-            if (sources.length > 1) {
-                console.info("More than one connection { " + sources.length + " } to stage: " + stage.name);
+            // Extract the source stage for each additional build triggered for each stage
+            // and add the start/end timestamps for each additional build
+            for (var j = 0; j < stage.previousTasks.length; j++) {
+                var prevTask = stage.previousTasks[j];
+                var prevTaskSourceName = getStageSource(stage.name, prevTask.buildId);
+                var prevTaskBuildName = "#" + prevTask.buildId + " " + stage.name;
 
-                if (!isNullOrEmpty(stage.tasks[0].buildId)) {
+                var prevTaskStartTs = parseInt(prevTask.status.timestamp);
+                var prevTaskEndTs = prevTaskStartTs + parseInt(prevTask.status.duration);
 
-                    try {
-                        var remainingSources = sources;
-
-                        var additionalStageTimestamps = replayRetrieveMergedStageData(stageToNameMap, stage.name,
-                                sources, stages, pipelineNum, firstStageTimestamp);
-
-                        for (var k = 0; k < additionalStageTimestamps.length; k++) {
-                            var aStageTS = additionalStageTimestamps[k];
-
-                            var sourceId = null;
-
-                            try {
-                                sourceId = getStageId(stageToNameMap[aStageTS[4]].id + "", pipelineNum);
-                            } catch (e) {
-                            }
-
-                            stageTimestamps.push([aStageTS[0], aStageTS[1], true, aStageTS[3], sourceId]);
-                            stageTimestamps.push([aStageTS[0], aStageTS[2], false, aStageTS[3], sourceId]);
-                        }
-
-                        // Get the stage source id for the lastest path to a particular stage
-
-                        var stageSourceName = replayGetStageSource(stage);
-
-                        if (stageSourceName != null) {
-                            stageSourceId = getStageId(stageToNameMap[stageSourceName].id + "", pipelineNum);
-                        }
-
-                    } catch (e) {
-                        console.info("Something went wrong fetching additional connection information");
-                    }
+                // Get the source stage id
+                if (prevTaskSourceName != null) {
+                    prevSourceStageId = getStageId(stageToNameMap[prevTaskSourceName].id + "", pipelineNum);
                 }
+
+                stageTimestamps.push([stage, prevTaskStartTs, true, prevTask.status.type, prevSourceStageId, prevTaskBuildName]);
+                stageTimestamps.push([stage, prevTaskEndTs, false, prevTask.status.type, prevSourceStageId, prevTaskBuildName]);
+            }
+
+            // Get the source stage id for the lastest build for a particular stage and add it further below
+            var sourceStageName = getStageSource(stage.name, stage.tasks[0].buildId);
+
+            if (sourceStageName != null) {
+                sourceStageId = getStageId(stageToNameMap[sourceStageName].id + "", pipelineNum);
+            }
+        } else {
+            if (stage.previousTasks.length > 0) {
+               console.info("More than one build { " + (1 + stage.previousTasks.length) + " } was triggered at stage: " 
+                    + stage.name);
+            }
+
+            // Adding start/end timestamps for stages with multiple builds but only 1 source stage
+            for (var j = 0; j < stage.previousTasks.length; j++) {
+                var prevTask = stage.previousTasks[j];
+                var prevTaskBuildName = "#" + prevTask.buildId + " " + stage.name;
+
+                var prevTaskStartTs = parseInt(prevTask.status.timestamp);
+                var prevTaskEndTs = prevTaskStartTs + parseInt(prevTask.status.duration);
+
+                stageTimestamps.push([stage, prevTaskStartTs, true, prevTask.status.type, null, prevTaskBuildName]);
+                stageTimestamps.push([stage, prevTaskEndTs, false, prevTask.status.type, null, prevTaskBuildName]);
             }
         }
 
-        stageTimestamps.push([stage, startTs, true, null, stageSourceId]);
-        stageTimestamps.push([stage, endTs, false, null, stageSourceId]);
+        // Add the timestamps for the latest build for each stage
+        stageTimestamps.push([stage, startTs, true, null, sourceStageId, stageBuildName]);
+        stageTimestamps.push([stage, endTs, false, null, sourceStageId, stageBuildName]);
     }
 
     // Sort all the timestamps
@@ -3310,6 +3121,9 @@ function replay(pipelineNum) {
         console.info("Replay complete! Refreshing page!");
         replayIsRunning = false;
         replayEle.className = "replay replayStopped build_circle";
+
+        // Refresh after replay is complete since a running replay will prevent a pipeline update
+        // Also ensures the validity of the pipeline information in the event replay has a bug somewhere
         refreshFn(false);
     });
 }

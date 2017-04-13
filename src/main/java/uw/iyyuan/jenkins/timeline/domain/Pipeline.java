@@ -61,6 +61,8 @@ public class Pipeline extends AbstractItem {
 
     private long totalBuildTime;
 
+    private long pipelineBuildTime;
+
     private Map<String, Task> allTasks = null;
 
     public Pipeline(String name, AbstractProject firstProject, AbstractProject lastProject, List<Stage> stages) {
@@ -147,10 +149,63 @@ public class Pipeline extends AbstractItem {
     }
 
     @Exported
+    public long getPipelineBuildTime() {
+        return pipelineBuildTime;
+    }
+
+    @Exported
     public int getCommits() {
         return commits;
     }
 
+    /*
+     * Replaces the calculateTotalBuildTime() method.
+     * Determines the build time as: build time = largest stage end timestamp - first stage start timestamp
+     */
+    public void calculatePipelineBuildTime() {
+        if (stages.size() == 0) {
+            this.pipelineBuildTime = 0L;
+        } else {
+            String startTsString = getStages().get(0).getTasks().get(0).getStatus().getTimestamp();
+            if (startTsString == null) {
+                this.pipelineBuildTime = 0L;
+                return;
+            }
+            Long startTs = Long.parseLong(startTsString);
+            Long endTs = startTs;
+            for (Stage stage : getStages()) {
+                String stageTsString = stage.getTasks().get(0).getStatus().getTimestamp();
+                if (stageTsString == null) {
+                    continue;
+                }
+                Long stageTs = Long.parseLong(stageTsString);
+                Long stageDuration = stage.getTasks().get(0).getStatus().getDuration();
+                if (stageTs == null || stageDuration == null) {
+                    continue;
+                }
+                if (stageTs + stageDuration > endTs) {
+                    endTs = stageTs + stageDuration;
+                }
+                for (Task prevTask : stage.getPreviousTasks()) {
+                    String prevTaskTsString = prevTask.getStatus().getTimestamp();
+                    if (prevTaskTsString == null) {
+                        continue;
+                    }
+                    Long prevTaskTs = Long.parseLong(stageTsString);
+                    Long prevTaskDuration = prevTask.getStatus().getDuration();
+                    if (prevTaskTs == null || prevTaskDuration == null) {
+                        continue;
+                    }
+                    if (prevTaskTs + prevTaskDuration > endTs) {
+                        endTs = prevTaskTs + prevTaskDuration;
+                    }
+                }
+            }
+            this.pipelineBuildTime = endTs - startTs;
+        }
+    }
+
+    @SuppressWarnings("UnusedDeclaration")
     public void calculateTotalBuildTime() {
         if (stages.size() == 0) {
             this.totalBuildTime = 0L;
@@ -323,7 +378,8 @@ public class Pipeline extends AbstractItem {
                 pipelineLatest.setChanges(pipelineChanges);
             }
             pipelineLatest.setCommits(pipelineChanges.size());
-            pipelineLatest.calculateTotalBuildTime();
+            // pipelineLatest.calculateTotalBuildTime();
+            pipelineLatest.calculatePipelineBuildTime();
             result.add(pipelineLatest);
         }
         return result;

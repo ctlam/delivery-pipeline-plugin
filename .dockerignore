@@ -1,7 +1,0 @@
-.gradle
-.idea
-build
-src
-work
-target/*/*
-!target/delivery-pipeline-plugin.hpi

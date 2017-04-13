@@ -142,7 +142,7 @@ public class PipelineVersionContributor extends BuildWrapper {
 
         @Override
         public String getDisplayName() {
-            return "Create Delivery Pipeline version";
+            return "Create Timeline View version";
         }
     }
 
