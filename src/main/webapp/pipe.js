@@ -300,6 +300,15 @@ function pipelineUtils() {
                     var buildNum = pipeline.version.substring(1);
                     var statusString = pipeline.stages[0].tasks[0].status.type;
 
+                    for (var j = 0; j < pipeline.stages.length; j++) {
+                        var stage = pipeline.stages[j];
+                        var task = stage.tasks[0];
+
+                        if (data.allowManualTriggers && task.manual && task.manualStep.enabled && task.manualStep.permission) {
+                            statusString = "MANUAL";
+                        }
+                    }
+
                     var pipelineTimestamp = formatLongDate(pipeline.timestamp);
                     var pipelineDuration = formatLongDuration(pipeline.pipelineBuildTime);
                         
@@ -384,7 +393,6 @@ function pipelineUtils() {
                         html.push("<section class=\"pipeline-values\">");
                         html.push("<div class=\"pipeline-row\">");
 
-                        //if (displayArguments != "" && displayArguments != null) {
                         if (JSON.stringify(displayArguments) != JSON.stringify({})) {
                             var toggleTableId = "toggle-table-" + jobName + "-" + buildNum;
                             var displayTableId = "display-table-" + jobName + "-" + buildNum;
@@ -494,11 +502,9 @@ function pipelineUtils() {
                         if (stage.blockingJobs.length > 0) {
                             blockingMap[getStageId(stage.id + "", i)] = stage.blockingJobs;
                         }
-
                         if (stage.conditionalJobs.length > 0) {
                             conditionalMap[getStageId(stage.id + "", i)] = stage.conditionalJobs;
                         }
-
                         if (stage.downstreamJobs.length > 0) {
                             downstreamMap[getStageId(stage.id + "", i)] = stage.downstreamJobs;
                         }
@@ -688,22 +694,42 @@ function pipelineUtils() {
                 Q("#pipeline-message-" + pipelineid).html('');
             }
 
-            // Update pipeline data if every stage in the pipeline has run to completion.
+            var pipelineStageIdMap = {};
+
+            // Update global pipeline data if every stage in the pipeline has run to completion.
+            // Update stage specific data if the stage has run to completion.
+            // Create a pipeline - stage id mapping for later use.
             for (var i = 0; i < component.pipelines.length; i++) {
                 var pipeline = component.pipelines[i];
                 var pipelineNum = pipeline.version.substring(1);
                 var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
                 var buildNum = pipeline.version.substring(1);
                 var allStagesComplete = true;
+                var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
+                var stageIds = {};
 
                 for (var j = 0; j < pipeline.stages.length; j++) {
                     var stage = pipeline.stages[j];
                     var stageStatus = stage.tasks[0].status.type;
+                    var id = getStageId(stage.id + "", i);
+                    stageIds[id] = "true";
 
+                    // Check if every stage is complete
                     if (stageStatus == "QUEUED" || stageStatus == "RUNNING") {
                         allStagesComplete = false;
                     }
+
+                    // Update specific stage display values if the stage has finished
+                    if (stageStatus.success || stageStatus.failed || stageStatus.unstable || stageStatus.cancelled) {
+                        getStageDisplayValues(displayArguments, jobName, stage.name, stage.tasks[0].buildId, id);
+
+                        for (var k = 0; k < stage.previousTasks.length; k++) {
+                            var prevTask = stage.previousTasks[k];
+                            getStageDisplayValues(displayArguments, jobName, stage.name, prevTask.buildId, id);
+                        }
+                    }
                 }
+                pipelineStageIdMap[toggleBuildId] = stageIds;
 
                 // Update the build status of the pipeline by checking the status of a user defined job(s)
                 getCustomPipelineBuildStatus(displayArguments, pipeline, jobName, buildNum, allStagesComplete);
@@ -720,7 +746,7 @@ function pipelineUtils() {
                     }
 
                     // Update global display values
-                    getGlobalDisplayValues(displayArguments, pipeline, jobName, buildNum);
+                    getGlobalDisplayValues(displayArguments, pipeline, jobName, pipelineNum);
 
                     // Mark the stages that failed on a blocking call
                     if (!JSON.parse(sessionStorage.blockedOnFailedMap).hasOwnProperty(pipeline.stages[0].name + "-" + pipelineNum)) {
@@ -732,36 +758,6 @@ function pipelineUtils() {
                     var replayEle = document.getElementById("replay-" + i);
                     replayEle.className = "replay replayStopped build_circle";
                 }
-            }
-
-            var pipelineStageIdMap = {};
-            
-            // Create a pipeline - stage id mapping
-            for (var i = 0; i < component.pipelines.length; i++) {
-                var pipeline = component.pipelines[i];
-                var jobName = component.firstJobUrl.substring(4, component.firstJobUrl.length - 1);
-                var buildNum = pipeline.version.substring(1);
-                var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
-                var stageIds = {};
-
-                for (var j = 0; j < pipeline.stages.length; j++) {
-                    var stage = pipeline.stages[j];
-                    var stageStatus = stage.tasks[0].status;
-
-                    var id = getStageId(stage.id + "", i);
-                    stageIds[id] = "true";
-
-                    // Update specific stage display values if the stage has finished
-                    if (stageStatus.success || stageStatus.failed || stageStatus.unstable || stageStatus.cancelled) {
-                        getStageDisplayValues(displayArguments, jobName, stage.name, stage.tasks[0].buildId, id);
-
-                        for (var k = 0; k < stage.previousTasks.length; k++) {
-                            var prevTask = stage.previousTasks[k];
-                            getStageDisplayValues(displayArguments, jobName, stage.name, prevTask.buildId, id);                            
-                        }
-                    }
-                }
-                pipelineStageIdMap[toggleBuildId] = stageIds;
             }
 
             // Update the previous display argument configuration after all new values have been found
@@ -786,14 +782,13 @@ function pipelineUtils() {
                     var stageToNameMap = {};
                     var stageIdToCountMap = {};
 
+                    // Map each stage id to the number of upstream jobs calling it
+                    // Map each stage name to the stage
                     for (var a = 0; a < pipeline.stages.length; a++) {
                         var stage = pipeline.stages[a];
-
                         stageToNameMap[stage.name] = stage;
-
                         for (var b = 0; b < stage.downstreamStageIds.length; b++) {
                             var downstreamId = getStageId(stage.downstreamStageIds[b] + "", index);
-
                             if (stageIdToCountMap.hasOwnProperty(downstreamId)) {
                                 stageIdToCountMap[downstreamId]++;
                             } else {
@@ -1253,32 +1248,12 @@ function openNewTabInBackground(url) {
 
     var is_chrome = navigator.userAgent.toLowerCase().indexOf('chrome') > -1;
     
-    if(!is_chrome)
-    {
+    if(!is_chrome) {
         console.info("Using firefox!");
-        // ele.dispatchEvent(event);
         ele.click();
-        // window.open(url, '_blank');
-    } 
-    else {
+    } else {
         console.info("Using chrome!");
         ele.dispatchEvent(event);
-        // var a = document.createElement("a");
-        // a.href = url;
-
-        // var evt = document.createEvent("MouseEvents");
-        // evt.initMouseEvent("click", true, true, window, 0, 0, 0, 0, 0, true, false, false, false, 0, null);
-
-        // var clickEvent = new MouseEvent("click", {
-        //     "view": window,
-        //     "bubbles": true,
-        //     "cancelable": false,
-        //     "ctrlKey": true,
-        //     "button": 0
-        // });
-        
-        // a.dispatchEvent(evt);
-        // a.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}));
     }
 }
 
@@ -2948,79 +2923,55 @@ function replayUpdateStage(stageTimestamps, counter, pipelineNum) {
         stageStatus = overrideStatus;
     }
 
-    if (isStartTs) {
-
-        if (stageStatus != "IDLE" && stageStatus != "DISABLED" && stageStatus != "NOT_BUILT") {    
-            var ele = document.getElementById(stageId);
-            ele.className = "circle circle_RUNNING";
-
-            var buildNameEle = document.getElementById(stage.name + "-" + pipelineNum);
-            buildNameEle.innerHTML = stageBuildName;
+    // Check all scopes
+    for (var i = 0; i < allScopes.length; i++) {
+        var scope = allScopes[i];
+        var connections;
+        if (sourceId != null) {
+            connections = instance.select({
+                scope   : scope,
+                target  : stageId,
+                source  : sourceId
+            });
+        } else {
+            connections = instance.select({
+                scope   : scope,
+                target  : stageId
+            });
         }
 
-        for (var i = 0; i < allScopes.length; i++) {
+        if (stageStatus != "IDLE" && stageStatus != "DISABLED" && stageStatus != "NOT_BUILT") {
+            if (isStartTs) {
+                var ele = document.getElementById(stageId);
+                ele.className = "circle circle_RUNNING";
 
-            var scope = allScopes[i];
-            var connections;
-            if (sourceId != null) {
-                connections = instance.select({
-                    scope   : scope,
-                    target  : stageId,
-                    source  : sourceId
-                });
+                var buildNameEle = document.getElementById(stage.name + "-" + pipelineNum);
+                buildNameEle.innerHTML = stageBuildName;
             } else {
-                connections = instance.select({
-                    scope   : scope,
-                    target  : stageId
-                });
+                var ele = document.getElementById(stageId);
+                ele.className = "circle circle_" + stageStatus;
             }
-
-            // Set the color to yellow and it's z-index to 4 (same level as hovering over an arrow)
-            connections.each(
-                function(connection) {}).setPaintStyle({
-                    stroke: "yellow",
-                    strokeWidth: styleMap[scope][1],
-                    dashstyle: styleMap[scope][2]
-                }
-            ).setHoverPaintStyle({
-                stroke: "yellow",
-                strokeWidth: styleMap[scope][1] * 1.5
-            }).setHover(false).addClass("running");
         }
 
-    } else {
+        var strokeColor = isStartTs ? "yellow" : styleMap[scope][0];
 
-        if (stageStatus != "IDLE" && stageStatus != "DISABLED" && stageStatus != "NOT_BUILT") {    
-            var ele = document.getElementById(stageId);
-            ele.className = "circle circle_" + stageStatus;
-        }
-
-        for (var i = 0; i < allScopes.length; i++) {
-
-            var scope = allScopes[i];
-            var connections;
-            if (sourceId != null) {
-                connections = instance.select({
-                    scope   : scope,
-                    target  : stageId,
-                    source  : sourceId
-                });
-            } else {
-                connections = instance.select({
-                    scope   : scope,
-                    target  : stageId
-                });
-            }
-
-            // Set the connection back to it's actual color and remove the higher z-index class
-            connections.each(function(connection) {}).setPaintStyle({
-                stroke: styleMap[scope][0],
+        // Set the color to yellow and its z-index to 4 (same level as hovering over an arrow) if it is running
+        // Otherwise, set the connection color and the z-index back to its default values
+        connections.each(
+            function(connection) {}).setPaintStyle({
+                stroke: strokeColor,
                 strokeWidth: styleMap[scope][1],
                 dashstyle: styleMap[scope][2]
-            }).setHoverPaintStyle({
-                stroke: styleMap[scope][0],
-                strokeWidth: styleMap[scope][1] * 1.5
-            }).setHover(false).removeClass("running");
+            }
+        ).setHoverPaintStyle({
+            stroke: strokeColor,
+            strokeWidth: styleMap[scope][1] * 1.5
+        }).setHover(false);
+
+        if (isStartTs) {
+            connections.each(function(connection) {}).addClass("running");
+        } else {
+            connections.each(function(connection) {}).removeClass("running");
         }
     }
 }
