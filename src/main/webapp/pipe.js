@@ -783,6 +783,25 @@ function pipelineUtils() {
                 Q.each(component.pipelines, function (j, pipeline) {
                     index = j;
 
+                    var stageToNameMap = {};
+                    var stageIdToCountMap = {};
+
+                    for (var a = 0; a < pipeline.stages.length; a++) {
+                        var stage = pipeline.stages[a];
+
+                        stageToNameMap[stage.name] = stage;
+
+                        for (var b = 0; b < stage.downstreamStageIds.length; b++) {
+                            var downstreamId = getStageId(stage.downstreamStageIds[b] + "", index);
+
+                            if (stageIdToCountMap.hasOwnProperty(downstreamId)) {
+                                stageIdToCountMap[downstreamId]++;
+                            } else {
+                                stageIdToCountMap[downstreamId] = 0;
+                            }
+                        }
+                    }
+
                     // Temporary Hack in place... 
                     // The legend for single stage pipelines is not being drawn properly if nothing is drawn here
                     // For now, draw an "invisible" line to fix the legend issue
@@ -816,6 +835,7 @@ function pipelineUtils() {
 
                                 var blockedProjects = conditionalProjects = downstreamProjects = [];
                                 var targetName;
+                                var isBlocking = false;
                                 if (blockingMap.hasOwnProperty(source)) {
                                     blockedProjects = blockingMap[source];
                                     lastBlockingJob = blockedProjects[blockedProjects.length - 1];
@@ -838,17 +858,18 @@ function pipelineUtils() {
                                         label = "Blocking Conditional";
                                         dashstyle = "0 0";
                                         scope = "pipeline-bc";
+                                        isBlocking = true;
                                     } else if (blockedProjects.indexOf(targetName) != -1) {
                                         color = "rgba(0,122,195,1)";    // Blue
                                         label = "Blocking";
                                         dashstyle = "0 0";
                                         scope = "pipeline-b";
+                                        isBlocking = true;
                                     } else if (conditionalProjects.indexOf(targetName) != -1) {
                                         color = "rgba(255,121,52,1)";   // Orange
                                         label = "Non-blocking Conditional";
                                         scope = "pipeline-nbc";
                                     }
-
                                     if (downstreamProjects.indexOf(targetName) != -1) {
                                         color = "rgba(118,91,161,1)";   // Purple
                                         label = "Downstream";
@@ -870,6 +891,24 @@ function pipelineUtils() {
                                     }
                                 }
 
+                                var isRunning = false;
+                                if (stageToNameMap.hasOwnProperty(targetName)
+                                        && stageToNameMap[targetName].tasks[0].status.type == "RUNNING") {
+
+                                    // Multiple sources -- need to look up what the calling job is
+                                    if (stageIdToCountMap[target] > 1) {
+                                        var sourceName = getStageSource(targetName, stageToNameMap[targetName].tasks[0].buildId);
+                                        if (sourceName == stage.name) {
+                                            color = "yellow";
+                                            isRunning = true;
+                                        }
+                                    } else {
+                                        // Only 1 source (0 sources for the first job)
+                                        color = "yellow";
+                                        isRunning = true;
+                                    }
+                                }
+
                                 var isDownstreamProject = (downstreamProjects.indexOf(targetName) != -1);
                                 var connector = ["Flowchart", {
                                     stub: stub,
@@ -879,9 +918,8 @@ function pipelineUtils() {
                                     cornerRadius: 20
                                 }];
 
-                                // Draw a hidden connection hide the bad line overlapping
-                                // Only do it if there is a mix of conditional and blocking jobs however as having all
-                                // blocking jobs (or blue lines) looks visually ok
+                                // Draw a hidden connection to hide the bad line overlapping
+                                // Only do it if there is a mix of conditional and blocking jobs
                                 if (lastBlockingJob == projectNameIdMap[target] &&
                                     conditionalMap.hasOwnProperty(source)) {
 
@@ -923,6 +961,8 @@ function pipelineUtils() {
                                     });
                                 }
 
+                                // The primary connection
+                                // Add a scope to these connections for replay
                                 var connection = jsplumb.connect({
                                     source: source,
                                     target: target,
@@ -937,6 +977,15 @@ function pipelineUtils() {
                                     endpoint: "Blank",
                                     scope: scope
                                 });
+
+                                // Add a higher z-index for running connections and/or blocking connections
+                                if (isRunning) {
+                                    connection.addClass("running");
+                                } else {
+                                    if (isBlocking) {
+                                        connection.addClass("blocking");
+                                    }
+                                }
 
                                 connection.bind("mouseover", function(conn) {
                                     conn.addOverlay([ "Label", { 
@@ -2784,105 +2833,6 @@ function toggleTable(jobName, buildNum) {
 }
 
 /**
- * Toggle method for Full Screen. Used to toggle build rows.
- * The toggle() method works fine in both normal view and fullscreen.
- * However, we'll leave this method in case of any new visual bugs.
- */
-function toggleCompatibleFs(jobName, buildNum) {
-    var toggleStates = JSON.parse(sessionStorage.toggleStates);
-    var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
-
-    var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
-
-    if (toggleStates.hasOwnProperty(toggleBuildId)) {
-        if (toggleStates[toggleBuildId] == "none") {
-            toggleStates[toggleBuildId] = "block";
-        } else {
-            toggleStates[toggleBuildId] = "none";
-        }
-    } else {
-        toggleStates[toggleBuildId] = "block";
-    }
-
-    for (var buildId in toggleStates) {
-        if (toggleStates.hasOwnProperty(buildId)) {
-            var rowId = "toggle-row-" + buildId.split("toggle-build-")[1];
-            var pipelineId = "toggle-pipeline-" + buildId.split("toggle-build-")[1];
-            
-            var ele = document.getElementById(buildId);
-            var rowEle = document.getElementById(rowId);
-            var pipelineEle = document.getElementById(pipelineId);
-
-            ele.style.display = "none";
-            rowEle.className = "untoggled_build_header";
-            pipelineEle.className = "untoggled_pipeline";
-
-            var stageIds = pipelineStageIdMap[buildId];
-            // Hide all the connectors
-            for (var key in stageIds) {
-                instance.hide(key);
-            }
-            toggleLegend(jobName, buildNum, false);
-        }
-    }
-
-    var sorted = [];
-    for (var buildId in toggleStates) {
-        sorted.push(buildId);
-    }
-
-    sorted.sort(function(a, b) {
-        var buildNumA = parseInt(a.split("-").slice(-1)[0]);
-        var buildNumB = parseInt(b.split("-").slice(-1)[0]);
-        return buildNumA - buildNumB;
-    });
-
-    var orderedString = sorted.join(",");
-
-    while(orderedString != "") {
-        var buildId = orderedString.split(",")[0];
-
-         if (toggleStates.hasOwnProperty(buildId) && toggleStates[buildId] == "block") {
-            var rowId = "toggle-row-" + buildId.split("toggle-build-")[1];
-            var pipelineId = "toggle-pipeline-" + buildId.split("toggle-build-")[1];
-            
-            var ele = document.getElementById(buildId);
-            var rowEle = document.getElementById(rowId);
-            var pipelineEle = document.getElementById(pipelineId);
-
-            ele.style.display = "block";
-            rowEle.className = "toggled_build_header";
-            pipelineEle.className = "toggled_pipeline";
-
-            var stageIds = pipelineStageIdMap[buildId];
-            // Show all the connectors
-            for (var key in stageIds) {
-                instance.show(key);
-            }
-            toggleLegend(jobName, buildNum, true);
-        }
-
-        orderedString = orderedString.split(",").slice(1).join(",");
-    }
-
-    window.scrollTo(0, 0);
-
-    instance.revalidate();
-
-    // Recalculate offsets for every stage
-    for (var pipeline in pipelineStageIdMap) {
-        for (var stage in pipelineStageIdMap[pipeline]) {
-            instance.recalculateOffsets(stage);
-        }
-    }
-
-    sessionStorage.toggleStates = JSON.stringify(toggleStates);
-    instance.repaintEverything();
-
-    window.scrollTo(0, sessionStorage.getItem("page_y"));
-}
-
-/**
  * Toggle method for Full Screen. Used to toggle the display values table.
  */
 function toggleTableCompatibleFS(jobName, buildNum) {
@@ -2924,7 +2874,7 @@ function storePagePosition() {
 /**
  * Get the upstream stage name for any build triggered for any stage
  */
-function replayGetStageSource(stageName, stageBuildId) {
+function getStageSource(stageName, stageBuildId) {
     var json = {};
     var isError = false;
 
@@ -2934,7 +2884,7 @@ function replayGetStageSource(stageName, stageBuildId) {
         type: "GET",
         async: false,
         cache: true,
-        timeout: 5000,
+        timeout: 2000,
         success: function(data) {
             json = data;
         },
@@ -2983,6 +2933,14 @@ function replayUpdateStage(stageTimestamps, counter, pipelineNum) {
     var stageId = getStageId(stage.id + "", pipelineNum);
     var stageStatus = stage.tasks[0].status.type;
 
+    var styleMap = {
+        "pipeline-nb"   : ["rgba(0,122,195,1)", 3.5, "2 2"],
+        "pipeline-b"    : ["rgba(0,122,195,1)", 3.5, "0 0"],
+        "pipeline-nbc"  : ["rgba(255,121,52,1)", 3.5, "2 2"],
+        "pipeline-bc"   : ["rgba(255,121,52,1)", 3.5, "0 0"],
+        "pipeline-d"    : ["rgba(118,91,161,1)", 3.5, "2 2"]
+    }
+
     // All jsPlumb scopes to search for
     var allScopes = ["pipeline-nb","pipeline-b","pipeline-nbc","pipeline-bc","pipeline-d"];
 
@@ -3000,28 +2958,35 @@ function replayUpdateStage(stageTimestamps, counter, pipelineNum) {
             buildNameEle.innerHTML = stageBuildName;
         }
 
-        var connections;
-        if (sourceId != null) {
-            connections = instance.select({ 
-                scope   : allScopes,
-                target  : stageId,
-                source  : sourceId
-            });
-        } else {
-            connections = instance.select({ 
-                scope   : allScopes,
-                target  : stageId
-            });
-        }
+        for (var i = 0; i < allScopes.length; i++) {
 
-        connections.each(
-            function(connection) {}).setPaintStyle({
-                stroke: "yellow",
-                strokeWidth: 3.5
+            var scope = allScopes[i];
+            var connections;
+            if (sourceId != null) {
+                connections = instance.select({
+                    scope   : scope,
+                    target  : stageId,
+                    source  : sourceId
+                });
+            } else {
+                connections = instance.select({
+                    scope   : scope,
+                    target  : stageId
+                });
             }
-        ).setHoverPaintStyle({
-            strokeWidth: 3.5
-        }).setHover(true);
+
+            // Set the color to yellow and it's z-index to 4 (same level as hovering over an arrow)
+            connections.each(
+                function(connection) {}).setPaintStyle({
+                    stroke: "yellow",
+                    strokeWidth: styleMap[scope][1],
+                    dashstyle: styleMap[scope][2]
+                }
+            ).setHoverPaintStyle({
+                stroke: "yellow",
+                strokeWidth: styleMap[scope][1] * 1.5
+            }).setHover(false).addClass("running");
+        }
 
     } else {
 
@@ -3030,41 +2995,33 @@ function replayUpdateStage(stageTimestamps, counter, pipelineNum) {
             ele.className = "circle circle_" + stageStatus;
         }
 
-        var styleMap = {
-            "pipeline-nb"   : ["rgba(0,122,195,1)", 3.5, "2 2"],
-            "pipeline-b"    : ["rgba(0,122,195,1)", 3.5, "0 0"],
-            "pipeline-nbc"  : ["rgba(255,121,52,1)", 3.5, "2 2"],
-            "pipeline-bc"   : ["rgba(255,121,52,1)", 3.5, "0 0"],
-            "pipeline-d"    : ["rgba(118,91,161,1)", 3.5, "2 2"]
-        }
-
         for (var i = 0; i < allScopes.length; i++) {
 
             var scope = allScopes[i];
             var connections;
             if (sourceId != null) {
                 connections = instance.select({
-                    scope:scope,
-                    target:stageId,
-                    source:sourceId
+                    scope   : scope,
+                    target  : stageId,
+                    source  : sourceId
                 });
             } else {
                 connections = instance.select({
-                    scope:scope,
-                    target:stageId
+                    scope   : scope,
+                    target  : stageId
                 });
             }
 
-            // Set the connection back to it's actual color
+            // Set the connection back to it's actual color and remove the higher z-index class
             connections.each(function(connection) {}).setPaintStyle({
                 stroke: styleMap[scope][0],
                 strokeWidth: styleMap[scope][1],
                 dashstyle: styleMap[scope][2]
             }).setHoverPaintStyle({
+                stroke: styleMap[scope][0],
                 strokeWidth: styleMap[scope][1] * 1.5
-            }).setHover(false);
-
-        }        
+            }).setHover(false).removeClass("running");
+        }
     }
 }
 
@@ -3135,12 +3092,8 @@ function replay(pipelineNum) {
 
         // Use jsPlumb to check if there is more than one connection to a particular stage
         var allScopes = ["pipeline-nb","pipeline-b","pipeline-nbc","pipeline-bc","pipeline-d"];
-        var connections = instance.getConnections({ 
-            scopes  : allScopes,
-            target  : stageId
-        }, true);
-
         var numConnections = instance.getConnections({ scope: allScopes, target:stageId }, true).length;
+
         if (numConnections > 1) {
             console.info("More than one connection { " + numConnections + " } to stage: " + stage.name);
 
@@ -3153,7 +3106,7 @@ function replay(pipelineNum) {
             // and add the start/end timestamps for each additional build
             for (var j = 0; j < stage.previousTasks.length; j++) {
                 var prevTask = stage.previousTasks[j];
-                var prevTaskSourceName = replayGetStageSource(stage.name, prevTask.buildId);
+                var prevTaskSourceName = getStageSource(stage.name, prevTask.buildId);
                 var prevTaskBuildName = "#" + prevTask.buildId + " " + stage.name;
 
                 var prevTaskStartTs = parseInt(prevTask.status.timestamp);
@@ -3169,7 +3122,7 @@ function replay(pipelineNum) {
             }
 
             // Get the source stage id for the lastest build for a particular stage and add it further below
-            var sourceStageName = replayGetStageSource(stage.name, stage.tasks[0].buildId);
+            var sourceStageName = getStageSource(stage.name, stage.tasks[0].buildId);
 
             if (sourceStageName != null) {
                 sourceStageId = getStageId(stageToNameMap[sourceStageName].id + "", pipelineNum);
