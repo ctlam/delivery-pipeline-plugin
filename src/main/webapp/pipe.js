@@ -2574,22 +2574,22 @@ function grepRegexp(grepPattern, grepFlag, data) {
 }
 
 /**
- * Helper method to check if a job failed on a blocking stage
+ * Helper method to check if a job failed on a blocking stage.
  */
 function checkIsWorseOrEqualThan(status1, status2) {
     var statusMap = {
-        "NEVER"    : 3,
+        "NEVER"    : 3, // blocking behaviour has "never" in lowercase but the other values in uppercase
         "SUCCESS"  : 2,
         "UNSTABLE" : 1,
         "FAILURE"  : 0,
-        "FAILED"   : 0
+        "FAILED"   : 0  // task.status.type is FAILED rather than FAILURE
     }
 
-    if (!statusMap.hasOwnProperty(status1)) {
+    if (!statusMap.hasOwnProperty(status1.toUpperCase())) {
         return false;
     }
 
-    if (statusMap[status1] <= statusMap[status2]) {
+    if (statusMap[status1.toUpperCase()] <= statusMap[status2.toUpperCase()]) {
         return true;
     }
     return false;
