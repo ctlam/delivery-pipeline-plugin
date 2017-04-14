@@ -81,7 +81,6 @@ function pipelineUtils() {
             sessionStorage.removeItem("savedStageDisplayValues");
             sessionStorage.removeItem("previousDisplayArgConfig");
             sessionStorage.removeItem("toggleStates");
-            sessionStorage.removeItem("blockedOnFailedMap");
             sessionStorage.removeItem("markedUrls");
             sessionStorage.removeItem("pipelineStageIdMap");
             sessionStorage.removeItem("page_y");
@@ -126,10 +125,6 @@ function pipelineUtils() {
 
         if (sessionStorage.toggleStates == null) {
             sessionStorage.toggleStates = JSON.stringify({});
-        }
-
-        if (sessionStorage.blockedOnFailedMap == null) {
-            sessionStorage.blockedOnFailedMap = JSON.stringify({});
         }
 
         if (sessionStorage.markedUrls == null) {
@@ -749,11 +744,7 @@ function pipelineUtils() {
                     getGlobalDisplayValues(displayArguments, pipeline, jobName, pipelineNum);
 
                     // Mark the stages that failed on a blocking call
-                    if (!JSON.parse(sessionStorage.blockedOnFailedMap).hasOwnProperty(pipeline.stages[0].name + "-" + pipelineNum)) {
-                        updateFailedOnBlockStages(pipeline, i);    
-                    } else {
-                        loadFailedOnBlockStages(pipeline, i);
-                    }
+                    updateFailedOnBlockStages(pipeline, i);
 
                     var replayEle = document.getElementById("replay-" + i);
                     replayEle.className = "replay replayStopped build_circle";
@@ -2583,69 +2574,56 @@ function grepRegexp(grepPattern, grepFlag, data) {
 }
 
 /**
- * Load the stages that failed on a blocking call.
+ * Helper method to check if a job failed on a blocking stage
  */
-function loadFailedOnBlockStages(pipeline, i) {
-    var pipelineNum = pipeline.version.substring(1);
-    var blockedOnFailedMap = JSON.parse(sessionStorage.blockedOnFailedMap);
-    var failedOnBlockingJobs = blockedOnFailedMap[pipeline.stages[0].name + "-" + pipelineNum];
-
-    // No point iterating through the pipeline if there is no stage that failed on a blocking call
-    if (JSON.stringify(failedOnBlockingJobs) == JSON.stringify({})) {
-        return;
+function checkIsWorseOrEqualThan(status1, status2) {
+    var statusMap = {
+        "NEVER"    : 3,
+        "SUCCESS"  : 2,
+        "UNSTABLE" : 1,
+        "FAILURE"  : 0,
+        "FAILED"   : 0
     }
 
-    for (var j = 0; j < pipeline.stages.length - 1; j++) {
-        var stage = pipeline.stages[j];
-
-        if (failedOnBlockingJobs.hasOwnProperty(stage.name)) {
-            var ele = document.getElementById(getStageId(stage.id + "", i));
-            if (ele != null) {
-               ele.className = "circle circle_FAILED_ON_BLOCK";
-               ele.innerHTML = ele.innerHTML.replace("FAILED", "FAILED (on blocking call)");
-            }
-        }
+    if (!statusMap.hasOwnProperty(status1)) {
+        return false;
     }
+
+    if (statusMap[status1] <= statusMap[status2]) {
+        return true;
+    }
+    return false;
 }
 
 /**
  * Mark the stages that failed on a blocking call.
  */
 function updateFailedOnBlockStages(pipeline, i) {
-    var blockedOnFailedMap = JSON.parse(sessionStorage.blockedOnFailedMap);
-    var pipelineNum = pipeline.version.substring(1);
-    var failedOnBlockingJobs = {};
+    var stageToNameMap = {};
 
-    for (var j = 0; j < pipeline.stages.length - 1; j++) {
+    // Map each stage name to each stage object
+    for (var j = 0; j < pipeline.stages.length; j++) {
+        var stage = pipeline.stages[j];
+        stageToNameMap[stage.name] = stage;
+    }
+
+    for (var j = 0; j < pipeline.stages.length; j++) {
         var stage = pipeline.stages[j];
         var ele = document.getElementById(getStageId(stage.id + "", i));
-        var downstreamStages = stage.downstreamStages;
-        var downstreamStageIds = stage.downstreamStageIds;
-        var blockingJobs = stage.blockingJobs;
-
-        var stageNum = stage.tasks[0].buildId;
-
-        if (downstreamStages.length == 0) {
-            continue;
-        }
 
         if (stage.tasks[0].status.type == "FAILED") {
-            for (var k = 0; k < downstreamStages.size(); k++) {
-                if (blockingJobs.indexOf(downstreamStages[k]) != -1) {
-                    var downstreamEle = document.getElementById(getStageId(downstreamStageIds[k] + "", i));
-                    if (downstreamEle != null) {
-                        if (downstreamEle.className == "circle circle_FAILED" || downstreamEle.className == "circle circle_CANCELLED") {
-                            ele.className = "circle circle_FAILED_ON_BLOCK";
-                            ele.innerHTML = ele.innerHTML.replace("FAILED", "FAILED (due to blocking call)");
-                            failedOnBlockingJobs[stage.name] = "true";
-                        }
+            for (var k = 0; k < stage.blockingCriteria.length; k++) {
+                var blockingCriterion = stage.blockingCriteria[k];
+                for (var key in blockingCriterion) {
+                    var downstreamStageStatus = stageToNameMap[key].tasks[0].status.type;
+                    if (checkIsWorseOrEqualThan(downstreamStageStatus, blockingCriterion[key])) {
+                        var reason = stage.name + " was " + downstreamStageStatus;
+                        ele.className = "circle circle_FAILED_ON_BLOCK";
+                        ele.innerHTML = ele.innerHTML.replace("FAILED", "FAILED (due to blocking call - " + reason + ")");
                     }
                 }
             }
         }
-
-        blockedOnFailedMap[pipeline.stages[0].name + "-" + pipelineNum] = failedOnBlockingJobs;
-        sessionStorage.blockedOnFailedMap = JSON.stringify(blockedOnFailedMap);
     }
 }
 
