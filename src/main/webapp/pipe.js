@@ -974,6 +974,7 @@ function pipelineUtils() {
                                 }
 
                                 connection.bind("mouseover", function(conn) {
+                                    conn.addClass("hover");
                                     conn.addOverlay([ "Label", { 
                                         label: label,
                                         id: (target + "-label"),
@@ -990,6 +991,7 @@ function pipelineUtils() {
                                 }); 
 
                                 connection.bind("mouseout", function(conn) {
+                                    conn.removeClass("hover");
                                     conn.removeOverlay((target + "-label"));
                                     conn.removeOverlay((target + "-arrow"));
                                 });
