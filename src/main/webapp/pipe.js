@@ -2619,7 +2619,7 @@ function updateFailedOnBlockStages(pipeline, i) {
                 for (var key in blockingCriterion) {
                     var downstreamStageStatus = stageToNameMap[key].tasks[0].status.type;
                     if (checkIsWorseOrEqualThan(downstreamStageStatus, blockingCriterion[key])) {
-                        var reason = stage.name + " was " + downstreamStageStatus;
+                        var reason = key + " was " + downstreamStageStatus;
                         ele.className = "circle circle_FAILED_ON_BLOCK";
                         ele.innerHTML = ele.innerHTML.replace("FAILED", "FAILED (due to blocking call - " + reason + ")");
                     }
