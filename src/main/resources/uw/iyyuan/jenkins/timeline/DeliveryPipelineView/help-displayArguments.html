@@ -17,6 +17,7 @@ The pipeline project name:
             grepPattern: a regex expression -- see notes below
             grepFlag: the regexp flag
             useLink: boolean value of true or false
+    PipelineBuildStatus: Project_1,Project_2
     Project_1:
         The display value:
             filePath: file path relative to the workspace
@@ -30,7 +31,9 @@ Additional Notes:<br/>
 - The pipeline project name is the name of the first job in your pipeline.<br/>
 - Any arguments under "Global" will be displayed at the top of every build run. These will NOT be populated until the completion of the ENTIRE pipeline.<br/>
 - Any arguments titled a specific project name will be shown when hovering over the project's status icon. These will update the moment they become available.<br/>
-- The display value is simply a header.<br/><br/>
+- The PipelineBuildStatus key is a comma separated list of project names used to determine the overall build status of the pipeline.<br/>
+&nbsp;&nbsp;If not specified, then the first job in the pipeline will be used to determine the overall build status of the pipeline.<br/>
+- The display value is simply a name for your value.<br/><br/>
 - Only specify one of { filePath | artifactName | envName | paramName | fromConsole }.<br/>
 - useLink is used in conjunction with { filePath | artifactName } and is OPTIONAL.<br/>
 - grepPattern is used to search for a specific pattern and SHOULD be used when using fromConsole. Otherwise the full console output will be shown in the table...<br/>

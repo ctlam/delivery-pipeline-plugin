@@ -715,7 +715,7 @@ function pipelineUtils() {
                     }
 
                     // Update specific stage display values if the stage has finished
-                    if (stageStatus.success || stageStatus.failed || stageStatus.unstable || stageStatus.cancelled) {
+                    if (stageStatus == "SUCCESS" || stageStatus == "FAILED" || stageStatus == "UNSTABLE" || stageStatus == "CANCELLED") {
                         getStageDisplayValues(displayArguments, jobName, stage.name, stage.tasks[0].buildId, id);
 
                         for (var k = 0; k < stage.previousTasks.length; k++) {
