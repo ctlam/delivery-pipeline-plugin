@@ -330,6 +330,8 @@ public class Stage extends AbstractItem {
 
                     // Check for downstream criteria jobs
                     for (PromotionCondition pc : conditions) {
+
+                        // Only supporting downstream conditions
                         if (pc instanceof DownstreamPassCondition) {
                             promotionCriteriaJobs += ((DownstreamPassCondition) pc).getJobs();
                         }
@@ -361,6 +363,7 @@ public class Stage extends AbstractItem {
             // Mark the jobs in the post build script as conditional/blocking as needed
             if (publishers != null) {
                 for (Publisher publisher : publishers) {
+                    // Looking specifically for the PostBuildScript plugin
                     if (publisher instanceof PostBuildScript) {
                         List<BuildStep> postBuildSteps = ((PostBuildScript) publisher).getBuildSteps();
 
@@ -374,15 +377,23 @@ public class Stage extends AbstractItem {
                                         for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(
                                                 buildStep).getConfigs()) {
                                             if (config.getBlock() != null) {
-                                                blockingJobs.add(config.getProjects());
-                                                Map<String, String> blockingCriterion = new HashMap<String, String>();
-                                                if (config.getBlock().failureThreshold != null) {
-                                                    blockingCriterion.put(config.getProjects(), 
-                                                        config.getBlock().failureThreshold.toString());
-                                                    blockingCriteria.add(blockingCriterion);
+                                                // Remove all white spaces and split by every comma since
+                                                // config.getProjects() returns a comma separated list of job names as
+                                                // a single String
+                                                String[] configProjects =
+                                                        config.getProjects().replaceAll("\\s","").split(",");
+
+                                                for (String configProject : configProjects) {
+                                                    blockingJobs.add(configProject);
+                                                    if (config.getBlock().failureThreshold != null) {
+                                                        Map<String, String> blockingCriterion = Maps.newHashMap();
+                                                        blockingCriterion.put(configProject,
+                                                                config.getBlock().failureThreshold.toString());
+                                                        blockingCriteria.add(blockingCriterion);
+                                                    }
+                                                    conditionalJobs.add(configProject);
                                                 }
                                             }
-                                            conditionalJobs.add(config.getProjects());
                                         }
                                     }
                                 }
@@ -390,12 +401,17 @@ public class Stage extends AbstractItem {
                             } else if (bs instanceof TriggerBuilder) {
                                 for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(bs).getConfigs()) {
                                     if (config.getBlock() != null) {
-                                        blockingJobs.add(config.getProjects());
-                                        Map<String, String> blockingCriterion = new HashMap<String, String>();
-                                        if (config.getBlock().failureThreshold != null) {
-                                            blockingCriterion.put(config.getProjects(),
-                                                config.getBlock().failureThreshold.toString());
-                                            blockingCriteria.add(blockingCriterion);
+                                        // Remove all white spaces and split by every comma since config.getProjects()
+                                        // returns a comma separated list of job names as a single String
+                                        String[] configProjects = config.getProjects().replaceAll("\\s","").split(",");
+                                        for (String configProject : configProjects) {
+                                            blockingJobs.add(configProject);
+                                            if (config.getBlock().failureThreshold != null) {
+                                                Map<String, String> blockingCriterion = Maps.newHashMap();
+                                                blockingCriterion.put(configProject,
+                                                        config.getBlock().failureThreshold.toString());
+                                                blockingCriteria.add(blockingCriterion);
+                                            }
                                         }
                                     }
                                 }
@@ -830,10 +846,13 @@ public class Stage extends AbstractItem {
         for (SubProjectsAction action : Util.filter(project.getActions(), SubProjectsAction.class)) {
             for (BlockableBuildTriggerConfig config : action.getConfigs()) {
                 if (config.getBlock() != null) {
-                    Map<String, String> blockingCriterion = new HashMap<String, String>();
-                    if (config.getBlock().failureThreshold != null) {
-                        blockingCriterion.put(config.getProjects(), config.getBlock().failureThreshold.toString());
-                        blockingCriteria.add(blockingCriterion);
+                    String[] configProjects = config.getProjects().replaceAll("\\s","").split(",");
+                    for (String configProject : configProjects) {
+                        if (config.getBlock().failureThreshold != null) {
+                            Map<String, String> blockingCriterion = Maps.newHashMap();
+                            blockingCriterion.put(configProject, config.getBlock().failureThreshold.toString());
+                            blockingCriteria.add(blockingCriterion);
+                        }
                     }
                 }
             }
@@ -843,10 +862,13 @@ public class Stage extends AbstractItem {
         for (TriggerBuilder trigger : ConditionalBuildStepHelper.getContainedBuilders(project, TriggerBuilder.class)) {
             for (BlockableBuildTriggerConfig config : trigger.getConfigs()) {
                 if (config.getBlock() != null) {
-                    Map<String, String> blockingCriterion = new HashMap<String, String>();
-                    if (config.getBlock().failureThreshold != null) {
-                        blockingCriterion.put(config.getProjects(), config.getBlock().failureThreshold.toString());
-                        blockingCriteria.add(blockingCriterion);
+                    String[] configProjects = config.getProjects().replaceAll("\\s","").split(",");
+                    for (String configProject : configProjects) {
+                        if (config.getBlock().failureThreshold != null) {
+                            Map<String, String> blockingCriterion = Maps.newHashMap();
+                            blockingCriterion.put(configProject, config.getBlock().failureThreshold.toString());
+                            blockingCriteria.add(blockingCriterion);
+                        }
                     }
                 }
             }
@@ -860,7 +882,10 @@ public class Stage extends AbstractItem {
         for (SubProjectsAction action : Util.filter(project.getActions(), SubProjectsAction.class)) {
             for (BlockableBuildTriggerConfig config : action.getConfigs()) {
                 if (config.getBlock() != null) {
-                    jobNames.add(config.getProjects());
+                    String[] configProjects = config.getProjects().replaceAll("\\s","").split(",");
+                    for (String configProject : configProjects) {
+                        jobNames.add(configProject);
+                    }
                 }
             }
         }
@@ -871,7 +896,10 @@ public class Stage extends AbstractItem {
         List<String> jobNames = new ArrayList<String>();
         for (TriggerBuilder trigger : ConditionalBuildStepHelper.getContainedBuilders(project, TriggerBuilder.class)) {
             for (BlockableBuildTriggerConfig config : trigger.getConfigs()) {
-                jobNames.add(config.getProjects());
+                String[] configProjects = config.getProjects().replaceAll("\\s","").split(",");
+                for (String configProject : configProjects) {
+                    jobNames.add(configProject);
+                }
             }
         }
         return jobNames;

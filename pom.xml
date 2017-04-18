@@ -4,7 +4,7 @@
 
     <groupId>uw.iyyuan.jenkins.timeline</groupId>
     <artifactId>timeline-view-plugin</artifactId>
-    <version>0.5.2</version>
+    <version>0.5.3</version>
     <packaging>hpi</packaging>
     <name>Timeline View Plugin</name>
 <!--     <url>https://wiki.jenkins-ci.org/display/JENKINS/Delivery+Pipeline+Plugin</url> -->
