@@ -1,11 +1,20 @@
-var instance;
-// Jenkins default view has a "main-panel" whereas full screen mode does not
-var isFullScreen = (document.getElementById("main-panel") == null);
-var numColumns = 0;
-var pipelineutilsData = [];
-var pipelineutils;
-var storedPipelines = [];
-var replayIsRunning = false;
+var isFullScreen = false;            // Note: Jenkins default view has a "main-panel" whereas full screen mode does not
+var replayInterval;
+var numColumns = 0;                  // Number of columns in the pipeline
+var jsPlumbInstance;                 // jsPlumb instance to call later on
+var pipelineutilsData = [];          // Allow this script to recall itself later on
+var pipelineutils;                   // Allow this script to recall itself later on
+var storedPipelines = [];            // Store pipelines for replay
+var replayIsRunning = false;         // Javascript is single threaded, essentially this acts as a mutex for replay
+
+var savedPipelineDisplayValues = {}; // Global pipeline values
+var savedPipelineArtifacts = {};     // Top level artifacts
+var savedStageDisplayValues = {};    // Stage specific values
+var previousDisplayArgConfig = {};   // The display argument config
+var toggleStates = {};               // Toggle states
+var markedUrls = {};                 // Failed urls to not recheck
+var pipelineStageIdMap = {};         // Pipeline - StageId mapping
+var page_y = 0;                      // Page Y offset
 
 function pipelineUtils() {
     var self = this;
@@ -21,7 +30,7 @@ function pipelineUtils() {
         pipelineutils = this;
         pipelineutilsData.push(divNames, errorDiv, view, fullscreen, page, component, showChanges, aggregatedChangesGroupingPattern, timeout, pipelineid, jsplumb);
         // Keep track of the jsplumb instance so that we can repaint when necessary
-        instance = jsplumb;
+        jsPlumbInstance = jsplumb;
 
         Q.ajax({
             url: rootURL + "/" + view.viewUrl + 'api/json' + "?page=" + page + "&component=" + component + "&fullscreen=" + fullscreen,
@@ -47,7 +56,7 @@ function pipelineUtils() {
 
     var lastResponse = null;
 
-    this.refreshPipelines = function(data, divNames, errorDiv, view, showAvatars, showChanges, aggregatedChangesGroupingPattern, pipelineid, jsplumb) {
+    this.refreshPipelines = function(data, divNames, errorDiv, view, fullscreen, showChanges, aggregatedChangesGroupingPattern, pipelineid, jsplumb) {
         var lastUpdate = data.lastUpdated,
             cErrorDiv = Q("#" + errorDiv),
             pipeline,
@@ -57,6 +66,18 @@ function pipelineUtils() {
             triggered,
             contributors,
             tasks = [];
+
+        if (data.replayInterval > 0) {
+            replayInterval = data.replayInterval * 1000;
+        } else {
+            replayInterval = 1000;
+        }
+
+        if (fullscreen == "true" || fullscreen == true) {
+            isFullScreen = true;
+        } else {
+            isFullScreen = false;
+        }
 
         if (isFullScreen) {
             document.onkeydown = function(evt) {
@@ -74,30 +95,6 @@ function pipelineUtils() {
         window.addEventListener('mozfullscreenchange', rescaleConnections);
         window.addEventListener('fullscreenchange', rescaleConnections);
 
-        // Upon navigating away, delete the session storage resources set by this script
-        window.onbeforeunload = function(){
-            sessionStorage.removeItem("savedPipelineDisplayValues");
-            sessionStorage.removeItem("savedPipelineArtifacts");
-            sessionStorage.removeItem("savedStageDisplayValues");
-            sessionStorage.removeItem("previousDisplayArgConfig");
-            sessionStorage.removeItem("toggleStates");
-            sessionStorage.removeItem("blockedOnFailedMap");
-            sessionStorage.removeItem("markedUrls");
-            sessionStorage.removeItem("pipelineStageIdMap");
-            sessionStorage.removeItem("page_y");
-        };
-
-        var currentPageY;
-        try {
-            currentPageY = sessionStorage.getItem("page_y");
-            if (currentPageY === undefined) {
-                sessionStorage.page_y = 0;
-                currentPageY = 0;
-            }
-        } catch (e) {
-            console.info(e);
-        }
-
         // Scroll to the top before drawing in fullscreen mode
         window.scrollTo( 0 , 0 );
 
@@ -105,36 +102,6 @@ function pipelineUtils() {
         var conditionalMap = {};    // Conditional project mapping
         var downstreamMap = {};     // Downstream project mapping
         var projectNameIdMap = {};  // Project Name - Project Id mapping
-
-        // Initialize sessionStorage variables if not previously set
-        if (sessionStorage.savedPipelineDisplayValues == null) {
-            sessionStorage.savedPipelineDisplayValues = JSON.stringify({});
-        }
-        var savedPipelineDisplayValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
-
-        if (sessionStorage.savedPipelineArtifacts == null) {
-            sessionStorage.savedPipelineArtifacts = JSON.stringify({});
-        }
-
-        if (sessionStorage.savedStageDisplayValues == null) {
-            sessionStorage.savedStageDisplayValues = JSON.stringify({});
-        }
-
-        if (sessionStorage.previousDisplayArgConfig == null) {
-            sessionStorage.previousDisplayArgConfig = JSON.stringify({});
-        }
-
-        if (sessionStorage.toggleStates == null) {
-            sessionStorage.toggleStates = JSON.stringify({});
-        }
-
-        if (sessionStorage.blockedOnFailedMap == null) {
-            sessionStorage.blockedOnFailedMap = JSON.stringify({});
-        }
-
-        if (sessionStorage.markedUrls == null) {
-            sessionStorage.markedUrls = JSON.stringify({});
-        }
 
         if (data.error) {
             cErrorDiv.html('Error: ' + data.error).show();
@@ -265,7 +232,7 @@ function pipelineUtils() {
                 html.push("</h2></div>");
 
                 html.push("<div class=\"pipelineSecondaryHeader\">");
-                if (!showAvatars) {
+                if (!fullscreen) {
                     html.push("<div class='pagination'>");
                     html.push(component.pagingData);
                     html.push("</div>");
@@ -393,7 +360,7 @@ function pipelineUtils() {
                         html.push("<section class=\"pipeline-values\">");
                         html.push("<div class=\"pipeline-row\">");
 
-                        if (JSON.stringify(displayArguments) != JSON.stringify({})) {
+                        if (!_.isEqual(displayArguments, {})) {
                             var toggleTableId = "toggle-table-" + jobName + "-" + buildNum;
                             var displayTableId = "display-table-" + jobName + "-" + buildNum;
                             var artifactId = "artifacts-" + jobName + "-" + buildNum;
@@ -419,7 +386,7 @@ function pipelineUtils() {
                                 html.push("<td id=\"" + artifactId + "\" class=\"displayTableTd\">" + loadBuildArtifacts(artifactId) + "</td></tr>");
                             }
 
-                            if (JSON.stringify(savedPipelineDisplayValues) == JSON.stringify({})) {
+                            if (_.isEqual(savedPipelineDisplayValues, {})) {
                                 html.push(generateGlobalDisplayValueTable(displayArguments, jobName, buildNum));
                             } else {
                                 html.push(loadGlobalDisplayValues(displayArguments, jobName, buildNum, savedPipelineDisplayValues));
@@ -694,7 +661,7 @@ function pipelineUtils() {
                 Q("#pipeline-message-" + pipelineid).html('');
             }
 
-            var pipelineStageIdMap = {};
+            pipelineStageIdMap = {};
 
             // Update global pipeline data if every stage in the pipeline has run to completion.
             // Update stage specific data if the stage has run to completion.
@@ -720,7 +687,7 @@ function pipelineUtils() {
                     }
 
                     // Update specific stage display values if the stage has finished
-                    if (stageStatus.success || stageStatus.failed || stageStatus.unstable || stageStatus.cancelled) {
+                    if (stageStatus == "SUCCESS" || stageStatus == "FAILED" || stageStatus == "UNSTABLE" || stageStatus == "CANCELLED") {
                         getStageDisplayValues(displayArguments, jobName, stage.name, stage.tasks[0].buildId, id);
 
                         for (var k = 0; k < stage.previousTasks.length; k++) {
@@ -736,11 +703,10 @@ function pipelineUtils() {
 
                 if (allStagesComplete) {
                     if (data.showArtifacts) {
-                        var artifactValues = JSON.parse(sessionStorage.savedPipelineArtifacts);
                         var artifactId = "artifacts-" + jobName + "-" + buildNum;
 
                         // Update top level artifacts
-                        if (!artifactValues.hasOwnProperty(artifactId)) {
+                        if (!savedPipelineArtifacts.hasOwnProperty(artifactId)) {
                             getBuildArtifacts(jobName, buildNum, artifactId);    
                         }
                     }
@@ -749,11 +715,7 @@ function pipelineUtils() {
                     getGlobalDisplayValues(displayArguments, pipeline, jobName, pipelineNum);
 
                     // Mark the stages that failed on a blocking call
-                    if (!JSON.parse(sessionStorage.blockedOnFailedMap).hasOwnProperty(pipeline.stages[0].name + "-" + pipelineNum)) {
-                        updateFailedOnBlockStages(pipeline, i);    
-                    } else {
-                        loadFailedOnBlockStages(pipeline, i);
-                    }
+                    updateFailedOnBlockStages(pipeline, i);
 
                     var replayEle = document.getElementById("replay-" + i);
                     replayEle.className = "replay replayStopped build_circle";
@@ -761,12 +723,10 @@ function pipelineUtils() {
             }
 
             // Update the previous display argument configuration after all new values have been found
-            if (!_.isEqual(JSON.parse(sessionStorage.previousDisplayArgConfig), displayArguments)) {
+            if (!_.isEqual(previousDisplayArgConfig, displayArguments)) {
                 console.info("Timeline config has been changed -- Reloading display values!")
-                sessionStorage.previousDisplayArgConfig = JSON.stringify(displayArguments);
+                previousDisplayArgConfig = displayArguments;
             }
-
-            sessionStorage.pipelineStageIdMap = JSON.stringify(pipelineStageIdMap);
 
             var index = 0, source, target;
             var anchors = [[1, 0, 1, 0, 0, 13], [0, 0, -1, 0, 0, 13]];
@@ -983,6 +943,7 @@ function pipelineUtils() {
                                 }
 
                                 connection.bind("mouseover", function(conn) {
+                                    conn.addClass("hover");
                                     conn.addOverlay([ "Label", { 
                                         label: label,
                                         id: (target + "-label"),
@@ -999,6 +960,7 @@ function pipelineUtils() {
                                 }); 
 
                                 connection.bind("mouseout", function(conn) {
+                                    conn.removeClass("hover");
                                     conn.removeOverlay((target + "-label"));
                                     conn.removeOverlay((target + "-arrow"));
                                 });
@@ -1075,7 +1037,6 @@ function pipelineUtils() {
                 }
             }
 
-            var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
             // Hide all connectors in untoggled rows
             for (var a = 0; a < data.pipelines.length; a++) {
                 var component = data.pipelines[a];
@@ -1135,7 +1096,7 @@ function pipelineUtils() {
             }
         }
         jsplumb.repaintEverything();
-        window.scrollTo( 0, currentPageY );
+        window.scrollTo( 0, page_y );
     }
 }
 
@@ -1143,7 +1104,7 @@ function pipelineUtils() {
  * Redraws all the connections.
  */
 function redrawConnections() {
-    instance.repaintEverything();
+    jsPlumbInstance.repaintEverything();
 }
 
 /**
@@ -1151,20 +1112,19 @@ function redrawConnections() {
  */
 function revalidateConnections() {
     if (isFullScreen) {
-        var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
 
         window.scrollTo(0, 0);
-        instance.revalidate();
+        jsPlumbInstance.revalidate();
 
         // Recalculate offsets for every stage
         for (var pipeline in pipelineStageIdMap) {
             for (var stage in pipelineStageIdMap[pipeline]) {
-                instance.recalculateOffsets(stage);
+                jsPlumbInstance.recalculateOffsets(stage);
             }
         }
 
         redrawConnections();
-        window.scrollTo(0, sessionStorage.getItem("page_y"));
+        window.scrollTo(0, page_y);
     } else {
         redrawConnections();
     }    
@@ -1724,11 +1684,11 @@ function triggerBuild(url, taskId) {
 function refreshFn(clearToggleStates) {
     if (clearToggleStates) {
         // Clear all toggle states
-        sessionStorage.toggleStates = JSON.stringify({});    
+        toggleStates = {};
     }
 
     // CLear all saved pipeline
-    sessionStorage.pipelineStageIdMap = JSON.stringify({});
+    pipelineStageIdMap = {};
 
     pipelineutils.updatePipelines(
         pipelineutilsData[0],
@@ -1789,10 +1749,8 @@ function equalheight(container) {
  * Load all artifacts for a build.
  */
 function loadBuildArtifacts(buildId) {
-    var savedValues = JSON.parse(sessionStorage.savedPipelineArtifacts);    
-
-    if (savedValues.hasOwnProperty(buildId)) {
-        return savedValues[buildId];
+    if (savedPipelineArtifacts.hasOwnProperty(buildId)) {
+        return savedPipelineArtifacts[buildId];
     }
 
     return "No artifacts found";
@@ -1804,7 +1762,6 @@ function loadBuildArtifacts(buildId) {
 function getBuildArtifacts(jobName, buildNum, buildId) {
     if (!isNullOrEmpty(buildNum)) {
         // If there are no artifacts and we previously checked this url, don't check it again
-        var markedUrls = JSON.parse(sessionStorage.markedUrls);
         if (markedUrls.hasOwnProperty(rootURL + "/job/" + jobName + "/" + buildNum + "/api/json?tree=artifacts[*]")) {
             return;
         }
@@ -1855,16 +1812,13 @@ function getBuildArtifactData(url, jobName, buildNum, buildId, data) {
     }
 
     // Mark this url so we don't check it again
-    var markedUrls = JSON.parse(sessionStorage.markedUrls);
     markedUrls[url] = "true";
-    sessionStorage.markedUrls = JSON.stringify(markedUrls);
 }
 
 /**
  * Callback function to generate a link to a specific build artifact.
  */
 function getBuildArtifactLinks(url, json, buildId) {
-    var savedValues = JSON.parse(sessionStorage.savedPipelineArtifacts);
     var ele = document.getElementById(buildId);
 
     if (ele != null) {
@@ -1879,8 +1833,7 @@ function getBuildArtifactLinks(url, json, buildId) {
             ele.innerHTML = eleString;
         }
 
-        savedValues[buildId] = ele.innerHTML;
-        sessionStorage.savedPipelineArtifacts = JSON.stringify(savedValues);
+        savedPipelineArtifacts[buildId] = ele.innerHTML;
     }
 }
 
@@ -2019,8 +1972,6 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
     var projectNameIdMap = {};
     var updateString = "";
     var retVal = "";
-    var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
-    var previousDisplayArgConfig = JSON.parse(sessionStorage.previousDisplayArgConfig);
     var configNotChanged = _.isEqual(previousDisplayArgConfig, displayArgs);
 
     // Get a mapping of project names to project build ids
@@ -2047,7 +1998,7 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
 
                     // Do not search for a previously found value
                     var id = pipelineName + "-" + getStageId(displayKey, pipelineNum) + "-" + projectName;
-                    if (savedValues.hasOwnProperty(id) && configNotChanged) {
+                    if (savedPipelineDisplayValues.hasOwnProperty(id) && configNotChanged) {
                         continue;
                     }
                     if (projectNameIdMap.hasOwnProperty(projectName) == false) {
@@ -2103,7 +2054,6 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
                         continue;
                     }
 
-                    var markedUrls = JSON.parse(sessionStorage.markedUrls);
                     if (markedUrls.hasOwnProperty(rootURL + url)) {
                         continue;
                     }
@@ -2118,9 +2068,7 @@ function getGlobalDisplayValues(displayArgs, pipeline, pipelineName, pipelineNum
                             updateGlobalDisplayValues(data, this.url, displayArgs, pipelineName, pipelineNum);
                         },
                         error: function (xhr, status, error) {
-                            var markedUrls = JSON.parse(sessionStorage.markedUrls);
                             markedUrls[this.url] = "true";
-                            sessionStorage.markedUrls = JSON.stringify(markedUrls);
                         }
                     })
                 }
@@ -2168,9 +2116,7 @@ function updateGlobalDisplayValues(data, url, displayArgs, pipelineName, pipelin
                                         ele.innerHTML = envMap[envName];    
                                     }
 
-                                    var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
-                                    savedValues[id] = ele.innerHTML;
-                                    sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
+                                    savedPipelineDisplayValues[id] = ele.innerHTML;
                                 }
                             }
                         }
@@ -2224,9 +2170,7 @@ function updateGlobalDisplayValues(data, url, displayArgs, pipelineName, pipelin
                                 redrawConnections();
                             }
 
-                            var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
-                            savedValues[id] = ele.innerHTML;
-                            sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
+                            savedPipelineDisplayValues[id] = ele.innerHTML;
                         }
                     }
                 }
@@ -2287,9 +2231,7 @@ function updateGlobalDisplayValues(data, url, displayArgs, pipelineName, pipelin
                                 redrawConnections();
                             }
 
-                            var savedValues = JSON.parse(sessionStorage.savedPipelineDisplayValues);
-                            savedValues[id] = ele.innerHTML;
-                            sessionStorage.savedPipelineDisplayValues = JSON.stringify(savedValues);
+                            savedPipelineDisplayValues[id] = ele.innerHTML;
                         }
                     }
                 }
@@ -2327,8 +2269,6 @@ function generateStageDisplayValueTable(displayArgs, pipelineName, stageName, st
  * Retrieve desired values for a specific project along a pipeline
  */
 function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildNum, stageId) {
-    var previousDisplayArgConfig = JSON.parse(sessionStorage.previousDisplayArgConfig);
-    var savedStageDisplayValues = JSON.parse(sessionStorage.savedStageDisplayValues);
     var re = new RegExp(' ', 'g');
     var configNotChanged = _.isEqual(previousDisplayArgConfig, displayArgs);
 
@@ -2403,7 +2343,6 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
                     continue;
                 }
 
-                var markedUrls = JSON.parse(sessionStorage.markedUrls);
                 if (markedUrls.hasOwnProperty(rootURL + url)) {
                     continue;
                 }
@@ -2419,9 +2358,7 @@ function getStageDisplayValues(displayArgs, pipelineName, stageName, stageBuildN
                             stageBuildNum, stageId);
                     },
                     error: function (xhr, status, error) {
-                        var markedUrls = JSON.parse(sessionStorage.markedUrls);
                         markedUrls[this.url] = "true";
-                        sessionStorage.markedUrls = JSON.stringify(markedUrls);
                     }
                 })
             }
@@ -2469,9 +2406,7 @@ function updateStageDisplayValues(url, data, displayArgs, pipelineName, stageNam
                                 }
 
                                 var saveId = stageName + "-" + stageBuildNum + "-" + displayKey.replace(re, '_');
-                                var savedValues = JSON.parse(sessionStorage.savedStageDisplayValues);
-                                savedValues[saveId] = ele.innerHTML;
-                                sessionStorage.savedStageDisplayValues = JSON.stringify(savedValues);
+                                savedStageDisplayValues[saveId] = ele.innerHTML;
                             }
                         }
                     }
@@ -2506,9 +2441,7 @@ function updateStageDisplayValues(url, data, displayArgs, pipelineName, stageNam
                         ele.innerHTML = toolTipData;
 
                         var saveId = stageName + "-" + stageBuildNum + "-" + displayKey.replace(re, '_');
-                        var savedValues = JSON.parse(sessionStorage.savedStageDisplayValues);
-                        savedValues[saveId] = ele.innerHTML;
-                        sessionStorage.savedStageDisplayValues = JSON.stringify(savedValues);
+                        savedStageDisplayValues[saveId] = ele.innerHTML;
                     }
                 }
             }
@@ -2552,9 +2485,7 @@ function updateStageDisplayValues(url, data, displayArgs, pipelineName, stageNam
                         ele.innerHTML = toolTipData;
 
                         var saveId = stageName + "-" + stageBuildNum + "-" + displayKey.replace(re, '_');
-                        var savedValues = JSON.parse(sessionStorage.savedStageDisplayValues);
-                        savedValues[saveId] = ele.innerHTML;
-                        sessionStorage.savedStageDisplayValues = JSON.stringify(savedValues);
+                        savedStageDisplayValues[saveId] = ele.innerHTML;
                     }
                 }
             }
@@ -2583,69 +2514,56 @@ function grepRegexp(grepPattern, grepFlag, data) {
 }
 
 /**
- * Load the stages that failed on a blocking call.
+ * Helper method to check if a job failed on a blocking stage.
  */
-function loadFailedOnBlockStages(pipeline, i) {
-    var pipelineNum = pipeline.version.substring(1);
-    var blockedOnFailedMap = JSON.parse(sessionStorage.blockedOnFailedMap);
-    var failedOnBlockingJobs = blockedOnFailedMap[pipeline.stages[0].name + "-" + pipelineNum];
-
-    // No point iterating through the pipeline if there is no stage that failed on a blocking call
-    if (JSON.stringify(failedOnBlockingJobs) == JSON.stringify({})) {
-        return;
+function checkIsWorseOrEqualThan(status1, status2) {
+    var statusMap = {
+        "NEVER"    : 3, // blocking behaviour has "never" in lowercase but the other values in uppercase
+        "SUCCESS"  : 2,
+        "UNSTABLE" : 1,
+        "FAILURE"  : 0,
+        "FAILED"   : 0  // task.status.type is FAILED rather than FAILURE
     }
 
-    for (var j = 0; j < pipeline.stages.length - 1; j++) {
-        var stage = pipeline.stages[j];
-
-        if (failedOnBlockingJobs.hasOwnProperty(stage.name)) {
-            var ele = document.getElementById(getStageId(stage.id + "", i));
-            if (ele != null) {
-               ele.className = "circle circle_FAILED_ON_BLOCK";
-               ele.innerHTML = ele.innerHTML.replace("FAILED", "FAILED (on blocking call)");
-            }
-        }
+    if (!statusMap.hasOwnProperty(status1.toUpperCase())) {
+        return false;
     }
+
+    if (statusMap[status1.toUpperCase()] <= statusMap[status2.toUpperCase()]) {
+        return true;
+    }
+    return false;
 }
 
 /**
  * Mark the stages that failed on a blocking call.
  */
 function updateFailedOnBlockStages(pipeline, i) {
-    var blockedOnFailedMap = JSON.parse(sessionStorage.blockedOnFailedMap);
-    var pipelineNum = pipeline.version.substring(1);
-    var failedOnBlockingJobs = {};
+    var stageToNameMap = {};
 
-    for (var j = 0; j < pipeline.stages.length - 1; j++) {
+    // Map each stage name to each stage object
+    for (var j = 0; j < pipeline.stages.length; j++) {
+        var stage = pipeline.stages[j];
+        stageToNameMap[stage.name] = stage;
+    }
+
+    for (var j = 0; j < pipeline.stages.length; j++) {
         var stage = pipeline.stages[j];
         var ele = document.getElementById(getStageId(stage.id + "", i));
-        var downstreamStages = stage.downstreamStages;
-        var downstreamStageIds = stage.downstreamStageIds;
-        var blockingJobs = stage.blockingJobs;
-
-        var stageNum = stage.tasks[0].buildId;
-
-        if (downstreamStages.length == 0) {
-            continue;
-        }
 
         if (stage.tasks[0].status.type == "FAILED") {
-            for (var k = 0; k < downstreamStages.size(); k++) {
-                if (blockingJobs.indexOf(downstreamStages[k]) != -1) {
-                    var downstreamEle = document.getElementById(getStageId(downstreamStageIds[k] + "", i));
-                    if (downstreamEle != null) {
-                        if (downstreamEle.className == "circle circle_FAILED" || downstreamEle.className == "circle circle_CANCELLED") {
-                            ele.className = "circle circle_FAILED_ON_BLOCK";
-                            ele.innerHTML = ele.innerHTML.replace("FAILED", "FAILED (due to blocking call)");
-                            failedOnBlockingJobs[stage.name] = "true";
-                        }
+            for (var k = 0; k < stage.blockingCriteria.length; k++) {
+                var blockingCriterion = stage.blockingCriteria[k];
+                for (var key in blockingCriterion) {
+                    var downstreamStageStatus = stageToNameMap[key].tasks[0].status.type;
+                    if (checkIsWorseOrEqualThan(downstreamStageStatus, blockingCriterion[key])) {
+                        var reason = key + " was " + downstreamStageStatus;
+                        ele.className = "circle circle_FAILED_ON_BLOCK";
+                        ele.innerHTML = ele.innerHTML.replace("FAILED", "FAILED (due to blocking call - " + reason + ")");
                     }
                 }
             }
         }
-
-        blockedOnFailedMap[pipeline.stages[0].name + "-" + pipelineNum] = failedOnBlockingJobs;
-        sessionStorage.blockedOnFailedMap = JSON.stringify(blockedOnFailedMap);
     }
 }
 
@@ -2654,20 +2572,15 @@ function updateFailedOnBlockStages(pipeline, i) {
  */
 function toggleLegend(jobName, buildNum, showLegend) {
     var legendSuffix = jobName + "-" + buildNum;
-    if (showLegend) {
-        instance.show("b-" + legendSuffix);
-        instance.show("nb-" + legendSuffix);
-        instance.show("nbc-" + legendSuffix);
-        instance.show("bc-" + legendSuffix);
-        instance.show("d-" + legendSuffix);
-    } else {
-        instance.hide("b-" + legendSuffix);
-        instance.hide("nb-" + legendSuffix);
-        instance.hide("nbc-" + legendSuffix);
-        instance.hide("bc-" + legendSuffix);
-        instance.hide("d-" + legendSuffix);
-    }
-    
+    var legendPrefixes = ["b-", "nb-", "nbc-", "bc-", "d-"];
+
+    for (var i = 0; i < legendPrefixes.length; i++) {
+        if (showLegend) {
+            jsPlumbInstance.show(legendPrefixes[i] + legendSuffix);
+        } else {
+            jsPlumbInstance.hide(legendPrefixes[i] + legendSuffix);
+        }
+    }    
 }
 
 /**
@@ -2676,7 +2589,7 @@ function toggleLegend(jobName, buildNum, showLegend) {
  * in the latest run of the pipeline anyway.
  */
 function checkIfAnyRowToggled(toggleStates) {
-    if (JSON.stringify(toggleStates) != JSON.stringify({})) {
+    if (!_.isEqual(toggleStates, {})) {
         for (var key in toggleStates) {
             // Since all the toggle states are saved together, and the display table values
             // are saved as "table-row-group" when toggled, we only need to check for "block" state
@@ -2695,8 +2608,6 @@ function checkIfAnyRowToggled(toggleStates) {
  * Get the session state for any build toggles.
  */
 function getToggleState(toggleId, toggleType, defaultToggleOn) {
-    var toggleStates = JSON.parse(sessionStorage.toggleStates);
-
     if (toggleType == "block") {
         if (defaultToggleOn) {
             // If another row other than the first row is already toggled,
@@ -2709,7 +2620,6 @@ function getToggleState(toggleId, toggleType, defaultToggleOn) {
             }
 
             toggleStates[toggleId] = "block";
-            sessionStorage.toggleStates = JSON.stringify(toggleStates);
             return "block";
         } else {
             if (toggleStates.hasOwnProperty(toggleId)) {
@@ -2733,9 +2643,6 @@ function getToggleState(toggleId, toggleType, defaultToggleOn) {
 
 // Toggle method
 function toggle(jobName, buildNum) {
-    var toggleStates = JSON.parse(sessionStorage.toggleStates);
-    var pipelineStageIdMap = JSON.parse(sessionStorage.pipelineStageIdMap);
-    
     var toggleBuildId = "toggle-build-" + jobName + "-" + buildNum;
     var toggleRowId = "toggle-row-" + jobName + "-" + buildNum;
     var togglePipelineId = "toggle-pipeline-" + jobName + "-" + buildNum;
@@ -2753,7 +2660,7 @@ function toggle(jobName, buildNum) {
 
         // Hide all the connectors
         for (var key in stageIds) {
-            instance.hide(key);
+            jsPlumbInstance.hide(key);
         }
         toggleLegend(jobName, buildNum, false);
     } else {
@@ -2764,24 +2671,23 @@ function toggle(jobName, buildNum) {
 
         // Show all the connectors
         for (var key in stageIds) {
-            instance.show(key);
+            jsPlumbInstance.show(key);
         }
         toggleLegend(jobName, buildNum, true);
     }
 
     window.scrollTo(0, 0);
-    instance.revalidate();
+    jsPlumbInstance.revalidate();
 
     // Recalculate offsets for every stage
     for (var pipeline in pipelineStageIdMap) {
         for (var stage in pipelineStageIdMap[pipeline]) {
-            instance.recalculateOffsets(stage);
+            jsPlumbInstance.recalculateOffsets(stage);
         }
     }
 
-    sessionStorage.toggleStates = JSON.stringify(toggleStates);
     redrawConnections();
-    window.scrollTo(0, sessionStorage.getItem("page_y"));
+    window.scrollTo(0, page_y);
 }
 
 // For showing and hiding the display values table
@@ -2789,7 +2695,6 @@ function toggleTable(jobName, buildNum) {
     var toggleTableId = "toggle-table-" + jobName + "-" + buildNum;
     var displayTableId = "display-table-" + jobName + "-" + buildNum;
                             
-    var toggleStates = JSON.parse(sessionStorage.toggleStates);
     var ele = document.getElementById(toggleTableId);
     var displayEle = document.getElementById(displayTableId);
 
@@ -2803,7 +2708,6 @@ function toggleTable(jobName, buildNum) {
         toggleStates[toggleTableId] = "table-row-group";
     }
 
-    sessionStorage.toggleStates = JSON.stringify(toggleStates);
     redrawConnections();
 }
 
@@ -2814,8 +2718,6 @@ function toggleTableCompatibleFS(jobName, buildNum) {
     var toggleTableId = "toggle-table-" + jobName + "-" + buildNum;
     var displayTableId = "display-table-" + jobName + "-" + buildNum;
 
-    var currentPageY = sessionStorage.getItem("page_y");
-    var toggleStates = JSON.parse(sessionStorage.toggleStates);
     var ele = document.getElementById(toggleTableId);
     var displayEle = document.getElementById(displayTableId);
 
@@ -2830,20 +2732,17 @@ function toggleTableCompatibleFS(jobName, buildNum) {
     }
 
     window.scrollTo(0, 0);
+    jsPlumbInstance.revalidate();
 
-    instance.revalidate();
-
-    sessionStorage.toggleStates = JSON.stringify(toggleStates);
     redrawConnections();
-    window.scrollTo(0, currentPageY);
+    window.scrollTo(0, page_y);
 }
 
 /**
  * Store the current page's Y position.
  */
 function storePagePosition() {
-  var page_y = window.pageYOffset;
-  sessionStorage.setItem("page_y", page_y);
+    page_y = window.pageYOffset;
 }
 
 /**
@@ -2868,12 +2767,8 @@ function getStageSource(stageName, stageBuildId) {
         }
     })
 
-    if (isError) {
-        return null;
-    }
-
     // Query must have a timestamp
-    if (!json.hasOwnProperty("timestamp")) {
+    if (isError || !json.hasOwnProperty("timestamp")) {
         return null;
     }
 
@@ -2928,13 +2823,13 @@ function replayUpdateStage(stageTimestamps, counter, pipelineNum) {
         var scope = allScopes[i];
         var connections;
         if (sourceId != null) {
-            connections = instance.select({
+            connections = jsPlumbInstance.select({
                 scope   : scope,
                 target  : stageId,
                 source  : sourceId
             });
         } else {
-            connections = instance.select({
+            connections = jsPlumbInstance.select({
                 scope   : scope,
                 target  : stageId
             });
@@ -3043,7 +2938,7 @@ function replay(pipelineNum) {
 
         // Use jsPlumb to check if there is more than one connection to a particular stage
         var allScopes = ["pipeline-nb","pipeline-b","pipeline-nbc","pipeline-bc","pipeline-d"];
-        var numConnections = instance.getConnections({ scope: allScopes, target:stageId }, true).length;
+        var numConnections = jsPlumbInstance.getConnections({ scope: allScopes, target:stageId }, true).length;
 
         if (numConnections > 1) {
             console.info("More than one connection { " + numConnections + " } to stage: " + stage.name);
@@ -3111,13 +3006,13 @@ function replay(pipelineNum) {
 
     var counter = 0;
     for (var i = 0; i < stageTimestamps.length; i++) {
-        sleep(i * 1000).then(() => {
+        sleep(i * replayInterval).then(() => {
             replayUpdateStage(stageTimestamps, counter, pipelineNum);
             counter++;
         });
     }
 
-    sleep(stageTimestamps.length * 1000).then(() => {
+    sleep(stageTimestamps.length * replayInterval).then(() => {
         console.info("Replay complete! Refreshing page!");
         replayIsRunning = false;
         replayEle.className = "replay replayStopped build_circle";

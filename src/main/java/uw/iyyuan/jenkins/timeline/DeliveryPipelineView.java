@@ -85,6 +85,7 @@ public class DeliveryPipelineView extends View {
     private static final Logger LOG = Logger.getLogger(DeliveryPipelineView.class.getName());
 
     private static final int DEFAULT_INTERVAL = 60;
+    private static final int DEFAULT_REPLAY_INTERVAL = 1;
 
     private static final int DEFAULT_NO_OF_PIPELINES = 5;
     private static final int MAX_NO_OF_PIPELINES = 50;
@@ -123,6 +124,7 @@ public class DeliveryPipelineView extends View {
     private boolean linkToConsoleLog = true;
 
     private String viewMode = ViewMode.MINIMALIST;
+    private int replayInterval = DEFAULT_REPLAY_INTERVAL;
     private boolean useFullLocaleTimeStrings = true;
     private boolean showArtifacts = false;
     private boolean useYamlParser = true;
@@ -448,6 +450,15 @@ public class DeliveryPipelineView extends View {
 
     public void setViewMode(String viewMode) {
         this.viewMode = viewMode;
+    }
+
+    @Exported
+    public int getReplayInterval() {
+        return replayInterval;
+    }
+
+    public void setReplayInterval(int replayInterval) {
+        this.replayInterval = replayInterval;
     }
 
     @Exported
