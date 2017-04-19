@@ -700,6 +700,10 @@ public class Stage extends AbstractItem {
                     }
 
                     completedBlockingJobs.add(stage.getName());
+                } else {
+                    if (stage.getColumn() > stage.getNextBlockingColumn()) {
+                        stage.setNextBlockingColumn(stage.getColumn() + 1);
+                    }
                 }
             }
 
@@ -763,7 +767,7 @@ public class Stage extends AbstractItem {
 
                         if (column >= triggerJobColumnNoShift) {
                             if (!processedPromotionStages.contains(stage)) {
-                                stage.setColumn(stage.getColumn() + criteriaJobColumn - triggerJobColumn + 1);
+                                stage.setColumn(stage.getColumn() + criteriaJobColumn - triggerJobColumn);
 
                                 // Update the stages next blocking column as well
                                 if (stage.getNextBlockingColumn() > -1) {
