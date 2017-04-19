@@ -45,11 +45,11 @@ function pipelineUtils() {
                 }, timeout);
             },
             error: function (xhr, status, error) {
-                Q("#" + errorDiv).html('Error communicating to server! ' + htmlEncode(error)).show();
+                Q("#" + errorDiv).html('Error communicating to server! ' + htmlEncode(error) + ". Retrying in 5 seconds.").show();
                 jsplumb.repaintEverything();
                 setTimeout(function () {
                     self.updatePipelines(divNames, errorDiv, view, fullscreen, page, component, showChanges, aggregatedChangesGroupingPattern, timeout, pipelineid, jsplumb);
-                }, timeout);
+                }, 5000);
             }
         });
     }
