@@ -65,6 +65,7 @@ import uw.iyyuan.jenkins.timeline.util.PipelineUtils;
 import uw.iyyuan.jenkins.timeline.util.ProjectUtil;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -93,8 +94,8 @@ public class Stage extends AbstractItem {
     private List<String> blockingJobs;
     private List<String> conditionalJobs;
     private List<String> downstreamJobs;
-    private String promotionCriteriaJobs;
-    private String promotionTriggerJobs;
+    private List<String> promotionCriteriaJobs;
+    private List<String> promotionTriggerJobs;
     private List<Map<String, String>> blockingCriteria;
 
     // Used for mapping of stages
@@ -107,7 +108,7 @@ public class Stage extends AbstractItem {
     }
 
     public Stage(String name, List<Task> tasks, List<String> blockingJobs, List<String> conditionalJobs,
-                 List<String> downstreamJobs, String promotionCriteriaJobs, String promotionTriggerJobs,
+                 List<String> downstreamJobs, List<String> promotionCriteriaJobs, List<String> promotionTriggerJobs,
                  List<Map<String, String>> blockingCriteria) {
         super(name);
         this.tasks = ImmutableList.copyOf(tasks);
@@ -137,7 +138,7 @@ public class Stage extends AbstractItem {
     private Stage(String name, List<Task> tasks, List<Task> previousTasks, List<String> downstreamStages,
                   List<Long> downstreamStageIds, Map<String, List<String>> taskConnections, String version, int row,
                   int column, long id, List<String> blockingJobs, List<String> conditionalJobs, 
-                  List<String> downstreamJobs, String promotionCriteriaJobs, String promotionTriggerJobs,
+                  List<String> downstreamJobs, List<String> promotionCriteriaJobs, List<String> promotionTriggerJobs,
                   List<Map<String, String>> blockingCriteria) {
         super(name);
         this.tasks = tasks;
@@ -255,20 +256,20 @@ public class Stage extends AbstractItem {
     }
 
     @Exported
-    public String getPromotionCriteriaJobs() {
+    public List<String> getPromotionCriteriaJobs() {
         return promotionCriteriaJobs;
     }
 
-    public void setPromotionCriteriaJobs(String promotionCriteriaJobs) {
+    public void setPromotionCriteriaJobs(List<String> promotionCriteriaJobs) {
         this.promotionCriteriaJobs = promotionCriteriaJobs;
     }
 
     @Exported
-    public String getPromotionTriggerJobs() {
+    public List<String> getPromotionTriggerJobs() {
         return promotionTriggerJobs;
     }
 
-    public void setPromotionTriggerJobs(String promotionTriggerJobs) {
+    public void setPromotionTriggerJobs(List<String> promotionTriggerJobs) {
         this.promotionTriggerJobs = promotionTriggerJobs;
     }
 
@@ -299,7 +300,7 @@ public class Stage extends AbstractItem {
 
     public static Stage getPrototypeStage(String name, List<Task> tasks, List<String> blockingJobs, 
                                           List<String> conditionalJobs, List<String> downstreamJobs, 
-                                          String promotionCriteriaJobs, String promotionTriggerJobs,
+                                          List<String> promotionCriteriaJobs, List<String> promotionTriggerJobs,
                                           List<Map<String, String>> blockingCriteria) {
         return new Stage(name, tasks, blockingJobs, conditionalJobs, downstreamJobs, promotionCriteriaJobs, 
                 promotionTriggerJobs, blockingCriteria);
@@ -319,10 +320,10 @@ public class Stage extends AbstractItem {
             List<String> blockingJobs = getBlockingJobsForStage(project);
             List<String> conditionalJobs = getConditionalJobsForStage(project);
             List<String> downstreamJobs = getDownstreamJobsForStage(project);
-            String promotionCriteriaJobs = "";
-            String promotionTriggerJobs = "";
+            List<String> promotionCriteriaJobs = Lists.newArrayList();
+            List<String> promotionTriggerJobs = Lists.newArrayList();
 
-            // Mark the promotion criteria jobs and the builds to trigger upon a promotion
+            // Mark the promotion criteria jobs and the jobs to trigger upon a promotion
             for (PromotedProjectAction action : Util.filter(project.getActions(), PromotedProjectAction.class)) {
                 for (PromotionProcess pp : action.getProcesses()) {
 
@@ -330,24 +331,31 @@ public class Stage extends AbstractItem {
 
                     // Check for downstream criteria jobs
                     for (PromotionCondition pc : conditions) {
+
+                        // Only supporting downstream conditions as of now
                         if (pc instanceof DownstreamPassCondition) {
-                            promotionCriteriaJobs += ((DownstreamPassCondition) pc).getJobs();
+                            promotionCriteriaJobs.addAll(Arrays.asList(
+                                    ((DownstreamPassCondition) pc).getJobs().replaceAll("\\s","").split(",")));
                         }
 
                         // if (pc instanceof UpstreamPromotionCondition) {
-                        //     promotionCriteriaJobs += ((UpstreamPromotionCondition) pc).getRequiredPromotionNames();
+                        //     promotionCriteriaJobs.add(Arrays.asList(
+                        //             ((UpstreamPromotionCondition) pc).getRequiredPromotionNames(
+                        //                         ).replaceAll("\\s","").split(",")));
                         // }
                     }
 
                     for (BuildStep bs : pp.getBuildSteps()) {
                         if (bs instanceof TriggerBuilder) {
                             for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(bs).getConfigs()) {
-                                promotionTriggerJobs += config.getProjects() + ", ";
+                                promotionTriggerJobs.addAll(
+                                        Arrays.asList(config.getProjects().replaceAll("\\s","").split(",")));
                             }
                         } else if (bs instanceof BuildTrigger) {
                             for (AbstractProject projectToPromote : BuildTrigger.class.cast(bs).getChildProjects(
                                     project)) {
-                                promotionTriggerJobs += projectToPromote.getFullName() + ", ";
+                                promotionTriggerJobs.addAll(
+                                        Arrays.asList(projectToPromote.getFullName().replaceAll("\\s","").split(",")));
                             }
                         }
                     }
@@ -361,41 +369,56 @@ public class Stage extends AbstractItem {
             // Mark the jobs in the post build script as conditional/blocking as needed
             if (publishers != null) {
                 for (Publisher publisher : publishers) {
+                    // Looking specifically for the PostBuildScript plugin
                     if (publisher instanceof PostBuildScript) {
                         List<BuildStep> postBuildSteps = ((PostBuildScript) publisher).getBuildSteps();
 
                         for (BuildStep bs : postBuildSteps) {
-                            // Conditional steps (single) or (multiple) 
+                            // BuildStep: Conditional steps (single) or (multiple) 
                             if (bs instanceof ConditionalBuilder) {
                                 List<BuildStep> cbs = ((ConditionalBuilder) bs).getConditionalbuilders();
 
+                                // Check for any enclosed "Trigger/call builds on other projects" build steps
                                 for (BuildStep buildStep : cbs) {
                                     if (TriggerBuilder.class.isInstance(buildStep)) {
                                         for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(
                                                 buildStep).getConfigs()) {
                                             if (config.getBlock() != null) {
-                                                blockingJobs.add(config.getProjects());
-                                                Map<String, String> blockingCriterion = new HashMap<String, String>();
-                                                if (config.getBlock().failureThreshold != null) {
-                                                    blockingCriterion.put(config.getProjects(), 
-                                                        config.getBlock().failureThreshold.toString());
-                                                    blockingCriteria.add(blockingCriterion);
+                                                // Remove all white spaces and split by every comma since
+                                                // config.getProjects() returns a comma separated list of job names as
+                                                // a single String
+                                                String[] configProjects =
+                                                        config.getProjects().replaceAll("\\s","").split(",");
+
+                                                for (String configProject : configProjects) {
+                                                    blockingJobs.add(configProject);
+                                                    if (config.getBlock().failureThreshold != null) {
+                                                        Map<String, String> blockingCriterion = Maps.newHashMap();
+                                                        blockingCriterion.put(configProject,
+                                                                config.getBlock().failureThreshold.toString());
+                                                        blockingCriteria.add(blockingCriterion);
+                                                    }
+                                                    conditionalJobs.add(configProject);
                                                 }
                                             }
-                                            conditionalJobs.add(config.getProjects());
                                         }
                                     }
                                 }
-                            // Trigger/call builds on other projects
+                            // BuildStep: Trigger/call builds on other projects
                             } else if (bs instanceof TriggerBuilder) {
                                 for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(bs).getConfigs()) {
                                     if (config.getBlock() != null) {
-                                        blockingJobs.add(config.getProjects());
-                                        Map<String, String> blockingCriterion = new HashMap<String, String>();
-                                        if (config.getBlock().failureThreshold != null) {
-                                            blockingCriterion.put(config.getProjects(),
-                                                config.getBlock().failureThreshold.toString());
-                                            blockingCriteria.add(blockingCriterion);
+                                        // Remove all white spaces and split by every comma since config.getProjects()
+                                        // returns a comma separated list of job names as a single String
+                                        String[] configProjects = config.getProjects().replaceAll("\\s","").split(",");
+                                        for (String configProject : configProjects) {
+                                            blockingJobs.add(configProject);
+                                            if (config.getBlock().failureThreshold != null) {
+                                                Map<String, String> blockingCriterion = Maps.newHashMap();
+                                                blockingCriterion.put(configProject,
+                                                        config.getBlock().failureThreshold.toString());
+                                                blockingCriteria.add(blockingCriterion);
+                                            }
                                         }
                                     }
                                 }
@@ -446,8 +469,8 @@ public class Stage extends AbstractItem {
     }
 
     public Stage createLatestStage(ItemGroup context, AbstractBuild firstBuild) {
-        List<Task> stageTasks = new ArrayList<Task>();
-        List<Task> previousStageTasks = new ArrayList<Task>();
+        List<Task> stageTasks = Lists.newArrayList();
+        List<Task> previousStageTasks = Lists.newArrayList();
 
         for (Task task : getTasks()) {
             stageTasks.add(task.getLatestTask(context, firstBuild));
@@ -466,8 +489,8 @@ public class Stage extends AbstractItem {
     public static List<Stage> placeStages(AbstractProject firstProject, Collection<Stage> stages)
             throws PipelineException {
 
-        Queue<String> promotionCriteriaJobsQueue = new LinkedList<String>();
-        Queue<String> promotionTriggerJobsQueue = new LinkedList<String>();
+        Queue<List<String>> promotionCriteriaJobsQueue = new LinkedList<List<String>>();
+        Queue<List<String>> promotionTriggerJobsQueue = new LinkedList<List<String>>();
 
         DirectedGraph<Stage, Edge> graph = new SimpleDirectedGraph<Stage, Edge>(new StageEdgeFactory());
         for (Stage stage : stages) {
@@ -485,7 +508,7 @@ public class Stage extends AbstractItem {
             stage.setDownstreamStages(downstreamStageNames);
             stage.setDownstreamStageIds(downstreamStageIds);
 
-            if (stage.getPromotionCriteriaJobs() != "" || stage.getPromotionTriggerJobs() != "") {
+            if (stage.getPromotionCriteriaJobs().size() > 0 || stage.getPromotionTriggerJobs().size() > 0) {
                 promotionCriteriaJobsQueue.add(stage.getPromotionCriteriaJobs());
                 promotionTriggerJobsQueue.add(stage.getPromotionTriggerJobs());
             } 
@@ -510,14 +533,15 @@ public class Stage extends AbstractItem {
         // than the the promotion criteria job
         while (!promotionCriteriaJobsQueue.isEmpty()) {
 
-            final String criteriaJob = promotionCriteriaJobsQueue.poll().replaceAll(", ", "");
-            final String triggerJob = promotionTriggerJobsQueue.poll().replaceAll(", ", "");
+            // Remove all whitespaces and split the comma separated list into a list of job names
+            final List<String> criteriaJobs = promotionCriteriaJobsQueue.poll();
+            final List<String> triggerJobs = promotionTriggerJobsQueue.poll();
 
             Collections.sort(allPaths, new Comparator<List<Stage>>() {
                 public int compare(List<Stage> stages1, List<Stage> stages2) {
 
-                    List<String> stages1Names = new ArrayList<String>();
-                    List<String> stages2Names = new ArrayList<String>();
+                    List<String> stages1Names = Lists.newArrayList();
+                    List<String> stages2Names = Lists.newArrayList();
 
                     for (Stage stage : stages1) {
                         stages1Names.add(stage.getName());
@@ -527,9 +551,14 @@ public class Stage extends AbstractItem {
                         stages2Names.add(stage.getName());
                     }
 
-                    if (stages1Names.contains(triggerJob) && stages2Names.contains(criteriaJob)) {
+                    // Check if path A contains any of the [ trigger jobs | criteria jobs ]
+                    // Check if path B contains any of the [ criteria jobs | trigger jobs ]
+                    // Paths with criteria jobs should come before paths with trigger jobs
+                    if (!Collections.disjoint(stages1Names, triggerJobs)
+                            && !Collections.disjoint(stages2Names, criteriaJobs)) {
                         return 1;
-                    } else if (stages1Names.contains(criteriaJob) && stages2Names.contains(triggerJob)) {
+                    } else if (!Collections.disjoint(stages2Names, triggerJobs)
+                            && !Collections.disjoint(stages1Names, criteriaJobs)) {
                         return -1;
                     }
 
@@ -671,6 +700,10 @@ public class Stage extends AbstractItem {
                     }
 
                     completedBlockingJobs.add(stage.getName());
+                } else {
+                    if (stage.getColumn() > stage.getNextBlockingColumn()) {
+                        stage.setNextBlockingColumn(stage.getColumn() + 1);
+                    }
                 }
             }
 
@@ -684,7 +717,7 @@ public class Stage extends AbstractItem {
 
         // Readd the promotion criteria and promotion trigger jobs
         for (Stage stage : stages) {
-            if (stage.getPromotionCriteriaJobs() != "" || stage.getPromotionTriggerJobs() != "") {
+            if (stage.getPromotionCriteriaJobs().size() > 0 || stage.getPromotionTriggerJobs().size() > 0) {
                 promotionCriteriaJobsQueue.add(stage.getPromotionCriteriaJobs());
                 promotionTriggerJobsQueue.add(stage.getPromotionTriggerJobs());
             }
@@ -694,8 +727,8 @@ public class Stage extends AbstractItem {
         while (!promotionCriteriaJobsQueue.isEmpty()) {
 
             final List<Stage> processedPromotionStages = Lists.newArrayList();
-            final String criteriaJob = promotionCriteriaJobsQueue.poll().replaceAll(", ", "");
-            final String triggerJob = promotionTriggerJobsQueue.poll().replaceAll(", ", "");
+            final List<String> criteriaJobs = promotionCriteriaJobsQueue.poll();
+            final List<String> triggerJobs = promotionTriggerJobsQueue.poll();
 
             int criteriaJobColumn = -1;
             int triggerJobColumn = -1;
@@ -708,11 +741,11 @@ public class Stage extends AbstractItem {
                 for (int column = 0; column < path.size(); column++) {
                     Stage stage = path.get(column);
 
-                    if (stage.getName().equals(criteriaJob)) {
+                    if (criteriaJobs.contains(stage.getName())) {
                         criteriaJobColumn = Math.max(stage.getColumn(), stage.getNextBlockingColumn());
                     }
 
-                    if (stage.getName().equals(triggerJob)) {
+                    if (triggerJobs.contains(stage.getName())) {
                         triggerJobColumn = stage.getColumn();
                         triggerJobColumnNoShift = column;
                         triggerStage = stage;
@@ -734,7 +767,7 @@ public class Stage extends AbstractItem {
 
                         if (column >= triggerJobColumnNoShift) {
                             if (!processedPromotionStages.contains(stage)) {
-                                stage.setColumn(stage.getColumn() + criteriaJobColumn - triggerJobColumn + 1);
+                                stage.setColumn(stage.getColumn() + criteriaJobColumn - triggerJobColumn);
 
                                 // Update the stages next blocking column as well
                                 if (stage.getNextBlockingColumn() > -1) {
@@ -824,16 +857,19 @@ public class Stage extends AbstractItem {
     }
 
     public static List<Map<String, String>> getBlockingCriteriaForStage(AbstractProject project) {
-        List<Map<String, String>> blockingCriteria = new ArrayList<Map<String, String>>();
+        List<Map<String, String>> blockingCriteria = Lists.newArrayList();
 
         // Blocking subprojects
         for (SubProjectsAction action : Util.filter(project.getActions(), SubProjectsAction.class)) {
             for (BlockableBuildTriggerConfig config : action.getConfigs()) {
                 if (config.getBlock() != null) {
-                    Map<String, String> blockingCriterion = new HashMap<String, String>();
-                    if (config.getBlock().failureThreshold != null) {
-                        blockingCriterion.put(config.getProjects(), config.getBlock().failureThreshold.toString());
-                        blockingCriteria.add(blockingCriterion);
+                    String[] configProjects = config.getProjects().replaceAll("\\s","").split(",");
+                    for (String configProject : configProjects) {
+                        if (config.getBlock().failureThreshold != null) {
+                            Map<String, String> blockingCriterion = Maps.newHashMap();
+                            blockingCriterion.put(configProject, config.getBlock().failureThreshold.toString());
+                            blockingCriteria.add(blockingCriterion);
+                        }
                     }
                 }
             }
@@ -843,10 +879,13 @@ public class Stage extends AbstractItem {
         for (TriggerBuilder trigger : ConditionalBuildStepHelper.getContainedBuilders(project, TriggerBuilder.class)) {
             for (BlockableBuildTriggerConfig config : trigger.getConfigs()) {
                 if (config.getBlock() != null) {
-                    Map<String, String> blockingCriterion = new HashMap<String, String>();
-                    if (config.getBlock().failureThreshold != null) {
-                        blockingCriterion.put(config.getProjects(), config.getBlock().failureThreshold.toString());
-                        blockingCriteria.add(blockingCriterion);
+                    String[] configProjects = config.getProjects().replaceAll("\\s","").split(",");
+                    for (String configProject : configProjects) {
+                        if (config.getBlock().failureThreshold != null) {
+                            Map<String, String> blockingCriterion = Maps.newHashMap();
+                            blockingCriterion.put(configProject, config.getBlock().failureThreshold.toString());
+                            blockingCriteria.add(blockingCriterion);
+                        }
                     }
                 }
             }
@@ -856,11 +895,14 @@ public class Stage extends AbstractItem {
     }
 
     private static List<String> getBlockingJobsForStage(AbstractProject project) {
-        List<String> jobNames = new ArrayList<String>();
+        List<String> jobNames = Lists.newArrayList();
         for (SubProjectsAction action : Util.filter(project.getActions(), SubProjectsAction.class)) {
             for (BlockableBuildTriggerConfig config : action.getConfigs()) {
                 if (config.getBlock() != null) {
-                    jobNames.add(config.getProjects());
+                    String[] configProjects = config.getProjects().replaceAll("\\s","").split(",");
+                    for (String configProject : configProjects) {
+                        jobNames.add(configProject);
+                    }
                 }
             }
         }
@@ -868,17 +910,20 @@ public class Stage extends AbstractItem {
     }
 
     private static List<String> getConditionalJobsForStage(AbstractProject project) {
-        List<String> jobNames = new ArrayList<String>();
+        List<String> jobNames = Lists.newArrayList();
         for (TriggerBuilder trigger : ConditionalBuildStepHelper.getContainedBuilders(project, TriggerBuilder.class)) {
             for (BlockableBuildTriggerConfig config : trigger.getConfigs()) {
-                jobNames.add(config.getProjects());
+                String[] configProjects = config.getProjects().replaceAll("\\s","").split(",");
+                for (String configProject : configProjects) {
+                    jobNames.add(configProject);
+                }
             }
         }
         return jobNames;
     }
 
     private static List<String> getDownstreamJobsForStage(AbstractProject project) {
-        List<String> jobNames = new ArrayList<String>();
+        List<String> jobNames = Lists.newArrayList();
         List<AbstractProject> downstreamProjects = project.getDownstreamProjects();
         for (AbstractProject downstreamProject : downstreamProjects) {
             jobNames.add(downstreamProject.getDisplayName());

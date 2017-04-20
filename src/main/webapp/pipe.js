@@ -45,11 +45,11 @@ function pipelineUtils() {
                 }, timeout);
             },
             error: function (xhr, status, error) {
-                Q("#" + errorDiv).html('Error communicating to server! ' + htmlEncode(error)).show();
+                Q("#" + errorDiv).html('Error communicating to server! ' + htmlEncode(error) + ". Retrying in 5 seconds.").show();
                 jsplumb.repaintEverything();
                 setTimeout(function () {
                     self.updatePipelines(divNames, errorDiv, view, fullscreen, page, component, showChanges, aggregatedChangesGroupingPattern, timeout, pipelineid, jsplumb);
-                }, timeout);
+                }, 5000);
             }
         });
     }
@@ -2555,11 +2555,14 @@ function updateFailedOnBlockStages(pipeline, i) {
             for (var k = 0; k < stage.blockingCriteria.length; k++) {
                 var blockingCriterion = stage.blockingCriteria[k];
                 for (var key in blockingCriterion) {
-                    var downstreamStageStatus = stageToNameMap[key].tasks[0].status.type;
-                    if (checkIsWorseOrEqualThan(downstreamStageStatus, blockingCriterion[key])) {
-                        var reason = key + " was " + downstreamStageStatus;
-                        ele.className = "circle circle_FAILED_ON_BLOCK";
-                        ele.innerHTML = ele.innerHTML.replace("FAILED", "FAILED (due to blocking call - " + reason + ")");
+                    // Safety check in case backend logic parses the comma separated list of job names incorrectly
+                    if (stageToNameMap[key] != null) {
+                        var downstreamStageStatus = stageToNameMap[key].tasks[0].status.type;
+                        if (checkIsWorseOrEqualThan(downstreamStageStatus, blockingCriterion[key])) {
+                            var reason = key + " was " + downstreamStageStatus;
+                            ele.className = "circle circle_FAILED_ON_BLOCK";
+                            ele.innerHTML = ele.innerHTML.replace("FAILED", "FAILED (due to blocking call - " + reason + ")");
+                        }
                     }
                 }
             }

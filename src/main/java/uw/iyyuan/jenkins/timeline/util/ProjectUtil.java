@@ -137,42 +137,45 @@ public final class ProjectUtil {
         // Note: There is likely a better way to do this but this is sufficient for now
         if (publishers != null) {
             for (Publisher publisher : publishers) {
+                // Looking specifically for the PostBuildScript plugin
                 if (publisher instanceof PostBuildScript) {
                     List<BuildStep> postBuildSteps = ((PostBuildScript) publisher).getBuildSteps();
 
                     for (BuildStep bs : postBuildSteps) {
-                        // Conditional steps (single) or (multiple) 
+                        // BuildStep: Conditional steps (single) or (multiple) 
                         if (bs instanceof ConditionalBuilder) {
                             List<BuildStep> cbs = ((ConditionalBuilder) bs).getConditionalbuilders();
 
-                            if (cbs != null) {
-                                for (BuildStep buildStep : cbs) {
-                                    if (TriggerBuilder.class.isInstance(buildStep)) {
-                                        for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(
-                                                buildStep).getConfigs()) {
-                                
-                                            // Find the nearest project and ONLY add it if the name is an exact match
-                                            AbstractProject projectToAdd = 
-                                                AbstractProject.findNearest(config.getProjects().trim());
+                            // Check for any enclosed "Trigger/call builds on other projects" build steps
+                            for (BuildStep buildStep : cbs) {
+                                if (TriggerBuilder.class.isInstance(buildStep)) {
+                                    for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(
+                                            buildStep).getConfigs()) {
 
-                                            if (projectToAdd.getFullName().equals(config.getProjects().trim())) {
+                                        String[] configProjects = config.getProjects().replaceAll("\\s","").split(",");
+
+                                        for (String configProject : configProjects) {
+                                            // Find the nearest project and add it if the name is an exact match
+                                            AbstractProject projectToAdd = AbstractProject.findNearest(configProject);
+
+                                            if (projectToAdd.getFullName().equals(configProject)) {
                                                 result.add(projectToAdd);
                                             }
-
                                         }
                                     }
                                 }
                             }
-                        // Trigger/call builds on other projects
+                        // BuildStep: Trigger/call builds on other projects
                         } else if (bs instanceof TriggerBuilder) {
                             for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(bs).getConfigs()) {
 
-                                // Find the nearest project and ONLY add it if the name is an exact match
-                                AbstractProject projectToAdd = 
-                                    AbstractProject.findNearest(config.getProjects().trim());
-
-                                if (projectToAdd.getFullName().equals(config.getProjects().trim())) {
-                                    result.add(projectToAdd);
+                                String[] configProjects = config.getProjects().replaceAll("\\s","").split(",");
+                                for (String configProject : configProjects) {
+                                    // Find the nearest project and add it if the name is an exact match
+                                    AbstractProject projectToAdd = AbstractProject.findNearest(configProject);
+                                    if (projectToAdd.getFullName().equals(configProject)) {
+                                        result.add(projectToAdd);
+                                    }
                                 }
                             }
                         }
