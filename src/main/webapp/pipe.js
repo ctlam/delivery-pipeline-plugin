@@ -1838,7 +1838,14 @@ function getBuildArtifactLinks(url, json, buildId) {
 }
 
 /**
- * Get custom pipeline status
+ * Get custom pipeline status.
+ * The behaviour is as follows:
+ * 1. If any of the specified jobs are marked as FAILED or CANCELLED, then the pipeline build status is immediately set as FAILED
+ * 2. If a specified job is marked as SUCCESS, then the pipeline build status is marked as SUCCESS unless a different job is found to be FAILED
+ * 3. If ALL of the specified jobs are marked as IDLE, then the pipeline build status is FAILED
+ *
+ * If Job A is SUCCESS and Job B is IDLE, then the pipeline build status is SUCCESS
+ * Essentially, an IDLE status has a lower precedence in determining the build status of a particular pipeline.
  */
 function getCustomPipelineBuildStatus(displayArgs, pipeline, jobName, buildNum, allStagesComplete) {
     for (var mainProject in displayArgs) {
@@ -1858,31 +1865,39 @@ function getCustomPipelineBuildStatus(displayArgs, pipeline, jobName, buildNum, 
             } else {
                 // Check that all the user defined jobs are successful
                 var finalStatus = "";
+                var stageToNameMap = {};
+
+                // Map each stage name to each stage object
                 for (var i = 0; i < pipeline.stages.length; i++) {
-                    stage = pipeline.stages[i];
+                    var stage = pipeline.stages[i];
+                    stageToNameMap[stage.name] = stage;
+                }
 
-                    var projects = displayArgs[mainProject].PipelineBuildStatus;
-                    while (projects != "") {
-                        var project = projects.split(",")[0];
+                var projects = displayArgs[mainProject].PipelineBuildStatus.split(",");
 
-                        if (stage.name == project) {
-                            stageStatus = stage.tasks[0].status.type;
+                for (var i = 0; i < projects.length; i++) {
+                    var project = projects[i];
 
-                            if (stageStatus == "FAILED" || stageStatus == "CANCELLED" || stageStatus == "IDLE") {
+                    if (stageToNameMap.hasOwnProperty(project)) {
+                        stageStatus = stageToNameMap[project].tasks[0].status.type;
 
-                                var id = jobName + "-" + buildNum + "-status";
-                                var ele = document.getElementById(id);
-                                ele.className = "circle_header circle_FAILED build_circle";
-                                return;
-                            }
-                            if (stageStatus == "SUCCESS") {
-                                finalStatus = "SUCCESS";
-                            }
-                            break;
+                        if (stageStatus == "FAILED" || stageStatus == "CANCELLED") {
+                            var id = jobName + "-" + buildNum + "-status";
+                            var ele = document.getElementById(id);
+                            ele.className = "circle_header circle_FAILED build_circle";
+                            return;
                         }
-                        projects = projects.split(",").slice(1).join(",");
+                        if (stageStatus == "IDLE" || stageStatus == "NOT_BUILT") {
+                            if (isNullOrEmpty(finalStatus)) {
+                                finalStatus = "FAILED";
+                            }
+                        }
+                        if (stageStatus == "SUCCESS") {
+                            finalStatus = "SUCCESS";
+                        }
                     }
                 }
+
                 if (finalStatus != "") {
                     // Update pipeline build status to finalStatus
                     var id = jobName + "-" + buildNum + "-status";
