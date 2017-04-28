@@ -383,14 +383,15 @@ public class Stage extends AbstractItem {
                                     if (TriggerBuilder.class.isInstance(buildStep)) {
                                         for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(
                                                 buildStep).getConfigs()) {
-                                            if (config.getBlock() != null) {
-                                                // Remove all white spaces and split by every comma since
-                                                // config.getProjects() returns a comma separated list of job names as
-                                                // a single String
-                                                String[] configProjects =
-                                                        config.getProjects().replaceAll("\\s","").split(",");
+                                            // Remove all white spaces and split by every comma since
+                                            // config.getProjects() returns a comma separated list of job names as
+                                            // a single String
+                                            String[] configProjects =
+                                                    config.getProjects().replaceAll("\\s","").split(",");
 
-                                                for (String configProject : configProjects) {
+                                            for (String configProject : configProjects) {
+                                                // Check if this is a blocking call
+                                                if (config.getBlock() != null) {
                                                     blockingJobs.add(configProject);
                                                     if (config.getBlock().failureThreshold != null) {
                                                         Map<String, String> blockingCriterion = Maps.newHashMap();
@@ -398,8 +399,9 @@ public class Stage extends AbstractItem {
                                                                 config.getBlock().failureThreshold.toString());
                                                         blockingCriteria.add(blockingCriterion);
                                                     }
-                                                    conditionalJobs.add(configProject);
                                                 }
+                                                // Mark as a conditional job
+                                                conditionalJobs.add(configProject);
                                             }
                                         }
                                     }
@@ -407,11 +409,12 @@ public class Stage extends AbstractItem {
                             // BuildStep: Trigger/call builds on other projects
                             } else if (bs instanceof TriggerBuilder) {
                                 for (BlockableBuildTriggerConfig config : TriggerBuilder.class.cast(bs).getConfigs()) {
-                                    if (config.getBlock() != null) {
-                                        // Remove all white spaces and split by every comma since config.getProjects()
-                                        // returns a comma separated list of job names as a single String
-                                        String[] configProjects = config.getProjects().replaceAll("\\s","").split(",");
-                                        for (String configProject : configProjects) {
+                                    // Remove all white spaces and split by every comma since config.getProjects()
+                                    // returns a comma separated list of job names as a single String
+                                    String[] configProjects = config.getProjects().replaceAll("\\s","").split(",");
+                                    for (String configProject : configProjects) {
+                                        // Check if this is a blocking call
+                                        if (config.getBlock() != null) {
                                             blockingJobs.add(configProject);
                                             if (config.getBlock().failureThreshold != null) {
                                                 Map<String, String> blockingCriterion = Maps.newHashMap();
